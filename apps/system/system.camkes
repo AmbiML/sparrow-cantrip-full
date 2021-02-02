@@ -1,0 +1,54 @@
+/*
+ * Copyright 2017, Data61
+ * Commonwealth Scientific and Industrial Research Organisation (CSIRO)
+ * ABN 41 687 119 230.
+ *
+ * This software may be distributed and modified according to the terms of
+ * the BSD 2-Clause license. Note that NO WARRANTY is provided.
+ * See "LICENSE_BSD2.txt" for details.
+ *
+ * @TAG(DATA61_BSD)
+ */
+
+import <std_connector.camkes>;
+
+import "interfaces/uart.idl4";
+import "components/UartDriver/UartDriver.camkes";
+import "components/DebugConsole/DebugConsole.camkes";
+
+component UART {
+    hardware;
+    dataport Buf mem;
+    // TODO(mattharvey): Make receives wait on interrupt.
+    // emits Interrupt interrupt;
+}
+
+assembly {
+    composition {
+        component UART uart;
+        component UartDriver drv;
+        component DebugConsole debug_console;
+
+        connection seL4HardwareMMIO uart_mem(from drv.mem, to uart.mem);
+        // TODO(mattharvey): Make receives wait on interrupt.
+        // connection seL4HardwareInterrupt uart_interrupt(
+        //     from uart.interrupt, to drv.interrupt);
+        connection seL4RPCCall uart_inf(from debug_console.uart, to drv.uart);
+
+        connection seL4SharedData tx_channel(
+            from debug_console.tx_dataport, to drv.tx_dataport);
+        connection seL4SharedData rx_channel(
+            from debug_console.rx_dataport, to drv.rx_dataport);
+    }
+
+    configuration {
+        uart.mem_paddr = 0x10000000;
+        uart.mem_size = 0x1000;
+        // seL4 claims 10 is bigger than irqMax if this is uncommented.
+        // uart.interrupt_irq_number = 10;
+
+        random.ID = 1;
+
+        uart.integrity_label = "drv";
+    }
+}

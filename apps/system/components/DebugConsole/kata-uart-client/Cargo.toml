@@ -1,0 +1,9 @@
+[package]
+name = "cantrip-uart-client"
+version = "0.1.0"
+authors = ["Matt Harvey <mattharvey@google.com>"]
+edition = "2018"
+
+[dependencies]
+cty = "0.2.1"
+cantrip-io = { path = "../cantrip-io" }

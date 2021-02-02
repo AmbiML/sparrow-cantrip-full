@@ -1,0 +1,9 @@
+[package]
+name = "cantrip-shell"
+version = "0.1.0"
+authors = ["Matt Harvey <mattharvey@google.com>"]
+edition = "2018"
+
+[dependencies]
+cantrip-io = { path = "../cantrip-io" }
+cantrip-line-reader = { path = "../cantrip-line-reader" }

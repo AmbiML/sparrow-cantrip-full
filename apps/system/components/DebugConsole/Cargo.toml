@@ -1,0 +1,9 @@
+[workspace]
+
+members = [
+    "cantrip-debug-console",
+    "cantrip-io",
+    "cantrip-line-reader",
+    "cantrip-shell",
+    "cantrip-uart-client",
+]

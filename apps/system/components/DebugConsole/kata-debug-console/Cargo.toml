@@ -1,0 +1,16 @@
+[package]
+name = "cantrip-debug-console"
+version = "0.1.0"
+authors = ["Matt Harvey <mattharvey@google.com>"]
+edition = "2018"
+description = "Cantrip OS DebugConsole"
+
+[dependencies]
+panic-halt = "0.2.0"
+cantrip-shell = { path = "../cantrip-shell" }
+cantrip-uart-client = { path = "../cantrip-uart-client" }
+
+[lib]
+name = "cantrip_debug_console"
+path = "src/run.rs"
+crate-type = ["staticlib"]
