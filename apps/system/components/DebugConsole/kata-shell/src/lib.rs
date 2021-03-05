@@ -45,8 +45,8 @@ impl From<fmt::Error> for CommandError {
 pub fn repl(output: &mut dyn io::Write, input: &mut dyn io::Read) -> ! {
     let mut line_reader = LineReader::new();
     loop {
-        // The PROMPT is the Hiragana representation of the word "cantrip."
-        const PROMPT: &str = "かた ";
+        // The PROMPT is the Kanji character for the word "form", or "cantrip."
+        const PROMPT: &str = "形＞ ";
         let _ = output.write_str(PROMPT);
         match line_reader.read_line(output, input) {
             Ok(cmdline) => dispatch_command(cmdline, output),
