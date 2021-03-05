@@ -18,12 +18,9 @@ include(${CMAKE_CURRENT_LIST_DIR}/rust.cmake)
 
 RustAddLibrary(
   cantrip_debug_console
-  SOURCE_DIR
-  ${CMAKE_CURRENT_LIST_DIR}/components/DebugConsole
-  TARGET
-  "riscv32imc-unknown-none-elf"
-  LIB_FILENAME
-  libcantrip_debug_console.a
+  SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/components/DebugConsole
+  TARGET "riscv32imc-unknown-none-elf"
+  LIB_FILENAME libcantrip_debug_console.a
 )
 
 DeclareCAmkESComponent(DebugConsole
