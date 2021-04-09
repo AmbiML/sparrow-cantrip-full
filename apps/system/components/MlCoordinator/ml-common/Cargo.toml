@@ -1,0 +1,5 @@
+[package]
+name = "ml-common"
+version = "0.1.0"
+authors = ["Adam Jesionowski <jesionowski@google.com>"]
+edition = "2018"
