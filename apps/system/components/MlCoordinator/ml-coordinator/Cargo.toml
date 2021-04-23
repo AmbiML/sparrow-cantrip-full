@@ -1,8 +1,9 @@
 [package]
-name = "fake-executive"
+name = "ml-coordinator"
 version = "0.1.0"
 authors = ["Adam Jesionowski <jesionowski@google.com>"]
 edition = "2018"
 
 [dependencies]
 ml-common = { path = "../ml-common" }
+arrayvec = "0.5.2"
