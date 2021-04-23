@@ -42,7 +42,7 @@ assembly {
     }
 
     configuration {
-        uart.mem_paddr = 0x10000000;
+        uart.mem_paddr = 0x40030000;
         uart.mem_size = 0x1000;
         // seL4 claims 10 is bigger than irqMax if this is uncommented.
         // uart.interrupt_irq_number = 10;
