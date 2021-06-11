@@ -1,0 +1,16 @@
+[package]
+name = "cantrip-process-manager"
+version = "0.1.0"
+description = "Cantrip OS ProcessManager services"
+edition = "2018"
+
+[dependencies]
+arrayvec = { version = "0.7", default-features = false }
+cstr_core = { version = "0.2.3", default-features = false }
+cantrip-proc-common = { path = "../cantrip-proc-common" }
+panic-halt = "0.2.0"
+
+[lib]
+name = "cantrip_process_manager"
+path = "src/run.rs"
+crate-type = ["staticlib"]

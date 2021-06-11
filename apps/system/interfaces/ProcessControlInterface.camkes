@@ -1,0 +1,7 @@
+procedure ProcessControlInterface {
+  include <ProcessManagerBindings.h>;
+
+  bool start(in string bundleId);
+  bool stop(in string bundleId);
+  BundleIdArray get_running_bundles();
+};

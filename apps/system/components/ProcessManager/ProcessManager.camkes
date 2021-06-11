@@ -1,0 +1,13 @@
+// Cantrip OS ProcessManager services.
+
+import <ProcessControlInterface.camkes>;
+import <PackageManagementInterface.camkes>;
+import <SeL4DebugInterface.camkes>;
+
+component ProcessManager {
+  control;
+  provides ProcessControlInterface proc_ctrl;
+  provides PackageManagementInterface proc_mgmt;
+
+  uses SeL4DebugInterface sel4debug;
+}
