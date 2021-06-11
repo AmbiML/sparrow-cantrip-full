@@ -4,8 +4,8 @@ use cantrip_io as io;
 
 // C interface to external UART driver.
 extern "C" {
-    static rx_dataport: *mut cty::c_char;
-    static tx_dataport: *mut cty::c_char;
+    static rx_dataport: *mut cty::c_uchar;
+    static tx_dataport: *mut cty::c_uchar;
     fn uart_rx(n: cty::size_t);
     fn uart_tx(n: cty::size_t);
 }
