@@ -31,7 +31,7 @@ function(RustAddLibrary lib_name)
     endif()
 
     add_custom_target(
-        ${libmain}_custom
+        ${lib_name}_custom
         BYPRODUCTS
         ${RUST_BUILD_DIR}/${RUST_LIB_FILENAME}
         ${USES_TERMINAL_DEBUG}
@@ -49,5 +49,5 @@ function(RustAddLibrary lib_name)
         TARGET ${lib_name}
         PROPERTY IMPORTED_LOCATION "${RUST_BUILD_DIR}/${RUST_LIB_FILENAME}"
     )
-    add_dependencies(${lib_name} ${libmain}_custom)
+    add_dependencies(${lib_name} ${lib_name}_custom)
 endfunction()
