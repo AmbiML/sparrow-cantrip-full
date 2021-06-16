@@ -43,10 +43,10 @@ impl From<fmt::Error> for CommandError {
 
 /// Read-eval-print loop for the DebugConsole command line interface.
 pub fn repl(output: &mut dyn io::Write, input: &mut dyn io::Read) -> ! {
-    let mut line_reader = LineReader::new();
+  let _ = write!(output, "DebugConsole::repl()\n");
+  let mut line_reader = LineReader::new();
     loop {
-        // The PROMPT is the Kanji character for the word "form", or "cantrip."
-        const PROMPT: &str = "形＞ ";
+        const PROMPT: &str = "CANTRIP_PROMPT> ";
         let _ = output.write_str(PROMPT);
         match line_reader.read_line(output, input) {
             Ok(cmdline) => dispatch_command(cmdline, output),
