@@ -14,6 +14,8 @@ cmake_minimum_required(VERSION 3.7.2)
 
 project(system)
 
+CAmkESAddImportPath(interfaces)
+
 include(${CMAKE_CURRENT_LIST_DIR}/rust.cmake)
 
 RustAddLibrary(
@@ -29,6 +31,10 @@ DeclareCAmkESComponent(DebugConsole
 
 DeclareCAmkESComponent(UartDriver
   SOURCES components/UartDriver/src/driver.c
+)
+
+DeclareCAmkESComponent(SeL4Debug
+  SOURCES components/SeL4Debug/src/wrappers.c
 )
 
 DeclareCAmkESRootserver(system.camkes)

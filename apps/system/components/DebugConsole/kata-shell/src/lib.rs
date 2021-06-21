@@ -74,6 +74,7 @@ fn dispatch_command(cmdline: &str, output: &mut dyn io::Write) {
                 "echo" => echo_command(cmdline, output),
                 "add" => add_command(&mut args, output),
                 "clear" => clear_command(output),
+                "ps" => ps_command(),
                 _ => Err(CommandError::UnknownCommand),
             };
             if let Err(e) = result {
@@ -98,6 +99,13 @@ fn echo_command(cmdline: &str, output: &mut dyn io::Write) -> Result<(), Command
             &cmdline[COMMAND_LENGTH..cmdline.len()]
         )?)
     }
+}
+
+/// Implements a "ps" command that dumps seL4 scheduler state to the console.
+fn ps_command() -> Result<(), CommandError> {
+    extern "C" { fn sel4debug_dump_scheduler(); }
+    unsafe { sel4debug_dump_scheduler(); }
+    Ok(())
 }
 
 /// Implements a binary float addition command.

@@ -15,6 +15,7 @@ import <std_connector.camkes>;
 import "interfaces/uart.idl4";
 import "components/UartDriver/UartDriver.camkes";
 import "components/DebugConsole/DebugConsole.camkes";
+import "components/SeL4Debug/SeL4Debug.camkes";
 
 component UART {
     hardware;
@@ -28,12 +29,17 @@ assembly {
         component UART uart;
         component UartDriver drv;
         component DebugConsole debug_console;
+        component SeL4Debug sel4debug;
 
         connection seL4HardwareMMIO uart_mem(from drv.mem, to uart.mem);
         // TODO(mattharvey): Make receives wait on interrupt.
         // connection seL4HardwareInterrupt uart_interrupt(
         //     from uart.interrupt, to drv.interrupt);
         connection seL4RPCCall uart_inf(from debug_console.uart, to drv.uart);
+
+        // Connect the SeL4Debug interface of each component that needs access.
+        connection seL4RPCCall SeL4DebugInterface(from debug_console.sel4debug,
+                                                  to sel4debug.sel4debug);
 
         connection seL4SharedData tx_channel(
             from debug_console.tx_dataport, to drv.tx_dataport);
