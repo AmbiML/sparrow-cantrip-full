@@ -4,3 +4,17 @@ members = [
     "ml-common",
     "ml-coordinator",
 ]
+
+[profile.dev]
+lto = "fat"
+codegen-units = 1
+
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+split-debuginfo = "unpacked"
+
+[profile.release.build-override]
+opt-level = "z"
+codegen-units = 1
