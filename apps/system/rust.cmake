@@ -7,6 +7,16 @@
 cmake_minimum_required(VERSION 3.8.2)
 include_guard(GLOBAL)
 
+list(APPEND CARGO_OPTIONS
+  --target riscv32imac-unknown-none-elf
+  -Z unstable-options
+  -Z avoid-dev-deps)
+
+if(NOT "${RELEASE}" STREQUAL "")
+    list(APPEND CARGO_OPTIONS "--release")
+endif()
+
+
 # add_library but for rust libraries. Invokes cargo in the SOURCE_DIR that is provided,
 # all build output is placed in BUILD_DIR or CMAKE_CURRENT_BINARY_DIR if BUILD_DIR isn't provided.
 # lib_name: Name of library that is created
@@ -39,8 +49,8 @@ function(RustAddLibrary lib_name)
         WORKING_DIRECTORY ${RUST_SOURCE_DIR}
         COMMAND
             ${CMAKE_COMMAND} -E env cargo +nightly build
-            --target riscv32imc-unknown-none-elf
-            --target-dir ${RUST_BUILD_DIR} -Z unstable-options
+            ${CARGO_OPTIONS}
+            --target-dir ${RUST_BUILD_DIR}
             --out-dir ${RUST_BUILD_DIR}
     )
 
