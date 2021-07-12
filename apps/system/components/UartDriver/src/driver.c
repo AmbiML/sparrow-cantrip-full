@@ -1,99 +1,100 @@
-// 16550a UART driver
+// OpenTitan UART driver
 //
-// Pared down from the xv6 RISC-V source (MIT license).
-// https://github.com/mit-pdos/xv6-riscv/blob/riscv/kernel/uart.c
+// A programming guide for the hardware can be found at
+// https://docs.opentitan.org/hw/ip/uart/doc/
+
+#include <stdint.h>
 
 #include <camkes.h>
 #include <sel4/syscalls.h>
 
-#define UART0       (unsigned int)mem
+#include "opentitan/uart.h"
 
-// the UART control registers are memory-mapped
-// at address UART0. this macro returns the
-// address of one of the registers.
-#define Reg(reg) ((volatile unsigned char *)(UART0 + reg))
+// Referenced by macros in the generated file opentitan/uart.h.
+#define UART0_BASE_ADDR (void *)mem
 
-// the UART control registers.
-// some have different meanings for
-// read vs write.
-// see http://byterunner.com/16550.html
-#define RHR 0                 // receive holding register (for input bytes)
-#define THR 0                 // transmit holding register (for output bytes)
-#define IER 1                 // interrupt enable register
-#define IER_RX_ENABLE (1<<0)
-#define IER_TX_ENABLE (1<<1)
-#define FCR 2                 // FIFO control register
-#define FCR_FIFO_ENABLE (1<<0)
-#define FCR_FIFO_CLEAR (3<<1) // clear the content of the two FIFOs
-#define ISR 2                 // interrupt status register
-#define LCR 3                 // line control register
-#define LCR_EIGHT_BITS (3<<0)
-#define LCR_BAUD_LATCH (1<<7) // special mode to set baud rate
-#define LSR 5                 // line status register
-#define LSR_RX_READY (1<<0)   // input is waiting to be read from RHR
-#define LSR_TX_IDLE (1<<5)    // THR can accept another character to send
+// Frequency of the primary clock clk_i.
+#define CLK_FIXED_FREQ_HZ (24ull * 1000 * 1000)
 
-#define ReadReg(reg) (*(Reg(reg)))
-#define WriteReg(reg, v) (*(Reg(reg)) = (v))
+#define REG32(addr) *((volatile uint32_t *)(addr))
 
-void uart__init()
-{
-  // disable interrupts (UART from generating, not hart from dispatching)
-  WriteReg(IER, 0x00);
+void uart__init() {
+  // Computes NCO value corresponding to baud rate.
+  // nco = 2^20 * baud / fclk  (assuming NCO width is 16-bit)
+  uint64_t baud = 115200ull;
+  uint64_t uart_ctrl_nco = ((uint64_t)baud << 20) / CLK_FIXED_FREQ_HZ;
 
-  // special mode to set baud rate.
-  WriteReg(LCR, LCR_BAUD_LATCH);
+  // Sets baud rate and enables TX and RX.
+  REG32(UART_CTRL(0)) =
+      ((uart_ctrl_nco & UART_CTRL_NCO_MASK) << UART_CTRL_NCO_OFFSET) |
+      (1 << UART_CTRL_TX) | (1 << UART_CTRL_RX);
 
-  // LSB for baud rate of 38.4K.
-  WriteReg(0, 0x03);
+  // Resets TX and RX FIFOs.
+  uint32_t fifo_ctrl = REG32(UART_FIFO_CTRL(0));
+  REG32(UART_FIFO_CTRL(0)) =
+      fifo_ctrl | UART_FIFO_CTRL_RXRST | UART_FIFO_CTRL_TXRST;
 
-  // MSB for baud rate of 38.4K.
-  WriteReg(1, 0x00);
-
-  // leave set-baud mode,
-  // and set word length to 8 bits, no parity.
-  WriteReg(LCR, LCR_EIGHT_BITS);
-
-  // reset and enable FIFOs.
-  WriteReg(FCR, FCR_FIFO_ENABLE | FCR_FIFO_CLEAR);
-
-  // TODO (mattharvey): seL4 is not configured to dispatch UART interrupts to
-  // this driver yet. Until that time, this driver spins to wait. The proper
-  // thing will be to make a Rust embedded_hal implementation for Sparrow.
-  //
-  // enable transmit and receive interrupts.
-  // WriteReg(IER, IER_TX_ENABLE | IER_RX_ENABLE);
+  // Disables interrupts.
+  // TODO (mattharvey): Configure seL4 to dispatch UART interrupts to this
+  // driver, enable here at least TX watermark and RX watermark, and add
+  // handlers. For now, this driver spins to wait.
+  REG32(UART_INTR_ENABLE(0)) = 0ul;
 }
 
-static int uart_received()
-{
-  return ReadReg(LSR) & LSR_RX_READY;
+static int uart_rx_empty() {
+  return (REG32(UART_STATUS(0)) & (1 << UART_STATUS_RXEMPTY)) != 0;
+  /*
+   * A more direct adapation of the example from the Programmers Guide in
+   *
+   * https://docs.opentitan.org/hw/ip/uart/doc/
+   *
+   * would look like the below. (The example does not compile verbatim.) Using
+   * the UART_STATUS register is simpler than this expression and seems
+   * equivalent, according to the wording of the doc.
+   *
+   * Still, we'll keep this commented implementation until we gain some
+   * confidence the simulation is happy with the simpler approach.
+   *
+  return (REG32(UART_FIFO_STATUS(0)) &
+          (UART_FIFO_STATUS_RXLVL_MASK << UART_FIFO_STATUS_RXLVL_OFFSET)) >>
+             UART_FIFO_STATUS_RXLVL_OFFSET ==
+         0;
+   */
 }
 
-static int is_transmit_empty() {
-  return ReadReg(LSR) & LSR_TX_IDLE;
+static int uart_tx_ready() {
+  return (REG32(UART_STATUS(0)) & (1 << UART_STATUS_TXFULL)) == 0;
+  /*
+   * See similar comment in uart_rx_empty.
+   *
+  int32_t tx_fifo_capacity = 32;  // uart.h provides no define for this.
+  return ((REG32(UART_FIFO_STATUS(0)) & UART_FIFO_STATUS_TXLVL_MASK) ==
+          tx_fifo_capacity)
+             ? 0
+             : 1;
+   */
 }
 
 void uart_rx(size_t n) {
-  char *c = (char*)rx_dataport;
+  char *c = (char *)rx_dataport;
   // TODO(mattharvey): Error return value for n > PAGE_SIZE
   for (size_t i = 0; i < n && i < PAGE_SIZE; ++i) {
-    while (!uart_received()) {
+    while (uart_rx_empty()) {
       seL4_Yield();  // TODO(mattharvey): remove when interrupt-driven
     }
-    *c = ReadReg(RHR);
+    *c = REG32(UART_RDATA(0)) & UART_RDATA_RDATA_MASK;
     ++c;
   }
 }
 
 void uart_tx(size_t n) {
-  char *c = (char*)tx_dataport;
+  char *c = (char *)tx_dataport;
   // TODO(mattharvey): Error return value for n > PAGE_SIZE
   for (size_t i = 0; i < n && i < PAGE_SIZE; ++i) {
-    while(!is_transmit_empty()) {
+    while (!uart_tx_ready()) {
       seL4_Yield();  // TODO(mattharvey): remove when interrupt-driven
     }
-    WriteReg(THR, *c);
+    REG32(UART_WDATA(0)) = *c;
     ++c;
   }
 }
