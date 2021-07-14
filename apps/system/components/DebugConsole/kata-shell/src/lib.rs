@@ -43,8 +43,8 @@ impl From<fmt::Error> for CommandError {
 
 /// Read-eval-print loop for the DebugConsole command line interface.
 pub fn repl(output: &mut dyn io::Write, input: &mut dyn io::Read) -> ! {
-  let _ = write!(output, "DebugConsole::repl()\n");
-  let mut line_reader = LineReader::new();
+    let _ = write!(output, "DebugConsole::repl()\n");
+    let mut line_reader = LineReader::new();
     loop {
         const PROMPT: &str = "CANTRIP_PROMPT> ";
         let _ = output.write_str(PROMPT);
@@ -75,6 +75,7 @@ fn dispatch_command(cmdline: &str, output: &mut dyn io::Write) {
                 "add" => add_command(&mut args, output),
                 "clear" => clear_command(output),
                 "ps" => ps_command(),
+                "alloc_test" => alloc_test_command(output),
                 _ => Err(CommandError::UnknownCommand),
             };
             if let Err(e) = result {
@@ -103,8 +104,12 @@ fn echo_command(cmdline: &str, output: &mut dyn io::Write) -> Result<(), Command
 
 /// Implements a "ps" command that dumps seL4 scheduler state to the console.
 fn ps_command() -> Result<(), CommandError> {
-    extern "C" { fn sel4debug_dump_scheduler(); }
-    unsafe { sel4debug_dump_scheduler(); }
+    extern "C" {
+        fn sel4debug_dump_scheduler();
+    }
+    unsafe {
+        sel4debug_dump_scheduler();
+    }
     Ok(())
 }
 
@@ -132,4 +137,41 @@ fn add_command(
 /// Implements a command that outputs the ANSI "clear console" sequence.
 fn clear_command(output: &mut dyn io::Write) -> Result<(), CommandError> {
     Ok(output.write_str("\x1b\x63")?)
+}
+
+/// Implements a command that tests facilities that use the global allocator.
+/// Shamelessly cribbed from https://os.phil-opp.com/heap-allocation/
+fn alloc_test_command(output: &mut dyn io::Write) -> Result<(), CommandError> {
+    extern crate alloc;
+    use alloc::{boxed::Box, rc::Rc, vec, vec::Vec};
+
+    // allocate a number on the heap
+    let heap_value = Box::new(41);
+    writeln!(output, "heap_value at {:p}", heap_value).expect("Box failed");
+
+    // create a dynamically sized vector
+    let mut vec = Vec::new();
+    for i in 0..500 {
+        vec.push(i);
+    }
+    writeln!(output, "vec at {:p}", vec.as_slice()).expect("Vec failed");
+
+    // create a reference counted vector -> will be freed when count reaches 0
+    let reference_counted = Rc::new(vec![1, 2, 3]);
+    let cloned_reference = reference_counted.clone();
+    writeln!(
+        output,
+        "current reference count is {}",
+        Rc::strong_count(&cloned_reference)
+    )
+    .expect("Rc 1 failed");
+    core::mem::drop(reference_counted);
+    writeln!(
+        output,
+        "reference count is {} now",
+        Rc::strong_count(&cloned_reference)
+    )
+    .expect("Rc 2 failed");
+
+    Ok(writeln!(output, "All tests passed!")?)
 }

@@ -4,30 +4,38 @@
 
 #![cfg_attr(not(test), no_std)]
 #![feature(const_fn_trait_bound)] // NB: for ProcessManager::empty using manager: None
+#![feature(default_alloc_error_handler)]
 
 #[cfg(not(test))]
 extern crate panic_halt;
 
 use arrayvec::ArrayVec;
 use core::marker::Sync;
-use cstr_core::CStr;
+use linked_list_allocator::LockedHeap;
+
 use cantrip_proc_common as proc;
 use proc::*;
 
-// Prints/logs a message to the console.
-// Temporary workaround for LoggerInterface not working
-fn syslog(_level: i32, msg: &str) {
-    // Print |str| on the consule using the SeL4 debug syscall.
-    // NB: for now the message must be explicitly \0-terminated.
-    fn sel4_putstr(msg: &str) {
-        extern "C" {
-            fn sel4debug_put_string(msg: *const cstr_core::c_char);
-        }
-        unsafe {
-            sel4debug_put_string(CStr::from_bytes_with_nul(msg.as_bytes()).unwrap().as_ptr());
-        }
+#[global_allocator]
+static CANTRIP_ALLOCATOR: LockedHeap = LockedHeap::empty();
+
+#[no_mangle]
+// NB: use post_init insted of pre_init so logger is setup
+pub extern "C" fn post_init() {
+    // TODO(sleffler): temp until we integrate with seL4
+    static mut HEAP_MEMORY: [u8; 16 * 1024] = [0; 16 * 1024];
+    unsafe {
+        CANTRIP_ALLOCATOR
+            .lock()
+            .init(HEAP_MEMORY.as_mut_ptr() as usize, HEAP_MEMORY.len());
     }
-    sel4_putstr(msg); // NB:assumes caller includes \0
+}
+
+// TODO(sleffler): move to init or similar if a thread isn't needed
+#[no_mangle]
+pub extern "C" fn run() {
+    // Setup the userland address spaces, lifecycles, and system introspection
+    // for third-party applications.
 }
 
 // Bundle state tracks start/stop operations.
@@ -173,14 +181,6 @@ impl<'a> ProcessControlInterface for ProcessManager<'a> {
         }
         result
     }
-}
-
-// TODO(sleffler): move to init or similar if a thread isn't needed
-#[no_mangle]
-pub extern "C" fn run() {
-    // Setup the userland address spaces, lifecycles, and system introspection
-    // for third-party applications.
-    syslog(0, "ProcessManager::run\n\0");
 }
 
 #[cfg(test)]
