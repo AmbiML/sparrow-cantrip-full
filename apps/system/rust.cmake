@@ -12,7 +12,7 @@ list(APPEND CARGO_OPTIONS
   -Z unstable-options
   -Z avoid-dev-deps)
 
-if(NOT "${RELEASE}" STREQUAL "")
+if("${RELEASE}")
     list(APPEND CARGO_OPTIONS "--release")
 endif()
 

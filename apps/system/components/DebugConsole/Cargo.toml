@@ -9,6 +9,8 @@ members = [
 ]
 
 [profile.dev]
+opt-level = 0
+debug = true
 lto = "fat"
 codegen-units = 1
 
