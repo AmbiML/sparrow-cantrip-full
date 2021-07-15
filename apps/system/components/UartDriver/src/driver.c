@@ -4,6 +4,7 @@
 // https://github.com/mit-pdos/xv6-riscv/blob/riscv/kernel/uart.c
 
 #include <camkes.h>
+#include <sel4/syscalls.h>
 
 #define UART0       (unsigned int)mem
 
@@ -77,7 +78,9 @@ void uart_rx(size_t n) {
   char *c = (char*)rx_dataport;
   // TODO(mattharvey): Error return value for n > PAGE_SIZE
   for (size_t i = 0; i < n && i < PAGE_SIZE; ++i) {
-    while (!uart_received());
+    while (!uart_received()) {
+      seL4_Yield();  // TODO(mattharvey): remove when interrupt-driven
+    }
     *c = ReadReg(RHR);
     ++c;
   }
@@ -87,7 +90,9 @@ void uart_tx(size_t n) {
   char *c = (char*)tx_dataport;
   // TODO(mattharvey): Error return value for n > PAGE_SIZE
   for (size_t i = 0; i < n && i < PAGE_SIZE; ++i) {
-    while(!is_transmit_empty());
+    while(!is_transmit_empty()) {
+      seL4_Yield();  // TODO(mattharvey): remove when interrupt-driven
+    }
     WriteReg(THR, *c);
     ++c;
   }
