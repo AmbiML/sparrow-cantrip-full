@@ -7,9 +7,9 @@ description = "Cantrip OS DebugConsole"
 
 [dependencies]
 panic-halt = "0.2.0"
+cantrip-allocator = { path = "../cantrip-allocator" }
 cantrip-shell = { path = "../cantrip-shell" }
 cantrip-uart-client = { path = "../cantrip-uart-client" }
-linked_list_allocator = "0.9"
 
 [lib]
 name = "cantrip_debug_console"

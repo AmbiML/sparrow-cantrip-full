@@ -4,20 +4,16 @@
 
 #![cfg_attr(not(test), no_std)]
 #![feature(const_fn_trait_bound)] // NB: for ProcessManager::empty using manager: None
-#![feature(default_alloc_error_handler)]
 
 #[cfg(not(test))]
 extern crate panic_halt;
 
 use arrayvec::ArrayVec;
 use core::marker::Sync;
-use linked_list_allocator::LockedHeap;
 
+use cantrip_allocator;
 use cantrip_proc_common as proc;
 use proc::*;
-
-#[global_allocator]
-static CANTRIP_ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 #[no_mangle]
 // NB: use post_init insted of pre_init so logger is setup
@@ -25,9 +21,7 @@ pub extern "C" fn post_init() {
     // TODO(sleffler): temp until we integrate with seL4
     static mut HEAP_MEMORY: [u8; 16 * 1024] = [0; 16 * 1024];
     unsafe {
-        CANTRIP_ALLOCATOR
-            .lock()
-            .init(HEAP_MEMORY.as_mut_ptr() as usize, HEAP_MEMORY.len());
+        cantrip_allocator::ALLOCATOR.init(HEAP_MEMORY.as_mut_ptr() as usize, HEAP_MEMORY.len());
     }
 }
 

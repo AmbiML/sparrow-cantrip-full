@@ -1,0 +1,9 @@
+[package]
+name = "cantrip-allocator"
+version = "0.1.0"
+authors = ["Sam Leffler <sleffler@google.com>"]
+edition = "2018"
+
+[dependencies]
+linked_list_allocator = { version = "0.9", default-features = false, features = ["const_mut_refs"] }
+spin = "0.9"
