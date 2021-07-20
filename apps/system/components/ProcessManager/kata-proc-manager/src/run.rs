@@ -6,7 +6,7 @@
 #![feature(const_fn_trait_bound)] // NB: for ProcessManager::empty using manager: None
 
 #[cfg(not(test))]
-extern crate panic_halt;
+extern crate cantrip_panic;
 
 use arrayvec::ArrayVec;
 use core::marker::Sync;

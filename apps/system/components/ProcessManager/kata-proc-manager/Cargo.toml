@@ -8,9 +8,9 @@ edition = "2018"
 arrayvec = { version = "0.7", default-features = false }
 cantrip-allocator = { path = "../../DebugConsole/cantrip-allocator" }
 cantrip-logger = { path = "../../DebugConsole/cantrip-logger" }
+cantrip-panic = { path = "../../DebugConsole/cantrip-panic" }
 cantrip-proc-common = { path = "../cantrip-proc-common" }
 log = "0.4"
-panic-halt = "0.2.0"
 
 [lib]
 name = "cantrip_process_manager"

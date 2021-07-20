@@ -9,11 +9,9 @@
 // * cantrip_shell
 // * cantrip_debug_console main entry point fn run()
 
-// std:: requires at least an allocator, which Cantrip does not have yet. For now
-// the CLI will be implemented with only core::.
 #![no_std]
 
-extern crate panic_halt;
+extern crate cantrip_panic;
 
 use cantrip_allocator;
 use cantrip_logger::CantripLogger;

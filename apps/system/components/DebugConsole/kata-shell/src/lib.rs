@@ -73,11 +73,15 @@ fn dispatch_command(cmdline: &str, output: &mut dyn io::Write) {
             // Since even the binding is static, it is fine for each command
             // implementation to use its own preferred signature.
             let result = match command {
-                "echo" => echo_command(cmdline, output),
                 "add" => add_command(&mut args, output),
+                "echo" => echo_command(cmdline, output),
                 "clear" => clear_command(output),
                 "ps" => ps_command(),
-                "alloc_test" => alloc_test_command(output),
+
+                "test_alloc" => test_alloc_command(output),
+                "test_alloc_error" => test_alloc_error_command(output),
+                "test_panic" => test_panic_command(),
+
                 _ => Err(CommandError::UnknownCommand),
             };
             if let Err(e) = result {
@@ -143,7 +147,7 @@ fn clear_command(output: &mut dyn io::Write) -> Result<(), CommandError> {
 
 /// Implements a command that tests facilities that use the global allocator.
 /// Shamelessly cribbed from https://os.phil-opp.com/heap-allocation/
-fn alloc_test_command(output: &mut dyn io::Write) -> Result<(), CommandError> {
+fn test_alloc_command(output: &mut dyn io::Write) -> Result<(), CommandError> {
     extern crate alloc;
     use alloc::{boxed::Box, rc::Rc, vec, vec::Vec};
 
@@ -176,4 +180,22 @@ fn alloc_test_command(output: &mut dyn io::Write) -> Result<(), CommandError> {
     .expect("Rc 2 failed");
 
     Ok(writeln!(output, "All tests passed!")?)
+}
+
+/// Implements a command that tests the global allocator error handling.
+fn test_alloc_error_command(output: &mut dyn io::Write) -> Result<(), CommandError> {
+    extern crate alloc;
+    use alloc::vec::Vec;
+
+    // Default heap holds 16KB.
+    let mut vec = Vec::with_capacity(16384);
+    for i in 0..16348 {
+        vec.push(i);
+    }
+    Ok(writeln!(output, "vec at {:p}", vec.as_slice())?)
+}
+
+/// Implements a command that tests panic handling.
+fn test_panic_command() -> Result<(), CommandError> {
+    panic!("testing");
 }

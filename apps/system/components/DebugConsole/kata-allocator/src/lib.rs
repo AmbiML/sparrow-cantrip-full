@@ -5,6 +5,7 @@
 
 use core::alloc::{GlobalAlloc, Layout};
 use core::cell::RefCell;
+use core::panic;
 use core::ptr::{self, NonNull};
 use log::info;
 
@@ -19,9 +20,8 @@ pub struct CantripHeap {
 pub static ALLOCATOR: CantripHeap = CantripHeap::empty();
 
 #[alloc_error_handler]
-fn alloc_error_handler(_: Layout) -> ! {
-    // TODO(sleffler): at least print a msg on the console
-    loop {}
+fn alloc_error_handler(layout: Layout) -> ! {
+    panic!("Global allocation failure: {:?}", layout);
 }
 
 impl CantripHeap {

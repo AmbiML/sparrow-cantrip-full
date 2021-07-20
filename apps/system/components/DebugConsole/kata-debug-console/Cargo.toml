@@ -9,6 +9,7 @@ description = "Cantrip OS DebugConsole"
 panic-halt = "0.2.0"
 cantrip-allocator = { path = "../cantrip-allocator" }
 cantrip-logger = { path = "../cantrip-logger" }
+cantrip-panic = { path = "../cantrip-panic" }
 cantrip-shell = { path = "../cantrip-shell" }
 cantrip-uart-client = { path = "../cantrip-uart-client" }
 log = "0.4"
