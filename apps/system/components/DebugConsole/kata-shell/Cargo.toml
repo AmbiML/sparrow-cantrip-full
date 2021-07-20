@@ -7,3 +7,4 @@ edition = "2018"
 [dependencies]
 cantrip-io = { path = "../cantrip-io" }
 cantrip-line-reader = { path = "../cantrip-line-reader" }
+log = "0.4"

@@ -1,5 +1,7 @@
 #![no_std]
 
+use core::fmt::Write;
+use cstr_core::CStr;
 use cantrip_io as io;
 
 // C interface to external UART driver.
@@ -8,6 +10,16 @@ extern "C" {
     static tx_dataport: *mut cty::c_uchar;
     fn uart_rx(n: cty::size_t);
     fn uart_tx(n: cty::size_t);
+}
+
+// Console logging interface.
+#[no_mangle]
+pub extern "C" fn logger_log(msg: *const cstr_core::c_char) {
+    // TODO(sleffler): is the uart driver ok w/ multiple writers?
+    let output: &mut dyn io::Write = &mut self::Tx {};
+    unsafe {
+        let _ = writeln!(output, "{}", CStr::from_ptr(msg).to_str().unwrap());
+    }
 }
 
 pub struct Rx {}

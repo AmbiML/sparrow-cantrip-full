@@ -39,6 +39,12 @@ assembly {
         //     from uart.interrupt, to drv.interrupt);
         connection seL4RPCCall uart_inf(from debug_console.uart, to drv.uart);
 
+        // Connect the LoggerInterface to each component that needs to log
+        // to the console. (TODO(sleffler): does N:1 work?)
+        // TODO(sleffler): what happens if client sends rpc's before the recvr is ready?
+        connection seL4RPCCall LoggerInterface(from process_manager.logger,
+                                               to debug_console.logger);
+
         // Connect the SeL4Debug interface of each component that needs access.
         connection seL4RPCCall SeL4DebugInterface(from debug_console.sel4debug,
                                                   from process_manager.sel4debug,

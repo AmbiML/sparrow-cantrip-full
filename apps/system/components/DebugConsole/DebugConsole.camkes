@@ -1,3 +1,4 @@
+import <LoggerInterface.camkes>;
 import <SeL4DebugInterface.camkes>;
 
 component DebugConsole {
@@ -6,5 +7,6 @@ component DebugConsole {
   dataport Buf tx_dataport;
   dataport Buf rx_dataport;
 
+  provides LoggerInterface logger;
   uses SeL4DebugInterface sel4debug;
 }

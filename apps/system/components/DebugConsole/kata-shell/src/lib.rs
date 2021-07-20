@@ -2,6 +2,7 @@
 
 use core::fmt;
 use core::fmt::Write;
+use log::info;
 
 use cantrip_io as io;
 use cantrip_line_reader::LineReader;
@@ -43,7 +44,8 @@ impl From<fmt::Error> for CommandError {
 
 /// Read-eval-print loop for the DebugConsole command line interface.
 pub fn repl(output: &mut dyn io::Write, input: &mut dyn io::Read) -> ! {
-    let _ = write!(output, "DebugConsole::repl()\n");
+    //  let _ = write!(output, "DebugConsole::repl()\n");
+    info!("DebugConsole::repl()");
     let mut line_reader = LineReader::new();
     loop {
         const PROMPT: &str = "CANTRIP_PROMPT> ";

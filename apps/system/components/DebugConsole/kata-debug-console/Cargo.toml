@@ -8,8 +8,10 @@ description = "Cantrip OS DebugConsole"
 [dependencies]
 panic-halt = "0.2.0"
 cantrip-allocator = { path = "../cantrip-allocator" }
+cantrip-logger = { path = "../cantrip-logger" }
 cantrip-shell = { path = "../cantrip-shell" }
 cantrip-uart-client = { path = "../cantrip-uart-client" }
+log = "0.4"
 
 [lib]
 name = "cantrip_debug_console"

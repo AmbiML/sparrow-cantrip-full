@@ -16,8 +16,18 @@
 extern crate panic_halt;
 
 use cantrip_allocator;
+use cantrip_logger::CantripLogger;
 use cantrip_shell;
 use cantrip_uart_client;
+use log::debug;
+
+static CANTRIP_LOGGER: CantripLogger = CantripLogger;
+
+#[no_mangle]
+pub extern "C" fn pre_init() {
+    log::set_logger(&CANTRIP_LOGGER).unwrap();
+    log::set_max_level(log::LevelFilter::Debug);
+}
 
 #[no_mangle]
 // NB: use post_init insted of pre_init so syslog interface is setup
@@ -32,6 +42,7 @@ pub extern "C" fn post_init() {
 /// Entry point for DebugConsole. Runs the shell with UART IO.
 #[no_mangle]
 pub extern "C" fn run() -> ! {
+    debug!("run");
     let mut tx = cantrip_uart_client::Tx {};
     let mut rx = cantrip_uart_client::Rx {};
     cantrip_shell::repl(&mut tx, &mut rx);

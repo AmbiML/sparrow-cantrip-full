@@ -1,0 +1,3 @@
+procedure LoggerInterface {
+  void log(in string msg);
+};

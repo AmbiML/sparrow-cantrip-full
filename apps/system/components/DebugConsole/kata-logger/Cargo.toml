@@ -1,11 +1,11 @@
 [package]
-name = "cantrip-uart-client"
+name = "cantrip-logger"
 version = "0.1.0"
-authors = ["Matt Harvey <mattharvey@google.com>"]
 edition = "2018"
 
 [dependencies]
+arrayvec = { version = "0.7", default-features = false }
 # Disable default so we don't pull in CString which requires an allocator
+bare-io = "0.2"
 cstr_core = { version = "0.2.3", default-features = false }
-cty = "0.2.1"
-cantrip-io = { path = "../cantrip-io" }
+log = "0.4"
