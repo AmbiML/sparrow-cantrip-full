@@ -2,6 +2,7 @@
 
 members = [
     "cantrip-proc-common",
+    "cantrip-proc-component",
     "cantrip-proc-manager",
 ]
 

@@ -1,0 +1,18 @@
+[package]
+name = "cantrip-proc-component"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+cstr_core = { version = "0.2.3", default-features = false }
+cantrip-allocator = { path = "../../DebugConsole/cantrip-allocator" }
+cantrip-logger = { path = "../../DebugConsole/cantrip-logger" }
+cantrip-panic = { path = "../../DebugConsole/cantrip-panic" }
+cantrip-proc-common = { path = "../cantrip-proc-common" }
+cantrip-proc-manager = { path = "../cantrip-proc-manager" }
+log = "0.4"
+
+[lib]
+name = "cantrip_process_manager"
+path = "src/run.rs"
+crate-type = ["staticlib"]

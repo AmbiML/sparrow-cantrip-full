@@ -1,4 +1,6 @@
 import <LoggerInterface.camkes>;
+import <ProcessControlInterface.camkes>;
+import <PackageManagementInterface.camkes>;
 import <SeL4DebugInterface.camkes>;
 
 component DebugConsole {
@@ -8,5 +10,7 @@ component DebugConsole {
   dataport Buf rx_dataport;
 
   provides LoggerInterface logger;
+  uses ProcessControlInterface proc_ctrl;
+  uses PackageManagementInterface pkg_mgmt;
   uses SeL4DebugInterface sel4debug;
 }

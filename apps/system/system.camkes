@@ -39,9 +39,14 @@ assembly {
         //     from uart.interrupt, to drv.interrupt);
         connection seL4RPCCall uart_inf(from debug_console.uart, to drv.uart);
 
+        // Hookup ProcessManager to DebugConsole for shell commands.
+        connection seL4RPCCall ProcessControlInterface(from debug_console.proc_ctrl,
+                                                       to process_manager.proc_ctrl);
+        connection seL4RPCCall PackageManagerInterface(from debug_console.pkg_mgmt,
+                                                       to process_manager.pkg_mgmt);
+
         // Connect the LoggerInterface to each component that needs to log
-        // to the console. (TODO(sleffler): does N:1 work?)
-        // TODO(sleffler): what happens if client sends rpc's before the recvr is ready?
+        // to the console.
         connection seL4RPCCall LoggerInterface(from process_manager.logger,
                                                to debug_console.logger);
 

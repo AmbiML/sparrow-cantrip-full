@@ -27,6 +27,7 @@ RustAddLibrary(
 
 DeclareCAmkESComponent(DebugConsole
   LIBS cantrip_debug_console
+  INCLUDES interfaces
 )
 
 RustAddLibrary(

@@ -2,10 +2,12 @@
 
 use core::fmt;
 use core::fmt::Write;
+use cstr_core::CString;
 use log::info;
 
 use cantrip_io as io;
 use cantrip_line_reader::LineReader;
+use cantrip_proc_common::{Bundle, RawBundleIdData};
 
 /// Error type indicating why a command line is not runnable.
 enum CommandError {
@@ -44,7 +46,6 @@ impl From<fmt::Error> for CommandError {
 
 /// Read-eval-print loop for the DebugConsole command line interface.
 pub fn repl(output: &mut dyn io::Write, input: &mut dyn io::Read) -> ! {
-    //  let _ = write!(output, "DebugConsole::repl()\n");
     info!("DebugConsole::repl()");
     let mut line_reader = LineReader::new();
     loop {
@@ -53,7 +54,7 @@ pub fn repl(output: &mut dyn io::Write, input: &mut dyn io::Read) -> ! {
         match line_reader.read_line(output, input) {
             Ok(cmdline) => dispatch_command(cmdline, output),
             Err(e) => {
-                let _ = write!(output, "\n{}\n", e);
+                let _ = writeln!(output, "\n{}", e);
             }
         }
     }
@@ -76,8 +77,13 @@ fn dispatch_command(cmdline: &str, output: &mut dyn io::Write) {
                 "add" => add_command(&mut args, output),
                 "echo" => echo_command(cmdline, output),
                 "clear" => clear_command(output),
+                "bundles" => bundles_command(output),
+                "install" => install_command(&mut args, output),
                 "loglevel" => loglevel_command(&mut args, output),
                 "ps" => ps_command(),
+                "start" => start_command(&mut args, output),
+                "stop" => stop_command(&mut args, output),
+                "uninstall" => uninstall_command(&mut args, output),
 
                 "test_alloc" => test_alloc_command(output),
                 "test_alloc_error" => test_alloc_error_command(output),
@@ -86,7 +92,7 @@ fn dispatch_command(cmdline: &str, output: &mut dyn io::Write) {
                 _ => Err(CommandError::UnknownCommand),
             };
             if let Err(e) = result {
-                let _ = write!(output, "{}\n", e);
+                let _ = writeln!(output, "{}", e);
             };
         }
         None => {
@@ -101,9 +107,9 @@ fn echo_command(cmdline: &str, output: &mut dyn io::Write) -> Result<(), Command
     if cmdline.len() < COMMAND_LENGTH {
         Ok(())
     } else {
-        Ok(write!(
+        Ok(writeln!(
             output,
-            "{}\n",
+            "{}",
             &cmdline[COMMAND_LENGTH..cmdline.len()]
         )?)
     }
@@ -156,7 +162,7 @@ fn add_command(
         if let Some(y_str) = args.nth(0) {
             let x = x_str.parse::<f32>()?;
             let y = y_str.parse::<f32>()?;
-            return Ok(write!(output, "{}\n", x + y)?);
+            return Ok(writeln!(output, "{}", x + y)?);
         }
     }
     Err(CommandError::BadArgs)
@@ -165,6 +171,106 @@ fn add_command(
 /// Implements a command that outputs the ANSI "clear console" sequence.
 fn clear_command(output: &mut dyn io::Write) -> Result<(), CommandError> {
     Ok(output.write_str("\x1b\x63")?)
+}
+
+fn bundles_command(output: &mut dyn io::Write) -> Result<(), CommandError> {
+    extern "C" {
+        fn proc_ctrl_get_running_bundles(c_raw_data: *mut u8) -> bool;
+    }
+    let mut raw_data = RawBundleIdData::new();
+    if unsafe { proc_ctrl_get_running_bundles(raw_data.as_mut_ptr()) } {
+        for str_bundle_id in raw_data.iter() {
+            writeln!(output, "{}", str_bundle_id)?;
+        }
+    } else {
+        writeln!(
+            output,
+            "ProcessControlInterface::get_running_bundles failed"
+        )?;
+    }
+    Ok(())
+}
+
+fn install_command(
+    args: &mut dyn Iterator<Item = &str>,
+    output: &mut dyn io::Write,
+) -> Result<(), CommandError> {
+    extern "C" {
+        fn pkg_mgmt_install(c_bundle_id: *const cstr_core::c_char, c_bundle: *const u8) -> bool;
+    }
+    if let Some(bundle_id) = args.nth(0) {
+        // TODO(sleffler): supply a real bundle (e.g. from serial)
+        let bundle = Bundle::new();
+        let cstr = CString::new(bundle_id).unwrap();
+        if unsafe { pkg_mgmt_install(cstr.as_ptr(), bundle.as_ptr()) } {
+            writeln!(output, "Bundle \"{}\" installed.", bundle_id)?;
+        } else {
+            writeln!(output, "PackageManagementInterface::install failed")?;
+        }
+        Ok(())
+    } else {
+        Err(CommandError::BadArgs)
+    }
+}
+
+fn uninstall_command(
+    args: &mut dyn Iterator<Item = &str>,
+    output: &mut dyn io::Write,
+) -> Result<(), CommandError> {
+    extern "C" {
+        fn pkg_mgmt_uninstall(c_bundle_id: *const cstr_core::c_char) -> bool;
+    }
+    if let Some(bundle_id) = args.nth(0) {
+        let cstr = CString::new(bundle_id).unwrap();
+        if unsafe { pkg_mgmt_uninstall(cstr.as_ptr()) } {
+            writeln!(output, "Bundle \"{}\" uninstalled.", bundle_id)?;
+        } else {
+            writeln!(output, "PackageManagementInterface::uninstall failed")?;
+        }
+        Ok(())
+    } else {
+        Err(CommandError::BadArgs)
+    }
+}
+
+fn start_command(
+    args: &mut dyn Iterator<Item = &str>,
+    output: &mut dyn io::Write,
+) -> Result<(), CommandError> {
+    extern "C" {
+        fn proc_ctrl_start(c_bundle_id: *const cstr_core::c_char) -> bool;
+    }
+    if let Some(bundle_id) = args.nth(0) {
+        let cstr = CString::new(bundle_id).unwrap();
+        if unsafe { proc_ctrl_start(cstr.as_ptr()) } {
+            writeln!(output, "Bundle \"{}\" started.", bundle_id)?;
+        } else {
+            writeln!(output, "ProcessControlInterface::start failed")?;
+        }
+        Ok(())
+    } else {
+        Err(CommandError::BadArgs)
+    }
+}
+
+fn stop_command(
+    args: &mut dyn Iterator<Item = &str>,
+    output: &mut dyn io::Write,
+) -> Result<(), CommandError> {
+    extern "C" {
+        fn proc_ctrl_stop(c_bundle_id: *const cstr_core::c_char) -> bool;
+    }
+    if let Some(bundle_id) = args.nth(0) {
+        let cstr = CString::new(bundle_id).unwrap();
+        if unsafe { proc_ctrl_stop(cstr.as_ptr()) } {
+            writeln!(output, "Bundle \"{}\" stopped.", bundle_id)?;
+        } else {
+            writeln!(output, "ProcessControlInterface::stop failed")?;
+        }
+        Ok(())
+    } else {
+        Err(CommandError::BadArgs)
+    }
 }
 
 /// Implements a command that tests facilities that use the global allocator.

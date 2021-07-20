@@ -4,3 +4,6 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
+bare-io = "0.2"
+smallstr = "0.2"
+smallvec = "1.6"

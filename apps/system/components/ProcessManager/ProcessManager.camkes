@@ -8,7 +8,7 @@ import <SeL4DebugInterface.camkes>;
 component ProcessManager {
   control;
   provides ProcessControlInterface proc_ctrl;
-  provides PackageManagementInterface proc_mgmt;
+  provides PackageManagementInterface pkg_mgmt;
 
   uses LoggerInterface logger;
   uses SeL4DebugInterface sel4debug;

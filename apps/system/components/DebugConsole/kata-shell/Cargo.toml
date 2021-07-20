@@ -5,6 +5,8 @@ authors = ["Matt Harvey <mattharvey@google.com>"]
 edition = "2018"
 
 [dependencies]
+cstr_core = "0.2"
 cantrip-io = { path = "../cantrip-io" }
 cantrip-line-reader = { path = "../cantrip-line-reader" }
+cantrip-proc-common = { path = "../../ProcessManager/cantrip-proc-common" }
 log = "0.4"
