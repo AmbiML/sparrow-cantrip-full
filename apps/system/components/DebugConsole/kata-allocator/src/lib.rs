@@ -4,7 +4,6 @@
 #![feature(alloc_error_handler)]
 
 use core::alloc::{GlobalAlloc, Layout};
-use core::cell::RefCell;
 use core::panic;
 use core::ptr::{self, NonNull};
 use log::info;
@@ -13,7 +12,7 @@ use linked_list_allocator::Heap;
 use spin::Mutex;
 
 pub struct CantripHeap {
-    heap: Mutex<RefCell<Heap>>,
+    heap: Mutex<Heap>,
 }
 
 #[global_allocator]
@@ -29,7 +28,7 @@ impl CantripHeap {
     /// heap using the init method before using the allocator.
     pub const fn empty() -> CantripHeap {
         CantripHeap {
-            heap: Mutex::new(RefCell::new(Heap::empty())),
+            heap: Mutex::new(Heap::empty()),
         }
     }
 
@@ -58,24 +57,23 @@ impl CantripHeap {
     /// - `size > 0`
     pub unsafe fn init(&self, start_addr: usize, size: usize) {
         info!("init: start_addr {:#x} size {}", start_addr, size);
-        (*self.heap.lock()).borrow_mut().init(start_addr, size);
+        (*self.heap.lock()).init(start_addr, size);
     }
 
     /// Returns an estimate of the amount of bytes in use.
     pub fn used(&self) -> usize {
-        (*self.heap.lock()).borrow().used()
+        (*self.heap.lock()).used()
     }
 
     /// Returns an estimate of the amount of bytes available.
     pub fn free(&self) -> usize {
-        (*self.heap.lock()).borrow().free()
+        (*self.heap.lock()).free()
     }
 }
 
 unsafe impl GlobalAlloc for CantripHeap {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         (*self.heap.lock())
-            .borrow_mut()
             .allocate_first_fit(layout)
             .ok()
             .map_or(ptr::null_mut(), |allocation| allocation.as_ptr())
@@ -83,7 +81,6 @@ unsafe impl GlobalAlloc for CantripHeap {
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
         (*self.heap.lock())
-            .borrow_mut()
             .deallocate(NonNull::new_unchecked(ptr), layout)
     }
 }
