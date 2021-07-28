@@ -76,6 +76,7 @@ fn dispatch_command(cmdline: &str, output: &mut dyn io::Write) {
                 "add" => add_command(&mut args, output),
                 "echo" => echo_command(cmdline, output),
                 "clear" => clear_command(output),
+                "loglevel" => loglevel_command(&mut args, output),
                 "ps" => ps_command(),
 
                 "test_alloc" => test_alloc_command(output),
@@ -106,6 +107,27 @@ fn echo_command(cmdline: &str, output: &mut dyn io::Write) -> Result<(), Command
             &cmdline[COMMAND_LENGTH..cmdline.len()]
         )?)
     }
+}
+
+// Set/display the max log level for the DebugConsole.
+// TODO(sleffler): support setting the log level in other components
+fn loglevel_command(
+    args: &mut dyn Iterator<Item = &str>,
+    output: &mut dyn io::Write,
+) -> Result<(), CommandError> {
+    if let Some(level) = args.nth(0) {
+        use log::LevelFilter;
+        match level {
+            "off" => log::set_max_level(LevelFilter::Off),
+            "debug" => log::set_max_level(LevelFilter::Debug),
+            "info" => log::set_max_level(LevelFilter::Info),
+            "error" => log::set_max_level(LevelFilter::Error),
+            "trace" => log::set_max_level(LevelFilter::Trace),
+            "warn" => log::set_max_level(LevelFilter::Warn),
+            _ => writeln!(output, "Unknown log level {}", level)?,
+        }
+    }
+    Ok(writeln!(output, "{}", log::max_level())?)
 }
 
 /// Implements a "ps" command that dumps seL4 scheduler state to the console.
