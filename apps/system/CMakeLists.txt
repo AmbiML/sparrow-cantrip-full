@@ -42,6 +42,18 @@ DeclareCAmkESComponent(ProcessManager
   INCLUDES interfaces
 )
 
+RustAddLibrary(
+  cantrip_ml_coordinator
+  SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/components/MlCoordinator
+  TARGET "riscv32imc-unknown-none-elf"
+  LIB_FILENAME libcantrip_ml_coordinator.a
+)
+
+DeclareCAmkESComponent(MlCoordinator
+  LIBS cantrip_ml_coordinator
+  INCLUDES interfaces
+)
+
 DeclareCAmkESComponent(UartDriver
   SOURCES components/UartDriver/src/driver.c
   INCLUDES opentitan-gen/include
@@ -49,6 +61,10 @@ DeclareCAmkESComponent(UartDriver
 
 DeclareCAmkESComponent(SeL4Debug
   SOURCES components/SeL4Debug/src/wrappers.c
+)
+
+DeclareCAmkESComponent(VectorCoreDriver
+  SOURCES components/VectorCoreDriver/src/driver.c
 )
 
 DeclareCAmkESRootserver(system.camkes)

@@ -1,0 +1,15 @@
+[package]
+name = "cantrip-ml-coordinator"
+version = "0.1.0"
+authors = ["Adam Jesionowski <jesionowski@google.com>"]
+edition = "2018"
+
+[dependencies]
+cantrip-logger = { path = "../../DebugConsole/cantrip-logger" }
+cantrip-panic = { path = "../../DebugConsole/cantrip-panic" }
+log = "0.4"
+
+[lib]
+name = "cantrip_ml_coordinator"
+path = "src/run.rs"
+crate-type = ["staticlib"]

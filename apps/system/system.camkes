@@ -13,16 +13,24 @@
 import <std_connector.camkes>;
 
 import "interfaces/uart.idl4";
+import "interfaces/VectorCoreInterface.camkes";
 import "components/UartDriver/UartDriver.camkes";
 import "components/DebugConsole/DebugConsole.camkes";
 import "components/ProcessManager/ProcessManager.camkes";
+import "components/MlCoordinator/MlCoordinator.camkes";
 import "components/SeL4Debug/SeL4Debug.camkes";
+import "components/VectorCoreDriver/VectorCoreDriver.camkes";
 
 component UART {
     hardware;
     dataport Buf mem;
     // TODO(mattharvey): Make receives wait on interrupt.
     // emits Interrupt interrupt;
+}
+
+component VectorCoreHw {
+    hardware;
+    dataport Buf csr;
 }
 
 assembly {
@@ -32,8 +40,13 @@ assembly {
         component DebugConsole debug_console;
         component ProcessManager process_manager;
         component SeL4Debug sel4debug;
+        component VectorCoreHw vctop;
+        component VectorCoreDriver vc_drv;
+        component MlCoordinator ml_coordinator;
 
         connection seL4HardwareMMIO uart_mem(from drv.mem, to uart.mem);
+        connection seL4HardwareMMIO vc_csr(from vc_drv.csr, to vctop.csr);
+
         // TODO(mattharvey): Make receives wait on interrupt.
         // connection seL4HardwareInterrupt uart_interrupt(
         //     from uart.interrupt, to drv.interrupt);
@@ -48,12 +61,18 @@ assembly {
         // Connect the LoggerInterface to each component that needs to log
         // to the console.
         connection seL4RPCCall LoggerInterface(from process_manager.logger,
+                                               from ml_coordinator.logger,
                                                to debug_console.logger);
 
         // Connect the SeL4Debug interface of each component that needs access.
         connection seL4RPCCall SeL4DebugInterface(from debug_console.sel4debug,
                                                   from process_manager.sel4debug,
                                                   to sel4debug.sel4debug);
+
+        connection seL4RPCCall MlCoordinatorInterface(from debug_console.mlcoord,
+                                                      to ml_coordinator.mlcoord);
+
+        connection seL4RPCCall VectorCoreInterface(from ml_coordinator.vctop, to vc_drv.vctop);
 
         connection seL4SharedData tx_channel(
             from debug_console.tx_dataport, to drv.tx_dataport);
@@ -66,6 +85,9 @@ assembly {
         uart.mem_size = 0x1000;
         // seL4 claims 10 is bigger than irqMax if this is uncommented.
         // uart.interrupt_irq_number = 10;
+
+        vctop.csr_paddr = 0x48000000;
+        vctop.csr_size = 0x1000;
 
         random.ID = 1;
 

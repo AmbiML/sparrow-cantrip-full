@@ -1,0 +1,5 @@
+component VectorCoreDriver {
+	dataport Buf csr;
+
+	provides VectorCoreInterface vctop;
+}

@@ -88,6 +88,7 @@ fn dispatch_command(cmdline: &str, output: &mut dyn io::Write) {
                 "test_alloc" => test_alloc_command(output),
                 "test_alloc_error" => test_alloc_error_command(output),
                 "test_panic" => test_panic_command(),
+                "test_mlexecute" => test_mlexecute_command(),
 
                 _ => Err(CommandError::UnknownCommand),
             };
@@ -326,4 +327,15 @@ fn test_alloc_error_command(output: &mut dyn io::Write) -> Result<(), CommandErr
 /// Implements a command that tests panic handling.
 fn test_panic_command() -> Result<(), CommandError> {
     panic!("testing");
+}
+
+/// Implements a command that runs an ML execution.
+fn test_mlexecute_command() -> Result<(), CommandError> {
+    extern "C" {
+        fn mlcoord_execute();
+    }
+    unsafe {
+        mlcoord_execute();
+    }
+    Ok(())
 }

@@ -1,8 +1,7 @@
 [workspace]
 
 members = [
-    "ml-common",
-    "ml-coordinator",
+    "cantrip-ml-coordinator",
 ]
 
 [profile.dev]
