@@ -7,7 +7,7 @@ use log::info;
 
 use cantrip_io as io;
 use cantrip_line_reader::LineReader;
-use cantrip_proc_common::{Bundle, RawBundleIdData};
+use cantrip_proc_common::{Bundle, ProcessManagerError, RawBundleIdData};
 
 /// Error type indicating why a command line is not runnable.
 enum CommandError {
@@ -175,18 +175,18 @@ fn clear_command(output: &mut dyn io::Write) -> Result<(), CommandError> {
 
 fn bundles_command(output: &mut dyn io::Write) -> Result<(), CommandError> {
     extern "C" {
-        fn proc_ctrl_get_running_bundles(c_raw_data: *mut u8) -> bool;
+        fn proc_ctrl_get_running_bundles(c_raw_data: *mut u8) -> ProcessManagerError;
     }
     let mut raw_data = RawBundleIdData::new();
-    if unsafe { proc_ctrl_get_running_bundles(raw_data.as_mut_ptr()) } {
-        for str_bundle_id in raw_data.iter() {
-            writeln!(output, "{}", str_bundle_id)?;
+    match unsafe { proc_ctrl_get_running_bundles(raw_data.as_mut_ptr()) } {
+        ProcessManagerError::Success => {
+            for str_bundle_id in raw_data.iter() {
+                writeln!(output, "{}", str_bundle_id)?;
+            }
         }
-    } else {
-        writeln!(
-            output,
-            "ProcessControlInterface::get_running_bundles failed"
-        )?;
+        status => {
+            writeln!(output, "get_running_bundles failed: {:?}", status)?;
+        }
     }
     Ok(())
 }
@@ -196,16 +196,22 @@ fn install_command(
     output: &mut dyn io::Write,
 ) -> Result<(), CommandError> {
     extern "C" {
-        fn pkg_mgmt_install(c_bundle_id: *const cstr_core::c_char, c_bundle: *const u8) -> bool;
+        fn pkg_mgmt_install(
+            c_bundle_id: *const cstr_core::c_char,
+            c_bundle: *const u8,
+        ) -> ProcessManagerError;
     }
     if let Some(bundle_id) = args.nth(0) {
         // TODO(sleffler): supply a real bundle (e.g. from serial)
         let bundle = Bundle::new();
         let cstr = CString::new(bundle_id).unwrap();
-        if unsafe { pkg_mgmt_install(cstr.as_ptr(), bundle.as_ptr()) } {
-            writeln!(output, "Bundle \"{}\" installed.", bundle_id)?;
-        } else {
-            writeln!(output, "PackageManagementInterface::install failed")?;
+        match unsafe { pkg_mgmt_install(cstr.as_ptr(), bundle.as_ptr()) } {
+            ProcessManagerError::Success => {
+                writeln!(output, "Bundle \"{}\" installed.", bundle_id)?;
+            }
+            status => {
+                writeln!(output, "install failed: {:?}", status)?;
+            }
         }
         Ok(())
     } else {
@@ -218,14 +224,17 @@ fn uninstall_command(
     output: &mut dyn io::Write,
 ) -> Result<(), CommandError> {
     extern "C" {
-        fn pkg_mgmt_uninstall(c_bundle_id: *const cstr_core::c_char) -> bool;
+        fn pkg_mgmt_uninstall(c_bundle_id: *const cstr_core::c_char) -> ProcessManagerError;
     }
     if let Some(bundle_id) = args.nth(0) {
         let cstr = CString::new(bundle_id).unwrap();
-        if unsafe { pkg_mgmt_uninstall(cstr.as_ptr()) } {
-            writeln!(output, "Bundle \"{}\" uninstalled.", bundle_id)?;
-        } else {
-            writeln!(output, "PackageManagementInterface::uninstall failed")?;
+        match unsafe { pkg_mgmt_uninstall(cstr.as_ptr()) } {
+            ProcessManagerError::Success => {
+                writeln!(output, "Bundle \"{}\" uninstalled.", bundle_id)?;
+            }
+            status => {
+                writeln!(output, "uninstall failed: {:?}", status)?;
+            }
         }
         Ok(())
     } else {
@@ -238,14 +247,17 @@ fn start_command(
     output: &mut dyn io::Write,
 ) -> Result<(), CommandError> {
     extern "C" {
-        fn proc_ctrl_start(c_bundle_id: *const cstr_core::c_char) -> bool;
+        fn proc_ctrl_start(c_bundle_id: *const cstr_core::c_char) -> ProcessManagerError;
     }
     if let Some(bundle_id) = args.nth(0) {
         let cstr = CString::new(bundle_id).unwrap();
-        if unsafe { proc_ctrl_start(cstr.as_ptr()) } {
-            writeln!(output, "Bundle \"{}\" started.", bundle_id)?;
-        } else {
-            writeln!(output, "ProcessControlInterface::start failed")?;
+        match unsafe { proc_ctrl_start(cstr.as_ptr()) } {
+            ProcessManagerError::Success => {
+                writeln!(output, "Bundle \"{}\" started.", bundle_id)?;
+            }
+            status => {
+                writeln!(output, "start failed: {:?}", status)?;
+            }
         }
         Ok(())
     } else {
@@ -258,14 +270,17 @@ fn stop_command(
     output: &mut dyn io::Write,
 ) -> Result<(), CommandError> {
     extern "C" {
-        fn proc_ctrl_stop(c_bundle_id: *const cstr_core::c_char) -> bool;
+        fn proc_ctrl_stop(c_bundle_id: *const cstr_core::c_char) -> ProcessManagerError;
     }
     if let Some(bundle_id) = args.nth(0) {
         let cstr = CString::new(bundle_id).unwrap();
-        if unsafe { proc_ctrl_stop(cstr.as_ptr()) } {
-            writeln!(output, "Bundle \"{}\" stopped.", bundle_id)?;
-        } else {
-            writeln!(output, "ProcessControlInterface::stop failed")?;
+        match unsafe { proc_ctrl_stop(cstr.as_ptr()) } {
+            ProcessManagerError::Success => {
+                writeln!(output, "Bundle \"{}\" stopped.", bundle_id)?;
+            }
+            status => {
+                writeln!(output, "stop failed: {:?}", status)?;
+            }
         }
         Ok(())
     } else {

@@ -9,6 +9,19 @@
 
 #define RAW_BUNDLE_ID_DATA_SIZE 100
 
+typedef enum ProcessManagerError {
+  Success = 0,
+  BundleNotFound,
+  BundleFound,
+  NoSpace,
+  InstallFailed,
+  UninstallFailed,
+  StartFailed,
+  StopFailed,
+  BundleIdInvalid,
+  BundleDataInvalid,
+} ProcessManagerError;
+
 typedef struct Bundle {
   uint8_t data[128];
 } Bundle;

@@ -1,6 +1,6 @@
 procedure PackageManagementInterface {
   include <ProcessManagerBindings.h>;
 
-  bool install(in string bundleId, in Bundle bundle);
-  bool uninstall(in string bundleId);
+  ProcessManagerError install(in string bundleId, in Bundle bundle);
+  ProcessManagerError uninstall(in string bundleId);
 };

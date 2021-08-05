@@ -189,6 +189,7 @@ impl Bundle {
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ProcessManagerError {
+    Success = 0,
     BundleNotFound,
     BundleFound,
     NoSpace,
@@ -197,6 +198,8 @@ pub enum ProcessManagerError {
     UninstallFailed,
     StartFailed,
     StopFailed,
+    BundleIdInvalid,
+    BundleDataInvalid,
 }
 
 // Interface to underlying facilities (StorageManager, seL4); also

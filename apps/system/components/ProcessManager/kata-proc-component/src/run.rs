@@ -45,48 +45,63 @@ pub extern "C" fn run() {
 
 // PackageManagerInterface glue stubs.
 #[no_mangle]
-pub extern "C" fn pkg_mgmt_install(bundle_id: *const cstr_core::c_char, bundle: Bundle) -> bool {
+pub extern "C" fn pkg_mgmt_install(
+    bundle_id: *const cstr_core::c_char,
+    bundle: Bundle,
+) -> ProcessManagerError {
     unsafe {
         match CStr::from_ptr(bundle_id).to_str() {
-            Ok(str) => CANTRIP_PROC.install(str, &bundle).is_ok(),
-            Err(_) => false,
+            Ok(str) => match CANTRIP_PROC.install(str, &bundle) {
+                Ok(_) => ProcessManagerError::Success,
+                Err(e) => e,
+            },
+            Err(_) => ProcessManagerError::BundleIdInvalid,
         }
     }
 }
 
 #[no_mangle]
-pub extern "C" fn pkg_mgmt_uninstall(bundle_id: *const cstr_core::c_char) -> bool {
+pub extern "C" fn pkg_mgmt_uninstall(bundle_id: *const cstr_core::c_char) -> ProcessManagerError {
     unsafe {
         match CStr::from_ptr(bundle_id).to_str() {
-            Ok(str) => CANTRIP_PROC.uninstall(str).is_ok(),
-            Err(_) => false,
+            Ok(str) => match CANTRIP_PROC.uninstall(str) {
+                Ok(_) => ProcessManagerError::Success,
+                Err(e) => e,
+            },
+            Err(_) => ProcessManagerError::BundleIdInvalid,
         }
     }
 }
 
 // ProcessControlInterface glue stubs.
 #[no_mangle]
-pub extern "C" fn proc_ctrl_start(bundle_id: *const cstr_core::c_char) -> bool {
+pub extern "C" fn proc_ctrl_start(bundle_id: *const cstr_core::c_char) -> ProcessManagerError {
     unsafe {
         match CStr::from_ptr(bundle_id).to_str() {
-            Ok(str) => CANTRIP_PROC.start(str).is_ok(),
-            Err(_) => false,
+            Ok(str) => match CANTRIP_PROC.start(str) {
+                Ok(_) => ProcessManagerError::Success,
+                Err(e) => e,
+            },
+            Err(_) => ProcessManagerError::BundleIdInvalid,
         }
     }
 }
 
 #[no_mangle]
-pub extern "C" fn proc_ctrl_stop(bundle_id: *const cstr_core::c_char) -> bool {
+pub extern "C" fn proc_ctrl_stop(bundle_id: *const cstr_core::c_char) -> ProcessManagerError {
     unsafe {
         match CStr::from_ptr(bundle_id).to_str() {
-            Ok(str) => CANTRIP_PROC.stop(str).is_ok(),
-            Err(_) => false,
+            Ok(str) => match CANTRIP_PROC.stop(str) {
+                Ok(_) => ProcessManagerError::Success,
+                Err(e) => e,
+            },
+            Err(_) => ProcessManagerError::BundleIdInvalid,
         }
     }
 }
 
 #[no_mangle]
-pub extern "C" fn proc_ctrl_get_running_bundles(c_raw_data: *mut u8) -> bool {
+pub extern "C" fn proc_ctrl_get_running_bundles(c_raw_data: *mut u8) -> ProcessManagerError {
     unsafe {
         match CANTRIP_PROC.get_running_bundles() {
             Ok(bundles) => {
@@ -94,11 +109,16 @@ pub extern "C" fn proc_ctrl_get_running_bundles(c_raw_data: *mut u8) -> bool {
                 // of <length><value> pairs. If we overflow the buffer, nothing
                 // is returned (should signal overflow somehow).
                 // TODO(sleffler): pass buffer size instead of assuming?
-                RawBundleIdData::from_raw(&mut *(c_raw_data as *mut [u8; RAW_BUNDLE_ID_DATA_SIZE]))
-                    .pack_bundles(&bundles)
-                    .is_ok()
+                match RawBundleIdData::from_raw(
+                    &mut *(c_raw_data as *mut [u8; RAW_BUNDLE_ID_DATA_SIZE]),
+                )
+                .pack_bundles(&bundles)
+                {
+                    Ok(_) => ProcessManagerError::Success,
+                    Err(_) => ProcessManagerError::BundleDataInvalid,
+                }
             }
-            Err(_) => false,
+            Err(e) => e,
         }
     }
 }
