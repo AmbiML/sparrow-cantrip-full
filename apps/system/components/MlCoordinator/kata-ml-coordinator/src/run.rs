@@ -23,7 +23,7 @@ pub extern "C" fn run() {
 // TODO: Move out of this file into separate (auto-generated?) file.
 // TODO: Consider the modular_bitfield crate to represent bitfields.
 fn vctop_ctrl(freeze: u32, vc_reset: u32, pc_start: u32) -> u32  {
-    ((pc_start & 1) << 2) + ((vc_reset & 1) << 1) + freeze
+    (pc_start << 2) + ((vc_reset & 1) << 1) + (freeze & 1)
 }
 
 #[no_mangle]
