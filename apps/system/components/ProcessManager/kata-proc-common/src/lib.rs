@@ -4,6 +4,7 @@
 #![feature(array_methods)]
 
 use bare_io::{Cursor, Write};
+use core::convert::TryFrom;
 use core::ops::{Index, IndexMut};
 use core::str;
 use smallstr::SmallString;
@@ -125,10 +126,10 @@ impl RawBundleIdData {
     // TODO(sleffler): handle truncation better
     pub fn pack_bundles(&mut self, bundles: &BundleIdArray) -> bare_io::Result<()> {
         let mut result = Cursor::new(&mut self.data[..]);
-        let bundle_count = [bundles.len() as u8];
+        let bundle_count = [u8::try_from(bundles.len()).map_err(|_| bare_io::ErrorKind::InvalidData)?];
         result.write(&bundle_count[..])?; // # bundles
         for bid in bundles.ids.as_slice().iter() {
-            let bid_len = [bid.len() as u8];
+            let bid_len = [u8::try_from(bid.len()).map_err(|_| bare_io::ErrorKind::InvalidData)?];
             result.write(&bid_len[..])?; // length
             result.write(bid.as_bytes())?; // value
         }
@@ -294,7 +295,7 @@ mod tests {
         bid_array.push(&BundleId::from_str("one"));
         bid_array.push(&BundleId::from_str("two"));
 
-        // Marhshall/unmarshall bid_array.
+        // Marhshall bid_array.
         let mut raw_buf = [0u8; RAW_BUNDLE_ID_DATA_SIZE];
         let raw_data = RawBundleIdData::from_raw(&mut raw_buf);
         assert!(raw_data.pack_bundles(&bid_array).is_ok());
@@ -305,14 +306,29 @@ mod tests {
         assert_eq!(iter.next(), Some("one"));
         assert_eq!(iter.next(), Some("two"));
         assert_eq!(iter.next(), None);
+    }
 
-        // Check marshall'd data.
-        assert_eq!(raw_buf[0], 3);  // 3 bundle id's
-        assert_eq!(raw_buf[1], "zero".len() as u8);
-        assert_eq!(&raw_buf[2..6], b"zero");
-        assert_eq!(raw_buf[6], "one".len() as u8);
-        assert_eq!(&raw_buf[7..10], b"one");
-        assert_eq!(raw_buf[10], "two".len() as u8);
-        assert_eq!(&raw_buf[11..14], b"two");
+    #[test]
+    fn test_raw_bundle_id_data_out_of_space() {
+        // Marshall an array with >255 id's; pack_bundles will fail because
+        // the bundle count does not fit in a u8.
+        // NB: this exceeds the array capacity so will spill to the heap;
+        // that's ok for testing
+        let mut bid_array = BundleIdArray::new();
+        for bid in 0..256 {
+            bid_array.push(&BundleId::from_str(&bid.to_string()));
+        }
+        assert!(RawBundleIdData::new().pack_bundles(&bid_array).is_err());
+    }
+
+    #[test]
+    fn test_raw_bundle_id_data_too_long() {
+        // Marshall an id with length >255; pack_bundles will fail because
+        // the bundle id length does not fit in a u8.
+        // NB: this exceeds the string capacity so will spill to the heap;
+        // that's ok for testing
+        let mut bid_array = BundleIdArray::new();
+        bid_array.push(&BundleId::from_str(&"0123456789".repeat(26)));
+        assert!(RawBundleIdData::new().pack_bundles(&bid_array).is_err());
     }
 }
