@@ -20,14 +20,8 @@ impl log::Log for CantripLogger {
             use bare_io::{Cursor, Write};
             let mut buf = [0 as u8; MAX_MSG_LEN];
             let mut cur = Cursor::new(&mut buf[..]);
-            // Log msgs are of the form: '<'<level>'>' <target>::<fmt'd-msg>
-            write!(
-                &mut cur,
-                "<{}> {}::{}\0",
-                record.level(),
-                record.target(),
-                record.args()
-            )
+            // Log msgs are of the form: '<target>::<fmt'd-msg>
+            write!(&mut cur, "{}::{}\0", record.target(), record.args())
             .unwrap_or_else(|_| {
                 // Too big, indicate overflow with a trailing "...".
                 cur.set_position((MAX_MSG_LEN - 4) as u64);
@@ -42,12 +36,7 @@ impl log::Log for CantripLogger {
                     record: &Record,
                 ) -> &'a cstr_core::CStr {
                     let mut cur = Cursor::new(&mut buf[..]);
-                    write!(
-                        &mut cur,
-                        "<{}> {}::<embedded nul>\0",
-                        record.level(),
-                        record.target()
-                    )
+                    write!(&mut cur, "{}::<embedded nul>\0", record.target())
                     .expect("nul!");
                     let pos = cur.position() as usize;
                     CStr::from_bytes_with_nul(&buf[..pos]).unwrap()
@@ -95,10 +84,10 @@ mod tests {
 
     // Formats a log message as done by CantripLogger and returns a zero-padded
     // Vec holding the message.
-    fn log_msg(level: log::Level, msg: &str) -> Result<Vec<u8>, std::io::Error> {
+    fn log_msg(_level: log::Level, msg: &str) -> Result<Vec<u8>, std::io::Error> {
         let mut v = Vec::new();
         use std::io::Write;
-        write!(&mut v, "<{}> {}::{}\0", level, "cantrip_logger::tests", msg)?;
+        write!(&mut v, "{}::{}\0", "cantrip_logger::tests", msg)?;
         v.resize(MAX_MSG_LEN, 0);
         assert_eq!(v.len(), MAX_MSG_LEN);
         Ok(v)
@@ -233,7 +222,7 @@ mod tests {
         debug!("{}", debug_msg);
 
         // Blech, must take into account log msg formatting.
-        debug_msg.truncate(MAX_MSG_LEN - 4 - "<DEBUG> cantrip_logger::tests::".len());
+        debug_msg.truncate(MAX_MSG_LEN - 4 - "cantrip_logger::tests::".len());
         debug_msg.push_str("...");
         pop_and_check_result(log::Level::Debug, &debug_msg[..]);
     }
