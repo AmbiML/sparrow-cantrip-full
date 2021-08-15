@@ -10,7 +10,6 @@
  * @TAG(DATA61_BSD)
  */
 
-procedure uart_inf {
-  void rx(in size_t n);
-  void tx(in size_t n);
+procedure dataport_io_inf {
+  void update(in size_t n);
 };

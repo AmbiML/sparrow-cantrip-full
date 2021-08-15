@@ -8,8 +8,8 @@ use cantrip_io as io;
 extern "C" {
     static rx_dataport: *mut cty::c_uchar;
     static tx_dataport: *mut cty::c_uchar;
-    fn uart_rx(n: cty::size_t);
-    fn uart_tx(n: cty::size_t);
+    fn uart_rx_update(n: cty::size_t);
+    fn uart_tx_update(n: cty::size_t);
 }
 
 // Console logging interface.
@@ -27,7 +27,7 @@ pub struct Rx {}
 impl io::Read for Rx {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
         unsafe {
-            uart_rx(buf.len());
+            uart_rx_update(buf.len());
             let port = core::slice::from_raw_parts(rx_dataport, buf.len());
             buf.copy_from_slice(&port);
         }
@@ -42,7 +42,7 @@ impl io::Write for Tx {
         unsafe {
             let port = core::slice::from_raw_parts_mut(tx_dataport, buf.len());
             port.copy_from_slice(buf);
-            uart_tx(buf.len());
+            uart_tx_update(buf.len());
         }
         Ok(buf.len())
     }

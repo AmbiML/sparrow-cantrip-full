@@ -12,7 +12,7 @@
 
 import <std_connector.camkes>;
 
-import "interfaces/uart.idl4";
+import "interfaces/dataport_io.idl4";
 import "interfaces/VectorCoreInterface.camkes";
 import "components/UartDriver/UartDriver.camkes";
 import "components/DebugConsole/DebugConsole.camkes";
@@ -23,9 +23,9 @@ import "components/VectorCoreDriver/VectorCoreDriver.camkes";
 
 component UART {
     hardware;
-    dataport Buf mem;
-    // TODO(mattharvey): Make receives wait on interrupt.
-    // emits Interrupt interrupt;
+    dataport Buf mmio_region;
+
+    emits Interrupt rx_watermark;
 }
 
 component VectorCoreHw {
@@ -35,28 +35,43 @@ component VectorCoreHw {
 
 assembly {
     composition {
-        component UART uart;
-        component UartDriver drv;
-        component DebugConsole debug_console;
-        component ProcessManager process_manager;
         component SeL4Debug sel4debug;
+
         component VectorCoreHw vctop;
         component VectorCoreDriver vc_drv;
+
+        component UART uart;
+        component UartDriver uart_driver;
+
+        component ProcessManager process_manager;
         component MlCoordinator ml_coordinator;
+        component DebugConsole debug_console;
 
-        connection seL4HardwareMMIO uart_mem(from drv.mem, to uart.mem);
-        connection seL4HardwareMMIO vc_csr(from vc_drv.csr, to vctop.csr);
-
+        // UartDriver
+        connection seL4HardwareMMIO uart_mem(from uart_driver.mmio_region,
+                                             to uart.mmio_region);
         // TODO(mattharvey): Make receives wait on interrupt.
-        // connection seL4HardwareInterrupt uart_interrupt(
-        //     from uart.interrupt, to drv.interrupt);
-        connection seL4RPCCall uart_inf(from debug_console.uart, to drv.uart);
+
+        // VectorCoreDriver
+        connection seL4HardwareMMIO vc_csr(from vc_drv.csr, to vctop.csr);
+        connection seL4RPCCall VectorCoreInterface(from ml_coordinator.vctop,
+                                                   to vc_drv.vctop);
 
         // Hookup ProcessManager to DebugConsole for shell commands.
         connection seL4RPCCall ProcessControlInterface(from debug_console.proc_ctrl,
                                                        to process_manager.proc_ctrl);
         connection seL4RPCCall PackageManagerInterface(from debug_console.pkg_mgmt,
                                                        to process_manager.pkg_mgmt);
+
+        // Connect the DebugConsole to the UartDriver.
+        connection seL4SharedData tx_channel(
+            from debug_console.tx_dataport, to uart_driver.tx_dataport);
+        connection seL4RPCCall tx_call(
+            from debug_console.uart_tx, to uart_driver.uart_tx);
+        connection seL4SharedData rx_channel(
+            from debug_console.rx_dataport, to uart_driver.rx_dataport);
+        connection seL4RPCCall rx_call(
+            from debug_console.uart_rx, to uart_driver.uart_rx);
 
         // Connect the LoggerInterface to each component that needs to log
         // to the console.
@@ -72,25 +87,17 @@ assembly {
         connection seL4RPCCall MlCoordinatorInterface(from debug_console.mlcoord,
                                                       to ml_coordinator.mlcoord);
 
-        connection seL4RPCCall VectorCoreInterface(from ml_coordinator.vctop, to vc_drv.vctop);
-
-        connection seL4SharedData tx_channel(
-            from debug_console.tx_dataport, to drv.tx_dataport);
-        connection seL4SharedData rx_channel(
-            from debug_console.rx_dataport, to drv.rx_dataport);
     }
 
     configuration {
-        uart.mem_paddr = 0x40031000;
-        uart.mem_size = 0x1000;
-        // seL4 claims 10 is bigger than irqMax if this is uncommented.
-        // uart.interrupt_irq_number = 10;
+        uart.mmio_region_paddr = 0x40031000;
+        uart.mmio_region_size = 0x1000;
 
         vctop.csr_paddr = 0x48000000;
         vctop.csr_size = 0x1000;
 
         random.ID = 1;
 
-        uart.integrity_label = "drv";
+        uart.integrity_label = "uart_driver";
     }
 }

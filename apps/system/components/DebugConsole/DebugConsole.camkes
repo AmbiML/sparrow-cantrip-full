@@ -6,9 +6,12 @@ import <SeL4DebugInterface.camkes>;
 
 component DebugConsole {
   control;
-  uses uart_inf uart;
+
   dataport Buf tx_dataport;
+  uses dataport_io_inf uart_tx;
+
   dataport Buf rx_dataport;
+  uses dataport_io_inf uart_rx;
 
   provides LoggerInterface logger;
   uses ProcessControlInterface proc_ctrl;

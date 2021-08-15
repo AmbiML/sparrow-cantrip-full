@@ -11,11 +11,10 @@
  */
 
 component UartDriver {
-	dataport Buf mem;
+  dataport Buf mmio_region;
   dataport Buf tx_dataport;
   dataport Buf rx_dataport;
 
-  // consumes Interrupt interrupt;
-
-	provides uart_inf uart;
+  provides dataport_io_inf uart_rx;
+  provides dataport_io_inf uart_tx;
 }

@@ -11,14 +11,14 @@
 #include "opentitan/uart.h"
 
 // Referenced by macros in the generated file opentitan/uart.h.
-#define UART0_BASE_ADDR (void *)mem
+#define UART0_BASE_ADDR (void *)mmio_region
 
 // Frequency of the primary clock clk_i.
 #define CLK_FIXED_FREQ_HZ (24ull * 1000 * 1000)
 
 #define REG32(addr) *((volatile uint32_t *)(addr))
 
-void uart__init() {
+void pre_init() {
   // Computes NCO value corresponding to baud rate.
   // nco = 2^20 * baud / fclk  (assuming NCO width is 16-bit)
   uint64_t baud = 115200ull;
@@ -75,7 +75,7 @@ static int uart_tx_ready() {
    */
 }
 
-void uart_rx(size_t n) {
+void uart_rx_update(size_t n) {
   char *c = (char *)rx_dataport;
   // TODO(mattharvey): Error return value for n > PAGE_SIZE
   for (size_t i = 0; i < n && i < PAGE_SIZE; ++i) {
@@ -87,7 +87,7 @@ void uart_rx(size_t n) {
   }
 }
 
-void uart_tx(size_t n) {
+void uart_tx_update(size_t n) {
   char *c = (char *)tx_dataport;
   // TODO(mattharvey): Error return value for n > PAGE_SIZE
   for (size_t i = 0; i < n && i < PAGE_SIZE; ++i) {
