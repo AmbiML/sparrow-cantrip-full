@@ -117,7 +117,6 @@ fn echo_command(cmdline: &str, output: &mut dyn io::Write) -> Result<(), Command
 }
 
 // Set/display the max log level for the DebugConsole.
-// TODO(sleffler): support setting the log level in other components
 fn loglevel_command(
     args: &mut dyn Iterator<Item = &str>,
     output: &mut dyn io::Write,

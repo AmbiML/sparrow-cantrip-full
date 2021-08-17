@@ -15,7 +15,7 @@ impl log::Log for CantripLogger {
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
             extern "C" {
-                fn logger_log(msg: *const cstr_core::c_char);
+                fn logger_log(level: u8, msg: *const cstr_core::c_char);
             }
             use bare_io::{Cursor, Write};
             let mut buf = [0 as u8; MAX_MSG_LEN];
@@ -55,6 +55,7 @@ impl log::Log for CantripLogger {
                 // NB: this releases the ref on buf held by the Cursor
                 let pos = cur.position() as usize;
                 logger_log(
+                    record.level() as u8,
                     match CStr::from_bytes_with_nul(&buf[..pos]) {
                         Ok(cstr) => cstr,
                         Err(_) => embedded_nul_cstr(&mut buf, record),
@@ -85,7 +86,7 @@ mod tests {
     }
 
     #[no_mangle]
-    pub extern "C" fn logger_log(msg: *const cstr_core::c_char) {
+    pub extern "C" fn logger_log(_level: u8, msg: *const cstr_core::c_char) {
         unsafe {
             // NB: this depends on msg pointing to the caller's array
             MSGS.push(*(msg as *const [u8; MAX_MSG_LEN]));

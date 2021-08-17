@@ -9,3 +9,4 @@ edition = "2018"
 cstr_core = { version = "0.2.3", default-features = false }
 cty = "0.2.1"
 cantrip-io = { path = "../cantrip-io" }
+log = "0.4"

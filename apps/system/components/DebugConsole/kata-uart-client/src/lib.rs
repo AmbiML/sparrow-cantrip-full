@@ -19,10 +19,23 @@ extern "C" {
 
 // Console logging interface.
 #[no_mangle]
-pub extern "C" fn logger_log(msg: *const cstr_core::c_char) {
-    let output: &mut dyn io::Write = &mut self::Tx {};
-    unsafe {
-        let _ = writeln!(output, "{}", CStr::from_ptr(msg).to_str().unwrap());
+pub extern "C" fn logger_log(level: u8, msg: *const cstr_core::c_char) {
+    use log::Level;
+    // TODO(sleffler): seems like this should be try_from?
+    let l = match level {
+        x if x == Level::Error as u8 => Level::Error,
+        x if x == Level::Warn as u8 => Level::Warn,
+        x if x == Level::Info as u8 => Level::Info,
+        x if x == Level::Debug as u8 => Level::Debug,
+        x if x == Level::Trace as u8 => Level::Trace,
+        _ => { return },  // TODO(sleffler): accept or not?
+    };
+    if l <= log::max_level() {
+        // TODO(sleffler): is the uart driver ok w/ multiple writers?
+        let output: &mut dyn io::Write = &mut self::Tx {};
+        unsafe {
+            let _ = writeln!(output, "{}", CStr::from_ptr(msg).to_str().unwrap());
+        }
     }
 }
 
