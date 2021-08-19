@@ -12,13 +12,17 @@
 
 component OpenTitanUARTDriver {
   dataport Buf mmio_region;
+
   dataport Buf tx_dataport;
-  dataport Buf rx_dataport;
-
-  provides dataport_io_inf rx;
   provides dataport_io_inf tx;
-  consumes Interrupt rx_watermark;
+  consumes Interrupt tx_watermark;
+  consumes Interrupt tx_empty;
+  has semaphore tx_semaphore;
+  has mutex tx_mutex;
 
+  dataport Buf rx_dataport;
+  provides dataport_io_inf rx;
+  consumes Interrupt rx_watermark;
   has semaphore rx_semaphore;
   has mutex rx_mutex;
 }

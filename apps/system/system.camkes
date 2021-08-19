@@ -25,7 +25,9 @@ component OpenTitanUART {
     hardware;
     dataport Buf mmio_region;
 
+    emits Interrupt tx_watermark;
     emits Interrupt rx_watermark;
+    emits Interrupt tx_empty;
 }
 
 component VectorCoreHw {
@@ -50,8 +52,12 @@ assembly {
         // OpenTitanUARTDriver
         connection seL4HardwareMMIO uart_mem(from uart_driver.mmio_region,
                                              to uart.mmio_region);
+        connection seL4HardwareInterrupt uart_tx_watermark(from uart.tx_watermark,
+                                                           to uart_driver.tx_watermark);
         connection seL4HardwareInterrupt uart_rx_watermark(from uart.rx_watermark,
                                                            to uart_driver.rx_watermark);
+        connection seL4HardwareInterrupt uart_tx_empty(from uart.tx_empty,
+                                                       to uart_driver.tx_empty);
 
         // VectorCoreDriver
         connection seL4HardwareMMIO vc_csr(from vc_drv.csr, to vctop.csr);
@@ -93,7 +99,9 @@ assembly {
     configuration {
         uart.mmio_region_paddr = 0x40030000;
         uart.mmio_region_size = 0x1000;
+        uart.tx_watermark_irq_number = 25;
         uart.rx_watermark_irq_number = 26;
+        uart.tx_empty_irq_number = 27;
 
         vctop.csr_paddr = 0x48000000;
         vctop.csr_size = 0x1000;

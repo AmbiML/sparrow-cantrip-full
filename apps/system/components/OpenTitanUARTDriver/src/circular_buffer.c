@@ -7,9 +7,6 @@
  */
 #include "circular_buffer.h"
 
-// TODO(mattharvey): Determine how to do unit testing within the cantrip build
-// system and add unit tests covering circular_buffer.
-
 // Advances one of the begin/end pointers, wrapping around the end of the
 // data array when necessary.
 static void *circular_buffer_advance(circular_buffer *buf, char **p) {
