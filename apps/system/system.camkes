@@ -90,7 +90,7 @@ assembly {
     }
 
     configuration {
-        uart.mmio_region_paddr = 0x40031000;
+        uart.mmio_region_paddr = 0x40030000;
         uart.mmio_region_size = 0x1000;
 
         vctop.csr_paddr = 0x48000000;
