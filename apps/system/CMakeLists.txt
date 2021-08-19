@@ -54,9 +54,13 @@ DeclareCAmkESComponent(MlCoordinator
   INCLUDES interfaces
 )
 
-DeclareCAmkESComponent(UartDriver
-  SOURCES components/UartDriver/src/driver.c
-  INCLUDES opentitan-gen/include
+DeclareCAmkESComponent(OpenTitanUARTDriver
+  SOURCES
+  components/OpenTitanUARTDriver/src/driver.c
+  components/OpenTitanUARTDriver/src/circular_buffer.c
+  INCLUDES
+  opentitan-gen/include
+  components/OpenTitanUARTDriver/include
 )
 
 DeclareCAmkESComponent(SeL4Debug

@@ -14,14 +14,14 @@ import <std_connector.camkes>;
 
 import "interfaces/dataport_io.idl4";
 import "interfaces/VectorCoreInterface.camkes";
-import "components/UartDriver/UartDriver.camkes";
+import "components/OpenTitanUARTDriver/OpenTitanUARTDriver.camkes";
 import "components/DebugConsole/DebugConsole.camkes";
 import "components/ProcessManager/ProcessManager.camkes";
 import "components/MlCoordinator/MlCoordinator.camkes";
 import "components/SeL4Debug/SeL4Debug.camkes";
 import "components/VectorCoreDriver/VectorCoreDriver.camkes";
 
-component UART {
+component OpenTitanUART {
     hardware;
     dataport Buf mmio_region;
 
@@ -40,14 +40,14 @@ assembly {
         component VectorCoreHw vctop;
         component VectorCoreDriver vc_drv;
 
-        component UART uart;
-        component UartDriver uart_driver;
+        component OpenTitanUART uart;
+        component OpenTitanUARTDriver uart_driver;
 
         component ProcessManager process_manager;
         component MlCoordinator ml_coordinator;
         component DebugConsole debug_console;
 
-        // UartDriver
+        // OpenTitanUARTDriver
         connection seL4HardwareMMIO uart_mem(from uart_driver.mmio_region,
                                              to uart.mmio_region);
         connection seL4HardwareInterrupt uart_rx_watermark(from uart.rx_watermark,
@@ -64,15 +64,15 @@ assembly {
         connection seL4RPCCall PackageManagerInterface(from debug_console.pkg_mgmt,
                                                        to process_manager.pkg_mgmt);
 
-        // Connect the DebugConsole to the UartDriver.
+        // Connect the DebugConsole to the OpenTitanUARTDriver.
         connection seL4SharedData tx_channel(
             from debug_console.tx_dataport, to uart_driver.tx_dataport);
         connection seL4RPCCall tx_call(
-            from debug_console.uart_tx, to uart_driver.uart_tx);
+            from debug_console.uart_tx, to uart_driver.tx);
         connection seL4SharedData rx_channel(
             from debug_console.rx_dataport, to uart_driver.rx_dataport);
         connection seL4RPCCall rx_call(
-            from debug_console.uart_rx, to uart_driver.uart_rx);
+            from debug_console.uart_rx, to uart_driver.rx);
 
         // Connect the LoggerInterface to each component that needs to log
         // to the console.
@@ -100,6 +100,6 @@ assembly {
 
         random.ID = 1;
 
-        uart.integrity_label = "uart_driver";
+        uart.integrity_label = "opentitan_uart_driver";
     }
 }

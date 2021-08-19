@@ -10,13 +10,13 @@
  * @TAG(DATA61_BSD)
  */
 
-component UartDriver {
+component OpenTitanUARTDriver {
   dataport Buf mmio_region;
   dataport Buf tx_dataport;
   dataport Buf rx_dataport;
 
-  provides dataport_io_inf uart_rx;
-  provides dataport_io_inf uart_tx;
+  provides dataport_io_inf rx;
+  provides dataport_io_inf tx;
   consumes Interrupt rx_watermark;
 
   has semaphore rx_semaphore;
