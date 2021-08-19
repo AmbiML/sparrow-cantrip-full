@@ -50,7 +50,8 @@ assembly {
         // UartDriver
         connection seL4HardwareMMIO uart_mem(from uart_driver.mmio_region,
                                              to uart.mmio_region);
-        // TODO(mattharvey): Make receives wait on interrupt.
+        connection seL4HardwareInterrupt uart_rx_watermark(from uart.rx_watermark,
+                                                           to uart_driver.rx_watermark);
 
         // VectorCoreDriver
         connection seL4HardwareMMIO vc_csr(from vc_drv.csr, to vctop.csr);
@@ -92,6 +93,7 @@ assembly {
     configuration {
         uart.mmio_region_paddr = 0x40030000;
         uart.mmio_region_size = 0x1000;
+        uart.rx_watermark_irq_number = 26;
 
         vctop.csr_paddr = 0x48000000;
         vctop.csr_size = 0x1000;

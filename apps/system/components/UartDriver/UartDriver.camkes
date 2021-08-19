@@ -17,4 +17,8 @@ component UartDriver {
 
   provides dataport_io_inf uart_rx;
   provides dataport_io_inf uart_tx;
+  consumes Interrupt rx_watermark;
+
+  has semaphore rx_semaphore;
+  has mutex rx_mutex;
 }
