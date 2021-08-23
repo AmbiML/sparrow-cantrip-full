@@ -163,7 +163,12 @@ void pre_init() {
 
   // Enables interrupts.
   REG(INTR_ENABLE) = (
-      BIT(UART_INTR_COMMON_TX_WATERMARK) |
+      // TODO(mattharvey): Enable tx_watermark. Currently the handler fires
+      // repeatedly in a loop when doing this, even while the TX FIFO remains
+      // empty, contrary to the "edge triggered events" working in the OpenTitan
+      // docs. Check that Renode is doing the right thing and if so debug after
+      // re-enabling this.
+      // BIT(UART_INTR_COMMON_TX_WATERMARK) |
       BIT(UART_INTR_COMMON_RX_WATERMARK) | BIT(UART_INTR_COMMON_TX_EMPTY));
 }
 
@@ -234,6 +239,9 @@ void tx_update(uint32_t num_valid_dataport_bytes) {
 // These happen when the transmit FIFO is half-empty. This refills the FIFO to
 // prevent stalling, stopping early if tx_buf becomes empty, and then signals
 // any tx_update that might be waiting for tx_buf to not be full.
+//
+// Currently this is not actually enabled. See the TODO in the implementation of
+// pre_init.
 void tx_watermark_handle(void) {
   fill_tx_fifo();
 
