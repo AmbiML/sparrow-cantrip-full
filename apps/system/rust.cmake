@@ -48,7 +48,7 @@ function(RustAddLibrary lib_name)
         DEPENDS ${RUST_DEPENDS}
         WORKING_DIRECTORY ${RUST_SOURCE_DIR}
         COMMAND
-            ${CMAKE_COMMAND} -E env cargo +nightly build
+            ${CMAKE_COMMAND} -E env cargo +nightly-2021-08-05 build
             ${CARGO_OPTIONS}
             --target-dir ${RUST_BUILD_DIR}
             --out-dir ${RUST_BUILD_DIR}
