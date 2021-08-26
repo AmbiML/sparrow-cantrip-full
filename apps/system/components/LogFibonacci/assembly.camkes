@@ -1,0 +1,11 @@
+import "LogFibonacci.camkes";
+
+assembly {
+    composition {
+        component LogFibonacci log_fibonacci;
+
+        connection seL4RPCOverMultiSharedData log_fibonacci_logger(
+            from log_fibonacci.logger,
+            to debug_console.logger);
+    }
+}

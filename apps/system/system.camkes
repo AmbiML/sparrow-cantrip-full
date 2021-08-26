@@ -62,14 +62,16 @@ assembly {
 
         // VectorCoreDriver
         connection seL4HardwareMMIO vc_csr(from vc_drv.csr, to vctop.csr);
-        connection seL4RPCCall VectorCoreInterface(from ml_coordinator.vctop,
-                                                   to vc_drv.vctop);
+        connection seL4RPCCall ml_coord_to_driver(from ml_coordinator.vctop,
+                                                  to vc_drv.vctop);
 
         // Hookup ProcessManager to DebugConsole for shell commands.
-        connection seL4RPCCall ProcessControlInterface(from debug_console.proc_ctrl,
-                                                       to process_manager.proc_ctrl);
-        connection seL4RPCCall PackageManagerInterface(from debug_console.pkg_mgmt,
-                                                       to process_manager.pkg_mgmt);
+        connection seL4RPCCall shell_process(from debug_console.proc_ctrl,
+                                             to process_manager.proc_ctrl);
+        connection seL4RPCCall shell_package(from debug_console.pkg_mgmt,
+                                             to process_manager.pkg_mgmt);
+        connection seL4RPCCall shell_ml(from debug_console.mlcoord,
+                                        to ml_coordinator.mlcoord);
 
         // Connect the DebugConsole to the OpenTitanUARTDriver.
         connection seL4SharedData tx_channel(
@@ -84,19 +86,20 @@ assembly {
         // Connect the LoggerInterface to each component that needs to log
         // to the console. Note this allocates a 4KB shared memory region to
         // each component and copies data between components.
-        connection seL4RPCOverMultiSharedData LoggerInterface(
+        connection seL4RPCOverMultiSharedData multi_logger(
             from process_manager.logger,
             from ml_coordinator.logger,
             to debug_console.logger);
 
         // Connect the SeL4Debug interface of each component that needs access.
-        connection seL4RPCCall SeL4DebugInterface(from debug_console.sel4debug,
-                                                  from process_manager.sel4debug,
-                                                  to sel4debug.sel4debug);
-
-        connection seL4RPCCall MlCoordinatorInterface(from debug_console.mlcoord,
-                                                      to ml_coordinator.mlcoord);
-
+        //
+        // (Note that if the LogFibonacci import at the bottom of this file is
+        // uncommented then there will be another connection to the sel4debug
+        // procedure. This is fine, but it is important that connection names
+        // not clash.)
+        connection seL4RPCCall multi_sel4debug(from debug_console.sel4debug,
+                                               from process_manager.sel4debug,
+                                               to sel4debug.sel4debug);
     }
 
     configuration {
@@ -114,3 +117,10 @@ assembly {
         uart.integrity_label = "opentitan_uart_driver";
     }
 }
+
+// Uncomment to run a concurrency test component that is runnable every time
+// the scheduler checks and which periodically calls logger.log.
+//
+// (Needs to be at the bottom of file because CAmkES ADL does not have forward
+// declaration.)
+// import "components/LogFibonacci/assembly.camkes";

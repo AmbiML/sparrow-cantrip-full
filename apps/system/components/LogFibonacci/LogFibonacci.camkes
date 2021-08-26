@@ -1,0 +1,7 @@
+import <LoggerInterface.camkes>;
+
+component LogFibonacci {
+  control;
+
+  uses LoggerInterface logger;
+}

@@ -55,6 +55,11 @@ DeclareCAmkESComponent(MlCoordinator
   INCLUDES interfaces
 )
 
+DeclareCAmkESComponent(LogFibonacci
+  SOURCES
+  components/LogFibonacci/src/main.c
+)
+
 DeclareCAmkESComponent(OpenTitanUARTDriver
   SOURCES
   components/OpenTitanUARTDriver/src/driver.c
