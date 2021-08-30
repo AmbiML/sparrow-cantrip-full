@@ -97,11 +97,11 @@ assembly {
     }
 
     configuration {
-        uart.mmio_region_paddr = 0x40030000;
+        uart.mmio_region_paddr = 0x40010000;
         uart.mmio_region_size = 0x1000;
-        uart.tx_watermark_irq_number = 25;
-        uart.rx_watermark_irq_number = 26;
-        uart.tx_empty_irq_number = 27;
+        uart.tx_watermark_irq_number = 9;
+        uart.rx_watermark_irq_number = 10;
+        uart.tx_empty_irq_number = 11;
 
         vctop.csr_paddr = 0x48000000;
         vctop.csr_size = 0x1000;
