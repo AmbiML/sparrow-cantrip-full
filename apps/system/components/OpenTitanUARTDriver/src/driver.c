@@ -79,23 +79,13 @@ static void uart_putchar(char c) {
   REG(WDATA) = MASK_AND_SHIFT_UP(c, WDATA, WDATA);
 }
 
-// Writes just enough of tx_buf to fill the transmit FIFO.
+// Copies from tx_buf into the transmit FIFO.
 //
-// This is called from all of tx_update, tx_watermark_handle, and
-// tx_empty_handle. If tx_update has filled tx_buf to a size larger than the
-// FIFO, interrupts will trigger and repeatedly until tx_buf is completely sent.
+// This stops when the transmit FIFO is full or when tx_buf is empty, whichever
+// comes first.
 static void fill_tx_fifo() {
-  // Caps the number of bytes sent to a fixed constant, since otherwise an
-  // emulation reporting a very largo FIFO level could cause a long time to be
-  // spent in an interrupt handler.
-  uint32_t max_to_send = UART_FIFO_CAPACITY - tx_fifo_level();
-  if (max_to_send > UART_FIFO_CAPACITY) {
-    max_to_send = UART_FIFO_CAPACITY;
-  }
-
   seL4_Assert(tx_mutex_lock() == 0);
-  uint32_t capacity = circular_buffer_size(&tx_buf);
-  for (uint32_t num_sent = 0; num_sent < max_to_send; ++num_sent) {
+  while (tx_fifo_level() < UART_FIFO_CAPACITY) {
     char c;
     if (!circular_buffer_pop_front(&tx_buf, &c)) {
       // The buffer is empty.
@@ -162,9 +152,9 @@ void pre_init() {
   REG(FIFO_CTRL) = fifo_ctrl;
 
   // Enables interrupts.
-  REG(INTR_ENABLE) = (
-      BIT(UART_INTR_COMMON_TX_WATERMARK) |
-      BIT(UART_INTR_COMMON_RX_WATERMARK) | BIT(UART_INTR_COMMON_TX_EMPTY));
+  REG(INTR_ENABLE) =
+      (BIT(UART_INTR_COMMON_TX_WATERMARK) | BIT(UART_INTR_COMMON_RX_WATERMARK) |
+       BIT(UART_INTR_COMMON_TX_EMPTY));
 }
 
 // Implements the update method of the CAmkES dataport_inf rx.
@@ -222,11 +212,7 @@ void tx_update(uint32_t num_valid_dataport_bytes) {
     seL4_Assert(tx_mutex_unlock() == 0);
   }
 
-  if (tx_fifo_level() == 0) {
-    // If the FIFO is already empty, there is no interrupt coming, so we trigger
-    // the first transmission manually.
-    fill_tx_fifo();
-  }
+  fill_tx_fifo();
 }
 
 // Handles a tx_watermark interrupt.
@@ -237,7 +223,10 @@ void tx_update(uint32_t num_valid_dataport_bytes) {
 void tx_watermark_handle(void) {
   fill_tx_fifo();
 
-  // Clears INTR_STATE for tx_watermark. (INTR_STATE is write-1-to-clear.)
+  // Clears INTR_STATE for tx_watermark. (INTR_STATE is write-1-to-clear.) No
+  // similar check to the one in tx_empty_handle is necessary here, since
+  // tx_empty will eventually assert and cause anything left in tx_buf to be
+  // flushed out.
   REG(INTR_STATE) = BIT(UART_INTR_STATE_TX_WATERMARK);
 
   seL4_Assert(tx_watermark_acknowledge() == 0);
@@ -286,8 +275,14 @@ void rx_watermark_handle(void) {
 void tx_empty_handle(void) {
   fill_tx_fifo();
 
-  // Clears INTR_STATE for tx_empty. (INTR_STATE is write-1-to-clear.)
-  REG(INTR_STATE) = BIT(UART_INTR_STATE_TX_EMPTY);
-
+  seL4_Assert(tx_mutex_lock() == 0);
+  if (circular_buffer_empty(&tx_buf)) {
+    // Clears INTR_STATE for tx_empty. (INTR_STATE is write-1-to-clear.) We only
+    // do this if tx_buf is empty, since the TX FIFO might have become empty in
+    // the time from fill_tx_fifo having sent the last character until here. In
+    // that case, we want the interrupt to reassert.
+    REG(INTR_STATE) = BIT(UART_INTR_STATE_TX_EMPTY);
+  }
   seL4_Assert(tx_empty_acknowledge() == 0);
+  seL4_Assert(tx_mutex_unlock() == 0);
 }
