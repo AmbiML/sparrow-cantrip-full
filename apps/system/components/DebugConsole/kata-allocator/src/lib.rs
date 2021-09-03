@@ -6,7 +6,6 @@
 use core::alloc::{GlobalAlloc, Layout};
 use core::panic;
 use core::ptr::{self, NonNull};
-use log::info;
 
 use linked_list_allocator::Heap;
 use spin::Mutex;
@@ -53,10 +52,9 @@ impl CantripHeap {
     ///
     /// Obey these or Bad Stuff will happen.
     ///
-    /// - This function must be called exactly ONCE.
+    /// - This function must be called exactly ONCE (per thread).
     /// - `size > 0`
     pub unsafe fn init(&self, start_addr: usize, size: usize) {
-        info!("init: start_addr {:#x} size {}", start_addr, size);
         (*self.heap.lock()).init(start_addr, size);
     }
 

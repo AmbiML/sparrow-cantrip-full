@@ -23,8 +23,7 @@ impl log::Log for CantripLogger {
             let mut buf = [0 as u8; MAX_MSG_LEN];
             let mut cur = Cursor::new(&mut buf[..]);
             // Log msgs are of the form: '<target>::<fmt'd-msg>
-            write!(&mut cur, "{}::{}\0", record.target(), record.args())
-            .unwrap_or_else(|_| {
+            write!(&mut cur, "{}::{}\0", record.target(), record.args()).unwrap_or_else(|_| {
                 // Too big, indicate overflow with a trailing "...".
                 cur.set_position((MAX_MSG_LEN - 4) as u64);
                 cur.write(b"...\0").expect("write!");
@@ -38,8 +37,7 @@ impl log::Log for CantripLogger {
                     record: &Record,
                 ) -> &'a cstr_core::CStr {
                     let mut cur = Cursor::new(&mut buf[..]);
-                    write!(&mut cur, "{}::<embedded nul>\0", record.target())
-                    .expect("nul!");
+                    write!(&mut cur, "{}::<embedded nul>\0", record.target()).expect("nul!");
                     let pos = cur.position() as usize;
                     CStr::from_bytes_with_nul(&buf[..pos]).unwrap()
                 }

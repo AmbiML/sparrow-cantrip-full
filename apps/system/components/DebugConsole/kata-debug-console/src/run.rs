@@ -17,30 +17,31 @@ use cantrip_allocator;
 use cantrip_logger::CantripLogger;
 use cantrip_shell;
 use cantrip_uart_client;
-use log::debug;
-
-static CANTRIP_LOGGER: CantripLogger = CantripLogger;
+use log::trace;
 
 #[no_mangle]
 pub extern "C" fn pre_init() {
+    static CANTRIP_LOGGER: CantripLogger = CantripLogger;
     log::set_logger(&CANTRIP_LOGGER).unwrap();
+    // NB: set to Trace for early-boot msgs
     log::set_max_level(log::LevelFilter::Debug);
-}
 
-#[no_mangle]
-// NB: use post_init insted of pre_init so syslog interface is setup
-pub extern "C" fn post_init() {
     // TODO(sleffler): temp until we integrate with seL4
     static mut HEAP_MEMORY: [u8; 16 * 1024] = [0; 16 * 1024];
     unsafe {
         cantrip_allocator::ALLOCATOR.init(HEAP_MEMORY.as_mut_ptr() as usize, HEAP_MEMORY.len());
+        trace!(
+            "setup heap: start_addr {:p} size {}",
+            HEAP_MEMORY.as_ptr(),
+            HEAP_MEMORY.len()
+        );
     }
 }
 
 /// Entry point for DebugConsole. Runs the shell with UART IO.
 #[no_mangle]
 pub extern "C" fn run() -> ! {
-    debug!("run");
+    trace!("run");
     let mut tx = cantrip_uart_client::Tx {};
     let mut rx = cantrip_uart_client::Rx {};
     cantrip_shell::repl(&mut tx, &mut rx);

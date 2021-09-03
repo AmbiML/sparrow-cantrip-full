@@ -2,7 +2,6 @@ import <LoggerInterface.camkes>;
 import <MlCoordinatorInterface.camkes>;
 
 component MlCoordinator {
-  control;
   provides MlCoordinatorInterface mlcoord;
 
   uses LoggerInterface logger;

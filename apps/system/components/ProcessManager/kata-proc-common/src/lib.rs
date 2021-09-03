@@ -126,7 +126,8 @@ impl RawBundleIdData {
     // TODO(sleffler): handle truncation better
     pub fn pack_bundles(&mut self, bundles: &BundleIdArray) -> bare_io::Result<()> {
         let mut result = Cursor::new(&mut self.data[..]);
-        let bundle_count = [u8::try_from(bundles.len()).map_err(|_| bare_io::ErrorKind::InvalidData)?];
+        let bundle_count =
+            [u8::try_from(bundles.len()).map_err(|_| bare_io::ErrorKind::InvalidData)?];
         result.write(&bundle_count[..])?; // # bundles
         for bid in bundles.ids.as_slice().iter() {
             let bid_len = [u8::try_from(bid.len()).map_err(|_| bare_io::ErrorKind::InvalidData)?];
