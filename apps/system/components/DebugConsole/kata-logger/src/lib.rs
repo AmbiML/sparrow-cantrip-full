@@ -3,7 +3,9 @@
 use cstr_core::CStr;
 use log::{Metadata, Record};
 
-const MAX_MSG_LEN: usize = 256;
+// TODO(sleffler): until we can copy directly into shared memory limit
+//   stack allocation (can be up to 4096).
+const MAX_MSG_LEN: usize = 2048;
 
 pub struct CantripLogger;
 
@@ -128,7 +130,7 @@ mod tests {
     // NB: to run these sequentially use --test-threads=1; otherwise
     // cargo will use multiple threads and you will get failures from
     // multiple users of MSGS and the global logger; e.g.
-    //     cargo +nightly test -- --test-threads=1
+    //     cargo test -- --test-threads=1
 
     #[test]
     fn test_each_log_level_works() {

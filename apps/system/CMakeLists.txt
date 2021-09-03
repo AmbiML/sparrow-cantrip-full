@@ -16,6 +16,7 @@ project(system)
 
 CAmkESAddImportPath(interfaces)
 
+includeGlobalComponents()
 include(${CMAKE_CURRENT_LIST_DIR}/rust.cmake)
 
 RustAddLibrary(

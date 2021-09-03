@@ -11,6 +11,7 @@
  */
 
 import <std_connector.camkes>;
+import <global-connectors.camkes>;
 
 import "interfaces/dataport_io.idl4";
 import "interfaces/VectorCoreInterface.camkes";
@@ -81,10 +82,12 @@ assembly {
             from debug_console.uart_rx, to uart_driver.rx);
 
         // Connect the LoggerInterface to each component that needs to log
-        // to the console.
-        connection seL4RPCCall LoggerInterface(from process_manager.logger,
-                                               from ml_coordinator.logger,
-                                               to debug_console.logger);
+        // to the console. Note this allocates a 4KB shared memory region to
+        // each component and copies data between components.
+        connection seL4RPCOverMultiSharedData LoggerInterface(
+            from process_manager.logger,
+            from ml_coordinator.logger,
+            to debug_console.logger);
 
         // Connect the SeL4Debug interface of each component that needs access.
         connection seL4RPCCall SeL4DebugInterface(from debug_console.sel4debug,
