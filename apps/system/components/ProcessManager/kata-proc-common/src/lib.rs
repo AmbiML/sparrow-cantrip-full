@@ -1,93 +1,22 @@
 //! Cantrip OS process management support
 
 #![cfg_attr(not(test), no_std)]
-#![feature(array_methods)]
 
+extern crate alloc;
+use alloc::string::String;
+use alloc::vec::Vec;
 use bare_io::{Cursor, Write};
 use core::convert::TryFrom;
-use core::ops::{Index, IndexMut};
 use core::str;
-use smallstr::SmallString;
-use smallvec::SmallVec;
+
+pub type BundleIdArray = Vec<String>;
 
 // NB: struct's marked repr(C) are processed by cbindgen to get a .h file
 //   used in camkes C interfaces.
 
-// Bundle capacity before spillover to the heap.
-pub const DEFAULT_BUNDLES_CAPACITY: usize = 10;
-
 // BundleId capcity before spillover to the heap.
+// TODO(sleffler): hide this; it's part of the implementation
 pub const DEFAULT_BUNDLE_ID_CAPACITY: usize = 64;
-
-// BundleId encapsulates the pathname used to identify a Bundle (see the
-// Cantrip OS design doc). BundleId's are used internally and exported through
-// the BundleIdArray returned by get_running_bundles (TBD: maybe switch to
-// String to reduce exposing internal details).
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct BundleId {
-    pub id: SmallString<[u8; DEFAULT_BUNDLE_ID_CAPACITY]>,
-}
-impl BundleId {
-    pub fn new() -> Self {
-        BundleId {
-            id: SmallString::with_capacity(DEFAULT_BUNDLE_ID_CAPACITY),
-        }
-    }
-    pub fn len(&self) -> usize {
-        self.id.len()
-    }
-    pub fn as_bytes(&self) -> &[u8] {
-        self.id.as_str().as_bytes()
-    }
-    pub fn as_str(&self) -> &str {
-        self.id.as_str()
-    }
-    pub fn from_str(s: &str) -> BundleId {
-        BundleId {
-            id: SmallString::from_str(s),
-        }
-    }
-}
-
-// BundleIdArray is the collection of BundleId's returned by
-// get_running_bundles (TBD: maybe switch to ArrayVec since we know
-// the vector size at the construction time).
-#[derive(Debug)]
-pub struct BundleIdArray {
-    pub ids: SmallVec<[BundleId; DEFAULT_BUNDLES_CAPACITY]>,
-}
-impl BundleIdArray {
-    pub fn new() -> Self {
-        BundleIdArray {
-            ids: SmallVec::<[BundleId; DEFAULT_BUNDLES_CAPACITY]>::new(),
-        }
-    }
-    pub fn len(&self) -> usize {
-        self.ids.len()
-    }
-    pub fn push(&mut self, id: &BundleId) {
-        // NB: must manually copy; there is no Copy trait
-        self.ids.push(BundleId::from_str(id.as_str()));
-    }
-    pub fn pop(&mut self) -> Option<BundleId> {
-        self.ids.pop()
-    }
-    pub fn find(&self, s: &str) -> bool {
-        let id = BundleId::from_str(s);
-        self.ids.as_slice().iter().find(|&x| *x == id).is_some()
-    }
-}
-impl Index<usize> for BundleIdArray {
-    type Output = BundleId;
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.ids[index]
-    }
-}
-impl IndexMut<usize> for BundleIdArray {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.ids[index]
-    }
-}
 
 // Size of the data buffer used to pass BundleIdArray data between Rust <> C.
 // The data structure size is bounded by the camkes ipc buffer (120 bytes!)
@@ -129,7 +58,7 @@ impl RawBundleIdData {
         let bundle_count =
             [u8::try_from(bundles.len()).map_err(|_| bare_io::ErrorKind::InvalidData)?];
         result.write(&bundle_count[..])?; // # bundles
-        for bid in bundles.ids.as_slice().iter() {
+        for bid in bundles.as_slice().iter() {
             let bid_len = [u8::try_from(bid.len()).map_err(|_| bare_io::ErrorKind::InvalidData)?];
             result.write(&bid_len[..])?; // length
             result.write(bid.as_bytes())?; // value
@@ -170,14 +99,18 @@ impl<'a> Iterator for RawBundleIdDataIter<'a> {
 }
 
 // TODO(sleffler): fill-in
-#[repr(C)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct Bundle {
-    pub data: [u8; 128], // TODO(sleffler): placeholder
+    // Bundle id extracted from manifest
+    pub app_id: String,
+    pub data: [u8; 64], // TODO(sleffler): placeholder
 }
 impl Bundle {
     pub fn new() -> Self {
-        Bundle { data: [0u8; 128] }
+        Bundle {
+            app_id: String::with_capacity(DEFAULT_BUNDLE_ID_CAPACITY),
+            data: [0u8; 64],
+        }
     }
     pub fn as_ptr(&self) -> *const u8 {
         self.data.as_ptr()
@@ -191,32 +124,45 @@ impl Bundle {
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ProcessManagerError {
     Success = 0,
+    BundleIdInvalid,
+    BundleDataInvalid,
+    PackageBufferLenInvalid,
     BundleNotFound,
     BundleFound,
+    BundleRunning,
     NoSpace,
-    // Generic errors for interface failures.
+    // Generic errors, mostly for unit tests.
     InstallFailed,
     UninstallFailed,
     StartFailed,
     StopFailed,
-    BundleIdInvalid,
-    BundleDataInvalid,
 }
 
 // Interface to underlying facilities (StorageManager, seL4); also
 // used to inject fakes for unit tests.
 pub trait ProcessManagerInterface {
-    fn install(&self, bundle: &Bundle) -> Result<(), ProcessManagerError>;
-    fn uninstall(&self, bundle: &Bundle) -> Result<(), ProcessManagerError>;
-    fn start(&self, bundle: &Bundle) -> Result<(), ProcessManagerError>;
-    fn stop(&self, bundle: &Bundle) -> Result<(), ProcessManagerError>;
+    fn install(
+        &mut self,
+        pkg_buffer: *const u8,
+        pkg_buffer_size: u32,
+    ) -> Result<Bundle, ProcessManagerError>;
+    fn uninstall(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError>;
+    fn start(&mut self, bundle: &Bundle) -> Result<(), ProcessManagerError>;
+    fn stop(&mut self, bundle: &Bundle) -> Result<(), ProcessManagerError>;
 }
+
+// NB: pkg contents are in-memory and (likely) page-aligned so data can be
+// passed across the C interface w/o a copy.
 
 // NB: bundle_id comes across the C interface as *const cstr_core::c_char
 // and is converted to a &str using CStr::from_ptr().to_str().
 
 pub trait PackageManagementInterface {
-    fn install(&mut self, bundle_id: &str, bundle: &Bundle) -> Result<(), ProcessManagerError>;
+    fn install(
+        &mut self,
+        pkg_buffer: *const u8,
+        pkg_buffer_len: usize,
+    ) -> Result<String, ProcessManagerError>;
     fn uninstall(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError>;
 }
 
@@ -231,39 +177,33 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_bundle_id_basics() {
-        let bundle_id = BundleId::new();
-        assert_eq!(bundle_id.len(), 0);
-        assert_eq!(bundle_id.id.inline_size(), DEFAULT_BUNDLE_ID_CAPACITY);
-
-        // Check str conversion.
-        assert_eq!(BundleId::from_str("hello").as_str(), "hello");
-    }
-
-    #[test]
     fn test_bundle_id_array_basics() {
         let mut bid_array = BundleIdArray::new();
 
+        fn find_str(b: &BundleIdArray, id: &str) -> bool {
+            b.as_slice().iter().find(|&x| *x == id).is_some()
+        }
+
         // 1-element array.
         assert_eq!(bid_array.len(), 0);
-        let bid = BundleId::from_str("hello");
-        bid_array.push(&bid);
+        let bid = String::from("hello");
+        bid_array.push(bid.clone());
         assert_eq!(bid_array.len(), 1);
-        assert_eq!(bid_array.find("foo"), false);
-        assert_eq!(bid_array.find("hello"), true);
+        assert_eq!(find_str(&bid_array, "foo"), false);
+        assert_eq!(find_str(&bid_array, "hello"), true);
         assert_eq!(bid_array[0], bid);
         assert_eq!(bid_array.pop(), Some(bid));
         assert_eq!(bid_array.len(), 0);
-        assert_eq!(bid_array.find("hello"), false);
+        assert_eq!(find_str(&bid_array, "hello"), false);
 
         // Multiple entries.
-        bid_array.push(&BundleId::from_str("zero"));
-        bid_array.push(&BundleId::from_str("one"));
-        bid_array.push(&BundleId::from_str("two"));
+        bid_array.push(String::from("zero"));
+        bid_array.push(String::from("one"));
+        bid_array.push(String::from("two"));
         assert_eq!(bid_array.len(), 3);
-        assert_eq!(bid_array[1], BundleId::from_str("one"));
-        bid_array[2] = BundleId::from_str("three");
-        assert_eq!(bid_array.find("three"), true);
+        assert_eq!(bid_array[1], "one");
+        bid_array[2] = String::from("three");
+        assert_eq!(find_str(&bid_array, "three"), true);
     }
 
     #[test]
@@ -278,9 +218,9 @@ mod tests {
     #[test]
     fn test_raw_bundle_id_data_simple() {
         let mut bid_array = BundleIdArray::new();
-        bid_array.push(&BundleId::from_str("zero"));
-        bid_array.push(&BundleId::from_str("one"));
-        bid_array.push(&BundleId::from_str("two"));
+        bid_array.push(String::from("zero"));
+        bid_array.push(String::from("one"));
+        bid_array.push(String::from("two"));
 
         // Marhshall/unmarshall bid_array.
         let mut raw_data = RawBundleIdData::new();
@@ -295,9 +235,9 @@ mod tests {
     #[test]
     fn test_raw_bundle_id_data_from_raw() {
         let mut bid_array = BundleIdArray::new();
-        bid_array.push(&BundleId::from_str("zero"));
-        bid_array.push(&BundleId::from_str("one"));
-        bid_array.push(&BundleId::from_str("two"));
+        bid_array.push(String::from("zero"));
+        bid_array.push(String::from("one"));
+        bid_array.push(String::from("two"));
 
         // Marhshall bid_array.
         let mut raw_buf = [0u8; RAW_BUNDLE_ID_DATA_SIZE];
@@ -320,7 +260,7 @@ mod tests {
         // that's ok for testing
         let mut bid_array = BundleIdArray::new();
         for bid in 0..256 {
-            bid_array.push(&BundleId::from_str(&bid.to_string()));
+            bid_array.push(bid.to_string());
         }
         assert!(RawBundleIdData::new().pack_bundles(&bid_array).is_err());
     }
@@ -332,7 +272,7 @@ mod tests {
         // NB: this exceeds the string capacity so will spill to the heap;
         // that's ok for testing
         let mut bid_array = BundleIdArray::new();
-        bid_array.push(&BundleId::from_str(&"0123456789".repeat(26)));
+        bid_array.push("0123456789".repeat(26));
         assert!(RawBundleIdData::new().pack_bundles(&bid_array).is_err());
     }
 }

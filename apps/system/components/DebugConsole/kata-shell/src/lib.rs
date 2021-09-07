@@ -6,7 +6,7 @@ use cstr_core::CString;
 
 use cantrip_io as io;
 use cantrip_line_reader::LineReader;
-use cantrip_proc_common::{Bundle, ProcessManagerError, RawBundleIdData};
+use cantrip_proc_common::{ProcessManagerError, RawBundleIdData};
 
 /// Error type indicating why a command line is not runnable.
 enum CommandError {
@@ -190,31 +190,32 @@ fn bundles_command(output: &mut dyn io::Write) -> Result<(), CommandError> {
 }
 
 fn install_command(
-    args: &mut dyn Iterator<Item = &str>,
+    _args: &mut dyn Iterator<Item = &str>,
     output: &mut dyn io::Write,
 ) -> Result<(), CommandError> {
     extern "C" {
         fn pkg_mgmt_install(
-            c_bundle_id: *const cstr_core::c_char,
-            c_bundle: *const u8,
+            c_pkg_buffer_size: usize,
+            c_pkg_buffer: *const u8,
+            c_raw_data: *mut u8,
         ) -> ProcessManagerError;
     }
-    if let Some(bundle_id) = args.nth(0) {
-        // TODO(sleffler): supply a real bundle (e.g. from serial)
-        let bundle = Bundle::new();
-        let cstr = CString::new(bundle_id).unwrap();
-        match unsafe { pkg_mgmt_install(cstr.as_ptr(), bundle.as_ptr()) } {
-            ProcessManagerError::Success => {
-                writeln!(output, "Bundle \"{}\" installed.", bundle_id)?;
-            }
-            status => {
-                writeln!(output, "install failed: {:?}", status)?;
+    // TODO(sleffler): supply a real bundle (e.g. from serial)
+    let pkg_buffer = [0u8; 64]; // NB: limited by 120 byte ipc buffer
+    let mut raw_data = RawBundleIdData::new();
+    match unsafe { pkg_mgmt_install(pkg_buffer.len(), pkg_buffer.as_ptr(), raw_data.as_mut_ptr()) }
+    {
+        ProcessManagerError::Success => {
+            // NB: should be only 1
+            for str_bundle_id in raw_data.iter() {
+                writeln!(output, "Bundle \"{}\" installed", str_bundle_id)?;
             }
         }
-        Ok(())
-    } else {
-        Err(CommandError::BadArgs)
+        status => {
+            writeln!(output, "install failed: {:?}", status)?;
+        }
     }
+    Ok(())
 }
 
 fn uninstall_command(
