@@ -10,3 +10,4 @@ cantrip-io = { path = "../cantrip-io" }
 cantrip-line-reader = { path = "../cantrip-line-reader" }
 cantrip-proc-common = { path = "../../ProcessManager/cantrip-proc-common" }
 log = "0.4"
+postcard = { version = "0.7", features = ["alloc"] }

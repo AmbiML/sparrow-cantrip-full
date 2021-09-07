@@ -22,8 +22,6 @@ typedef enum ProcessManagerError {
   StopFailed,
 } ProcessManagerError;
 
-typedef struct RawBundleIdData {
-  uint8_t data[RAW_BUNDLE_ID_DATA_SIZE];
-} RawBundleIdData;
+typedef uint8_t RawBundleIdData[RAW_BUNDLE_ID_DATA_SIZE];
 
 #endif /* __PROCESS_MANAGER_BINDINGS_H__ */

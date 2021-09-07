@@ -89,9 +89,17 @@ impl PackageManagementInterface for ProcessManager {
         // otherwise we update the returned Bundle state.
         // TODO(sleffler): owner's public key?
         let bundle = self.manager.install(pkg_buffer, pkg_buffer_size)?;
-        trace!("install pkg {:p}:{} => bundle_id:{}", pkg_buffer, pkg_buffer_size, &bundle.app_id);
+        trace!(
+            "install pkg {:p}:{} => bundle_id:{}",
+            pkg_buffer,
+            pkg_buffer_size,
+            &bundle.app_id
+        );
 
-        assert!(self.bundles.insert(BundleId::from_str(&bundle.app_id), BundleData::new(&bundle)).is_none());
+        assert!(self
+            .bundles
+            .insert(BundleId::from_str(&bundle.app_id), BundleData::new(&bundle))
+            .is_none());
 
         Ok(bundle.app_id)
     }
@@ -101,9 +109,13 @@ impl PackageManagementInterface for ProcessManager {
         let bid = BundleId::from_str(bundle_id);
         match self.bundles.get(&bid) {
             Some(bundle) => {
-                trace!("uninstall bundle_id:{}: state {:?}", bundle_id, bundle.state);
+                trace!(
+                    "uninstall bundle_id:{}: state {:?}",
+                    bundle_id,
+                    bundle.state
+                );
                 if bundle.state == BundleState::Running {
-                    return Err(ProcessManagerError::BundleRunning)
+                    return Err(ProcessManagerError::BundleRunning);
                 }
                 let _ = self.bundles.remove(&bid);
             }
@@ -176,7 +188,7 @@ mod tests {
 
     // NB: just enough state to track install'd bundles
     struct FakeManager {
-        bundles: HashMap<String, u32>,  // pkg_buffer:pkg_buffer_size
+        bundles: HashMap<String, u32>, // pkg_buffer:pkg_buffer_size
     }
     impl FakeManager {
         pub fn new() -> Self {
@@ -193,8 +205,8 @@ mod tests {
             }
             assert!(self.bundles.insert(str, pkg_buffer_size).is_none());
             Ok(Bundle {
-              app_id: (pkg_buffer as usize).to_string(),
-              data: [0u8; 64],
+                app_id: (pkg_buffer as usize).to_string(),
+                data: [0u8; 64],
             })
         }
         fn uninstall(&mut self, bundle_id: &str) -> Result<(), pme> {
@@ -270,7 +282,7 @@ mod tests {
         let mut mgr = ProcessManager::new(fake);
 
         fn is_running(running: &BundleIdArray, id: &str) -> bool {
-           running.as_slice().iter().find(|&x| *x == id).is_some()
+            running.as_slice().iter().find(|&x| *x == id).is_some()
         }
 
         let pkg_buffer2 = [0u8; 1024];

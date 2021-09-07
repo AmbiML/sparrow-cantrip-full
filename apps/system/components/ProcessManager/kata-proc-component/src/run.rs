@@ -4,14 +4,13 @@
 #![no_std]
 
 use cstr_core::CStr;
-extern crate alloc;
-use alloc::vec;
 use cantrip_allocator;
 use cantrip_logger::CantripLogger;
 extern crate cantrip_panic;
 use cantrip_proc_common::*;
 use cantrip_proc_manager::CANTRIP_PROC;
 use log::trace;
+use postcard;
 
 #[no_mangle]
 pub extern "C" fn pre_init() {
@@ -58,17 +57,17 @@ pub extern "C" fn pkg_mgmt_install(
 ) -> ProcessManagerError {
     unsafe {
         match CANTRIP_PROC.install(c_pkg_buffer, c_pkg_buffer_sz) {
-            Ok(bundle_id) => {
-                match RawBundleIdData::from_raw(
-                    &mut *(c_raw_data as *mut [u8; RAW_BUNDLE_ID_DATA_SIZE]),
-                )
-                .pack_bundles(&vec![bundle_id])
-                {
-                    Ok(_) => ProcessManagerError::Success,
-                    Err(_) => ProcessManagerError::BundleDataInvalid,
+            Ok(bundle_id) => match postcard::to_slice(&bundle_id, &mut (*c_raw_data)[..]) {
+                Ok(_) => ProcessManagerError::Success,
+                Err(e) => {
+                    trace!("install failed: serialize {:?}", e);
+                    ProcessManagerError::BundleDataInvalid
                 }
+            },
+            Err(status) => {
+                trace!("install failed: {:?}", status);
+                status
             }
-            Err(e) => e,
         }
     }
 }
@@ -114,24 +113,27 @@ pub extern "C" fn proc_ctrl_stop(bundle_id: *const cstr_core::c_char) -> Process
 }
 
 #[no_mangle]
-pub extern "C" fn proc_ctrl_get_running_bundles(c_raw_data: *mut u8) -> ProcessManagerError {
+pub extern "C" fn proc_ctrl_get_running_bundles(
+    c_raw_data: *mut RawBundleIdData,
+) -> ProcessManagerError {
     unsafe {
         match CANTRIP_PROC.get_running_bundles() {
             Ok(bundles) => {
-                // Serialize the bundle_id's in the result buffer as a series
-                // of <length><value> pairs. If we overflow the buffer, nothing
-                // is returned (should signal overflow somehow).
-                // TODO(sleffler): pass buffer size instead of assuming?
-                match RawBundleIdData::from_raw(
-                    &mut *(c_raw_data as *mut [u8; RAW_BUNDLE_ID_DATA_SIZE]),
-                )
-                .pack_bundles(&bundles)
-                {
+                // Serialize the bundle_id's in the result buffer. If we
+                // overflow the buffer, BundleDataInvalid is returned and
+                // the contents are undefined (postcard does not specify).
+                match postcard::to_slice(&bundles, &mut (*c_raw_data)[..]) {
                     Ok(_) => ProcessManagerError::Success,
-                    Err(_) => ProcessManagerError::BundleDataInvalid,
+                    Err(e) => {
+                        trace!("get_running_bundles failed: serialize {:?}", e);
+                        ProcessManagerError::BundleDataInvalid
+                    }
                 }
             }
-            Err(e) => e,
+            Err(status) => {
+                trace!("get_running_bundles failed: {:?}", status);
+                status
+            }
         }
     }
 }

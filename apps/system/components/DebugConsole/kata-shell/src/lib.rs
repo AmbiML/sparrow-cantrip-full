@@ -1,12 +1,15 @@
 #![no_std]
 
+extern crate alloc;
+use alloc::string::String;
 use core::fmt;
 use core::fmt::Write;
 use cstr_core::CString;
+use postcard;
 
 use cantrip_io as io;
 use cantrip_line_reader::LineReader;
-use cantrip_proc_common::{ProcessManagerError, RawBundleIdData};
+use cantrip_proc_common::{BundleIdArray, ProcessManagerError, RAW_BUNDLE_ID_DATA_SIZE};
 
 /// Error type indicating why a command line is not runnable.
 enum CommandError {
@@ -175,11 +178,22 @@ fn bundles_command(output: &mut dyn io::Write) -> Result<(), CommandError> {
     extern "C" {
         fn proc_ctrl_get_running_bundles(c_raw_data: *mut u8) -> ProcessManagerError;
     }
-    let mut raw_data = RawBundleIdData::new();
+    let mut raw_data = [0u8; RAW_BUNDLE_ID_DATA_SIZE];
     match unsafe { proc_ctrl_get_running_bundles(raw_data.as_mut_ptr()) } {
         ProcessManagerError::Success => {
-            for str_bundle_id in raw_data.iter() {
-                writeln!(output, "{}", str_bundle_id)?;
+            match postcard::from_bytes::<BundleIdArray>(raw_data.as_ref()) {
+                Ok(bundle_ids) => {
+                    for bundle_id in bundle_ids {
+                        writeln!(output, "{}", bundle_id)?;
+                    }
+                }
+                Err(e) => {
+                    writeln!(
+                        output,
+                        "get_running_bundles failed: deserialize returned {:?}",
+                        e
+                    )?;
+                }
             }
         }
         status => {
@@ -202,15 +216,17 @@ fn install_command(
     }
     // TODO(sleffler): supply a real bundle (e.g. from serial)
     let pkg_buffer = [0u8; 64]; // NB: limited by 120 byte ipc buffer
-    let mut raw_data = RawBundleIdData::new();
+    let mut raw_data = [0u8; RAW_BUNDLE_ID_DATA_SIZE];
     match unsafe { pkg_mgmt_install(pkg_buffer.len(), pkg_buffer.as_ptr(), raw_data.as_mut_ptr()) }
     {
-        ProcessManagerError::Success => {
-            // NB: should be only 1
-            for str_bundle_id in raw_data.iter() {
-                writeln!(output, "Bundle \"{}\" installed", str_bundle_id)?;
+        ProcessManagerError::Success => match postcard::from_bytes::<String>(raw_data.as_ref()) {
+            Ok(bundle_id) => {
+                writeln!(output, "Bundle \"{}\" installed", bundle_id)?;
             }
-        }
+            Err(e) => {
+                writeln!(output, "install failed: deserialize returned {:?}", e)?;
+            }
+        },
         status => {
             writeln!(output, "install failed: {:?}", status)?;
         }
