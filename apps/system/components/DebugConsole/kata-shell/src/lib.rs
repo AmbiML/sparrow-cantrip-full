@@ -82,6 +82,7 @@ fn dispatch_command(cmdline: &str, output: &mut dyn io::Write) {
                 "install" => install_command(&mut args, output),
                 "loglevel" => loglevel_command(&mut args, output),
                 "ps" => ps_command(),
+                "scecho" => scecho_command(cmdline, output),
                 "start" => start_command(&mut args, output),
                 "stop" => stop_command(&mut args, output),
                 "uninstall" => uninstall_command(&mut args, output),
@@ -115,6 +116,33 @@ fn echo_command(cmdline: &str, output: &mut dyn io::Write) -> Result<(), Command
             &cmdline[COMMAND_LENGTH..cmdline.len()]
         )?)
     }
+}
+
+/// Implements an "scecho" command that sends arguments to the Security Core's echo service.
+fn scecho_command(cmdline: &str, output: &mut dyn io::Write) -> Result<(), CommandError> {
+    use cantrip_security_common::*;
+    let (_, request) = cmdline.split_at(7); // 'scecho'
+    let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
+    match unsafe {
+        security_request(
+            SecurityRequest::SrEcho,
+            request.len() as u32,
+            request.as_ptr(),
+            reply as *mut _,
+        )
+    } {
+        SecurityRequestError::SreSuccess => {
+            writeln!(
+                output,
+                "{}",
+                String::from_utf8_lossy(&reply[..request.len()])
+            )?;
+        }
+        status => {
+            writeln!(output, "ECHO replied {:?}", status)?;
+        }
+    }
+    Ok(())
 }
 
 // Set/display the max log level for the DebugConsole.

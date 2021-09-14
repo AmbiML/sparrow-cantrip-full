@@ -1,0 +1,10 @@
+// Cantrip OS SecurityCoordinator services.
+
+import <LoggerInterface.camkes>;
+import <SecurityCoordinatorInterface.camkes>;
+
+component SecurityCoordinator {
+  provides SecurityCoordinatorInterface security;
+
+  uses LoggerInterface logger;
+}

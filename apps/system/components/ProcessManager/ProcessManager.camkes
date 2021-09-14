@@ -4,6 +4,7 @@ import <LoggerInterface.camkes>;
 import <PackageManagementInterface.camkes>;
 import <ProcessControlInterface.camkes>;
 import <SeL4DebugInterface.camkes>;
+import <SecurityCoordinatorInterface.camkes>;
 
 component ProcessManager {
   provides PackageManagementInterface pkg_mgmt;
@@ -11,4 +12,5 @@ component ProcessManager {
 
   uses LoggerInterface logger;
   uses SeL4DebugInterface sel4debug;
+  uses SecurityCoordinatorInterface security;
 }

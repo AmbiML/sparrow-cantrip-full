@@ -1,0 +1,23 @@
+[workspace]
+
+members = [
+    "cantrip-security-common",
+    "cantrip-security-component",
+    "cantrip-security-coordinator",
+]
+
+[profile.dev]
+opt-level = 0
+debug = true
+lto = "fat"
+codegen-units = 1
+
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+split-debuginfo = "unpacked"
+
+[profile.release.build-override]
+opt-level = "z"
+codegen-units = 1

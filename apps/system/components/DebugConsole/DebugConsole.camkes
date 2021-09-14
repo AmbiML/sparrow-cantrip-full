@@ -2,6 +2,7 @@ import <LoggerInterface.camkes>;
 import <ProcessControlInterface.camkes>;
 import <PackageManagementInterface.camkes>;
 import <MlCoordinatorInterface.camkes>;
+import <SecurityCoordinatorInterface.camkes>;
 import <SeL4DebugInterface.camkes>;
 
 component DebugConsole {
@@ -18,6 +19,8 @@ component DebugConsole {
   provides LoggerInterface logger;
   uses ProcessControlInterface proc_ctrl;
   uses PackageManagementInterface pkg_mgmt;
+  // TODO(sleffler): for debugging
+  uses SecurityCoordinatorInterface security;
   uses SeL4DebugInterface sel4debug;
   uses MlCoordinatorInterface mlcoord;
 }

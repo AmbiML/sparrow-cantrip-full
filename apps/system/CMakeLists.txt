@@ -55,6 +55,18 @@ DeclareCAmkESComponent(MlCoordinator
   INCLUDES interfaces
 )
 
+RustAddLibrary(
+  cantrip_security_coordinator
+  SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/components/SecurityCoordinator
+  TARGET "riscv32imc-unknown-none-elf"
+  LIB_FILENAME libcantrip_security_coordinator.a
+)
+
+DeclareCAmkESComponent(SecurityCoordinator
+  LIBS cantrip_security_coordinator
+  INCLUDES interfaces
+)
+
 DeclareCAmkESComponent(LogFibonacci
   SOURCES
   components/LogFibonacci/src/main.c

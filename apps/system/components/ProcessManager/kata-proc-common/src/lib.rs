@@ -6,44 +6,67 @@ extern crate alloc;
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::str;
+use serde::{Deserialize, Serialize};
 
 pub type BundleIdArray = Vec<String>;
 
-// NB: struct's marked repr(C) are processed by cbindgen to get a .h file
-//   used in camkes C interfaces.
-
-// BundleId capcity before spillover to the heap.
-// TODO(sleffler): hide this; it's part of the implementation
-pub const DEFAULT_BUNDLE_ID_CAPACITY: usize = 64;
-
-// Size of the data buffer used to pass BundleIdArray data between Rust <> C.
+// Size of the data buffer used to pass a serialized BundleIdArray between Rust <> C.
 // The data structure size is bounded by the camkes ipc buffer (120 bytes!)
 // and also by it being allocated on the stack of the rpc glue code.
 // So we need to balance these against being able to return all values.
 pub const RAW_BUNDLE_ID_DATA_SIZE: usize = 100;
 pub type RawBundleIdData = [u8; RAW_BUNDLE_ID_DATA_SIZE];
 
-// TODO(sleffler): fill-in
-#[derive(Clone, Debug)]
+// BundleId capacity before spillover to the heap.
+// TODO(sleffler): hide this; it's part of the implementation
+pub const DEFAULT_BUNDLE_ID_CAPACITY: usize = 64;
+
+mod ptr_helper {
+    use super::*;
+    use serde::{Deserializer, Serializer};
+
+    pub fn serialize<T, S>(ptr: &*const T, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        (*ptr as usize).serialize(serializer)
+    }
+
+    pub fn deserialize<'de, T, D>(deserializer: D) -> Result<*const T, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Ok(usize::deserialize(deserializer)? as *const T)
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Bundle {
+    // NB: application & ML binaries use well-known paths relative to bundle_id
+    // NB: ProcessManager owns loaded application's memory
+
     // Bundle id extracted from manifest
     pub app_id: String,
-    pub data: [u8; 64], // TODO(sleffler): placeholder
+
+    // Raw memory address of loaded application
+    #[serde(with = "ptr_helper")]
+    pub app_memory_address: *const u8,
+
+    // Size (bytes) of loaded application
+    pub app_memory_size: u32,
 }
 impl Bundle {
     pub fn new() -> Self {
         Bundle {
             app_id: String::with_capacity(DEFAULT_BUNDLE_ID_CAPACITY),
-            data: [0u8; 64],
+            app_memory_address: 0 as *const u8,
+            app_memory_size: 0u32,
         }
     }
-    pub fn as_ptr(&self) -> *const u8 {
-        self.data.as_ptr()
-    }
-    pub fn as_mut_ptr(&mut self) -> *mut u8 {
-        self.data.as_mut_ptr()
-    }
 }
+
+// NB: struct's marked repr(C) are processed by cbindgen to get a .h file
+//   used in camkes C interfaces.
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -70,7 +93,7 @@ pub trait ProcessManagerInterface {
         &mut self,
         pkg_buffer: *const u8,
         pkg_buffer_size: u32,
-    ) -> Result<Bundle, ProcessManagerError>;
+    ) -> Result<String, ProcessManagerError>;
     fn uninstall(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError>;
     fn start(&mut self, bundle: &Bundle) -> Result<(), ProcessManagerError>;
     fn stop(&mut self, bundle: &Bundle) -> Result<(), ProcessManagerError>;

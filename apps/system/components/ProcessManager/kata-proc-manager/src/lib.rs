@@ -3,9 +3,11 @@
 #![cfg_attr(not(test), no_std)]
 
 extern crate alloc;
-use alloc::string::{String, ToString};
-use cantrip_proc_common as proc;
-use proc::*;
+use alloc::string::String;
+use cantrip_proc_common::*;
+use cantrip_security_common::*;
+use log::trace;
+use postcard;
 use spin::Mutex;
 
 mod proc_manager;
@@ -77,48 +79,99 @@ impl ProcessManagerInterface for CantripManagerInterface {
     fn install(
         &mut self,
         pkg_buffer: *const u8,
-        _pkg_buffer_size: u32,
-    ) -> Result<Bundle, ProcessManagerError> {
+        pkg_buffer_size: u32,
+    ) -> Result<String, ProcessManagerError> {
         // Package contains: application manifest, application binary, and
         // (optional) ML workload binary to run on vector core.
         // Manifest contains bundle_id.
         // Resulting flash file/pathname is fixed (1 app / bundle), only need bundle_id.
-        // Store a generated "access key" (for Tock) for start ops; this is
-        // "bound via capability badging to seL4 capabilities".
-        let bundle = Bundle {
-            // NB: temporarily fill-in app_id
-            app_id: (pkg_buffer as usize).to_string(),
-            data: [0u8; 64],
-        };
-        Ok(bundle)
+        // Pass opaque package contents through; get back bundle_id.
+
+        // This is handled by the SecurityCoordinator.
+        let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
+        match unsafe {
+            security_request(
+                SecurityRequest::SrInstall,
+                pkg_buffer_size,
+                pkg_buffer,
+                reply as *mut _,
+            )
+        } {
+            SecurityRequestError::SreSuccess => {
+                fn deserialize_failure(e: postcard::Error) -> ProcessManagerError {
+                    trace!("install failed: deserialize {:?}", e);
+                    ProcessManagerError::BundleDataInvalid
+                }
+                postcard::from_bytes::<String>(reply).map_err(deserialize_failure)
+            }
+            status => {
+                trace!("install failed: {:?}", status);
+                Err(ProcessManagerError::InstallFailed)
+            }
+        }
     }
-    fn uninstall(&mut self, _bundle_id: &str) -> Result<(), ProcessManagerError> {
-        // This is handled with the StorageManager::Installer::uninstall.
-        Ok(())
+    fn uninstall(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError> {
+        fn serialize_failure(e: postcard::Error) -> ProcessManagerError {
+            trace!("uninstall failed: serialize {:?}", e);
+            ProcessManagerError::UninstallFailed
+        }
+
+        // NB: the caller has already checked no running application exists
+        // NB: the Security Core is assumed to invalidate/remove any kv store
+
+        // This is handled by the SecurityCoordinator.
+        let mut request_data = [0u8; SECURITY_REQUEST_DATA_SIZE];
+        let _ = postcard::to_slice(&bundle_id, &mut request_data).map_err(serialize_failure)?;
+        let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
+        match unsafe {
+            security_request(
+                SecurityRequest::SrUninstall,
+                request_data.len() as u32,
+                request_data.as_ptr(),
+                reply as *mut _,
+            )
+        } {
+            SecurityRequestError::SreSuccess => Ok(()),
+            status => {
+                trace!("uninstall failed: {:?}", status);
+                Err(ProcessManagerError::UninstallFailed)
+            }
+        }
     }
     fn start(&mut self, _bundle: &Bundle) -> Result<(), ProcessManagerError> {
-        // 1. Allocate shared memory for the program image
-        // 2. Poke security core (via mailbox) to VerifyAndLoad data and load
-        //    into shared memory
-        // 3. Security core responds (via mailbox) with success/failure &
-        //    mailbox handler sends interrupt
-        // 4. Request completed with validated program in shared memory.
-        // 5. On success allocate seL4 resources: VSpace, TCB & necessary
-        //    capabiltiies; setup application system context and start thread
-        //    (or should resources be allocated before Verify?).
-        // TODO: set up access to StorageManager? (badge seL4 cap w/ bundle_id)
+        // 1. Ask security core for application footprint with SizeBuffer 
+        // 2. Ask security core for manifest (maybe piggyback on SizeBuffer)
+        //    and parse for necessary info (e.g. whether kv Storage is
+        //    required, other privileges/capabilities)
+        // 3. Ask MemoryManager for shared memory pages for the application
+        //    (model handled separately by MlCoordinator since we do not know
+        //    which model will be used)
+        // 4. Allocate other seL4 resources:
+        //     - VSpace, TCB & necessary capabiltiies
+        // 5. Ask security core to VerifyAndLoad app into shared memory pages
+        // 6. Complete seL4 setup:
+        //     - Setup application system context and start thread
+        //     - Badge seL4 recv cap w/ bundle_id for (optional) StorageManager
+        //       access
         //
-        // Applications with an ML workload use the MLCoordinator to request
-        // data be written to the vector core.
+        // Applications with an ML workload use the MlCoordinator to request
+        // data be loaded for the vector core.
+        //
+        // TBD where stuff normally in ELF headers comes from (e.g. starting pc,
+        // text size for marking pages executable, bss size).
+        //
+        // May want stack size parameterized.
+        //
         // TODO(sleffler): fill-in
         //        Err(ProcessManagerError::StartFailed)
         Ok(())
     }
     fn stop(&mut self, _bundle: &Bundle) -> Result<(), ProcessManagerError> {
-        // 1. If thread is running, notify application so it can do cleanup;
-        //    e.g. ask the MLCoordinator to stop any ML workloads
-        // 2. If thread notified, wait some period of time for ack.
-        // 3. If thread is running, stop thread.
+        // 0. Assume thread is running (caller verifies)
+        // 1. Notify application so it can do cleanup; e.g. ask the
+        //    MLCoordinator to stop any ML workloads
+        // 2. Wait some period of time for an ack from application
+        // 3. Stop thread
         // 4. Reclaim seL4 resources: TCB, VSpace, memory, capabilities, etc.
         // TODO(sleffler): fill-in
         //        Err(ProcessManagerError::StopFailed)

@@ -20,6 +20,7 @@ import "components/DebugConsole/DebugConsole.camkes";
 import "components/ProcessManager/ProcessManager.camkes";
 import "components/MlCoordinator/MlCoordinator.camkes";
 import "components/SeL4Debug/SeL4Debug.camkes";
+import "components/SecurityCoordinator/SecurityCoordinator.camkes";
 import "components/VectorCoreDriver/VectorCoreDriver.camkes";
 
 component OpenTitanUART {
@@ -49,6 +50,7 @@ assembly {
         component ProcessManager process_manager;
         component MlCoordinator ml_coordinator;
         component DebugConsole debug_console;
+        component SecurityCoordinator security_coordinator;
 
         // OpenTitanUARTDriver
         connection seL4HardwareMMIO uart_mem(from uart_driver.mmio_region,
@@ -73,6 +75,15 @@ assembly {
         connection seL4RPCCall shell_ml(from debug_console.mlcoord,
                                         to ml_coordinator.mlcoord);
 
+        // Connect the SecurityCoordinatorInterface to each component that needs
+        // access to the Security Core. Note this allocates a 4KB shared memory
+        // region to each component and copies data between components.
+        connection seL4RPCOverMultiSharedData multi_security(
+            from debug_console.security,   // NB: for debug/test
+            from process_manager.security,
+            from ml_coordinator.security,  // NB: for LoadModel but not in design
+            to security_coordinator.security);
+
         // Connect the DebugConsole to the OpenTitanUARTDriver.
         connection seL4SharedData tx_channel(
             from debug_console.tx_dataport, to uart_driver.tx_dataport);
@@ -89,6 +100,7 @@ assembly {
         connection seL4RPCOverMultiSharedData multi_logger(
             from process_manager.logger,
             from ml_coordinator.logger,
+            from security_coordinator.logger,
             to debug_console.logger);
 
         // Connect the SeL4Debug interface of each component that needs access.

@@ -1,9 +1,11 @@
 import <LoggerInterface.camkes>;
 import <MlCoordinatorInterface.camkes>;
+import <SecurityCoordinatorInterface.camkes>;
 
 component MlCoordinator {
   provides MlCoordinatorInterface mlcoord;
 
   uses LoggerInterface logger;
+  uses SecurityCoordinatorInterface security;
   uses VectorCoreInterface vctop;
 }

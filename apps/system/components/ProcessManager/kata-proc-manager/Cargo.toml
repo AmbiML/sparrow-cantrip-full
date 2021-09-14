@@ -5,9 +5,10 @@ description = "Cantrip OS ProcessManager services"
 edition = "2018"
 
 [dependencies]
-cstr_core = { version = "0.2.3", default-features = false, features = ["alloc"] }
 hashbrown = { version = "0.11", features = ["ahash-compile-time-rng"] }
 cantrip-proc-common = { path = "../cantrip-proc-common" }
+cantrip-security-common = { path = "../../SecurityCoordinator/cantrip-security-common" }
 log = "0.4"
+postcard = "0.7"
 smallstr = "0.2"
 spin = "0.9"

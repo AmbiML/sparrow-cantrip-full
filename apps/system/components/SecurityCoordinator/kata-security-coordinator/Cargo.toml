@@ -1,0 +1,9 @@
+[package]
+name = "cantrip-security-coordinator"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+cantrip-security-common = { path = "../cantrip-security-common" }
+log = "0.4"
+postcard = "0.7"

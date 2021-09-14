@@ -6,6 +6,7 @@ use alloc::string::String;
 use core::convert::TryFrom;
 use core::marker::Sync;
 use hashbrown::HashMap;
+use cantrip_proc_common::{Bundle, DEFAULT_BUNDLE_ID_CAPACITY};
 use log::trace;
 use smallstr::SmallString;
 
@@ -81,21 +82,23 @@ impl PackageManagementInterface for ProcessManager {
 
         // We assume the seL4 capability for the memory associated with
         // pkg_buffer has been setup for us so we can pass it along (as needed)
-        // to the StorageManager.
+        // to the Security Core.
         //
         // NB: defer to StorageManager for handling an install of a previously
         // installed app. We do not have the app_id to check locally so if the
         // StorageManager disallows re-install then we'll return it's error;
         // otherwise we update the returned Bundle state.
         // TODO(sleffler): owner's public key?
-        let bundle = self.manager.install(pkg_buffer, pkg_buffer_size)?;
+        let bundle_id = self.manager.install(pkg_buffer, pkg_buffer_size)?;
         trace!(
             "install pkg {:p}:{} => bundle_id:{}",
             pkg_buffer,
             pkg_buffer_size,
-            &bundle.app_id
+            bundle_id
         );
 
+        let mut bundle = Bundle::new();
+        bundle.app_id = bundle_id;
         assert!(self
             .bundles
             .insert(BundleId::from_str(&bundle.app_id), BundleData::new(&bundle))
@@ -315,6 +318,4 @@ mod tests {
         let running = mgr.get_running_bundles().unwrap();
         assert_eq!(running.len(), 0);
     }
-
-    // TODO(sleffler): check uninstall stops a running thread
 }

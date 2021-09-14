@@ -1,0 +1,5 @@
+procedure SecurityCoordinatorInterface {
+  include <SecurityCoordinatorBindings.h>;
+
+  SecurityRequestError request(in int request_id, in char request[], out SecurityReplyData reply);
+};
