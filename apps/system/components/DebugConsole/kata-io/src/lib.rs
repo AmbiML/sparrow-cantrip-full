@@ -2,14 +2,16 @@
 
 pub struct Error;
 
+pub type Result<T> = core::result::Result<T, Error>;
+
 /// Interface for the CLI to consume bytes.
 pub trait Read {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error>;
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize>;
 }
 
 /// Interface for the CLI to emit bytes.
 pub trait Write {
-    fn write(&mut self, buf: &[u8]) -> Result<usize, Error>;
+    fn write(&mut self, buf: &[u8]) -> Result<usize>;
 }
 
 /// Adapter for writing core::fmt formatted strings.
@@ -24,7 +26,7 @@ impl core::fmt::Write for dyn Write + '_ {
 }
 
 impl dyn Read + '_ {
-    pub fn get_u8(&mut self) -> Result<u8, Error> {
+    pub fn get_u8(&mut self) -> Result<u8> {
         let mut buf: [u8; 1] = [0u8];
         let n_read = self.read(&mut buf)?;
         match n_read {
