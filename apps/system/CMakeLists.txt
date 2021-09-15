@@ -74,7 +74,10 @@ DeclareCAmkESComponent(SeL4Debug
 )
 
 DeclareCAmkESComponent(VectorCoreDriver
-  SOURCES components/VectorCoreDriver/src/driver.c
+  SOURCES
+  components/VectorCoreDriver/src/driver.c
+  INCLUDES
+  vc_top-gen/include
 )
 
 DeclareCAmkESRootserver(system.camkes)
