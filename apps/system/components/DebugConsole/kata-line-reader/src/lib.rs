@@ -39,6 +39,12 @@ pub struct LineReader {
     buf: [u8; LINE_MAX],
 }
 
+fn get_u8(reader: &mut dyn io::Read) -> io::Result<u8> {
+    let mut buf: [u8; 1] = [0u8];
+    reader.read_exact(&mut buf)?;
+    Ok(buf[0])
+}
+
 impl LineReader {
     pub fn new() -> LineReader {
         LineReader {
@@ -55,13 +61,13 @@ impl LineReader {
         const BACKSPACE: u8 = 8u8;
         let mut len = 0;
         while len < self.buf.len() {
-            let mut c = input.get_u8()?;
+            let mut c = get_u8(input)?;
             while c == DEL || c == BACKSPACE {
                 if len > 0 {
                     output.write(&[BACKSPACE, b' ', BACKSPACE])?;
                     len -= 1;
                 }
-                c = input.get_u8()?;
+                c = get_u8(input)?;
             }
             if c == b'\r' || c == b'\n' {
                 if len > 0 {
