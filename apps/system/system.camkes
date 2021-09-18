@@ -36,6 +36,11 @@ component OpenTitanUART {
 component VectorCoreHw {
     hardware;
     dataport Buf csr;
+
+    emits Interrupt host_req;
+    emits Interrupt finish;
+    emits Interrupt instruction_fault;
+    emits Interrupt data_fault;
 }
 
 assembly {
@@ -68,6 +73,14 @@ assembly {
         connection seL4HardwareMMIO vc_csr(from vc_drv.csr, to vctop.csr);
         connection seL4RPCCall ml_coord_to_driver(from ml_coordinator.vctop,
                                                   to vc_drv.vctop);
+        connection seL4HardwareInterrupt vctop_host_req(from vctop.host_req,
+                                                      to vc_drv.host_req);
+        connection seL4HardwareInterrupt vctop_finish(from vctop.finish,
+                                                      to vc_drv.finish);
+        connection seL4HardwareInterrupt vctop_instruction_fault(from vctop.instruction_fault,
+                                                      to vc_drv.instruction_fault);
+        connection seL4HardwareInterrupt vctop_data_fault(from vctop.data_fault,
+                                                      to vc_drv.data_fault);
 
         // Hookup ProcessManager to DebugConsole for shell commands.
         connection seL4RPCCall shell_process(from debug_console.proc_ctrl,
@@ -129,6 +142,10 @@ assembly {
 
         vctop.csr_paddr = 0x48000000;
         vctop.csr_size = 0x1000;
+        vctop.host_req_irq_number = 34;
+        vctop.finish_irq_number = 35;
+        vctop.instruction_fault_irq_number = 36;
+        vctop.data_fault_irq_number = 37;
 
         random.ID = 1;
 

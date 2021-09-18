@@ -1,5 +1,9 @@
 component VectorCoreDriver {
-	dataport Buf csr;
+  dataport Buf csr;
+  consumes Interrupt host_req;
+  consumes Interrupt finish;
+  consumes Interrupt instruction_fault;
+  consumes Interrupt data_fault;
 
-	provides VectorCoreInterface vctop;
+  provides VectorCoreInterface vctop;
 }
