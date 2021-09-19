@@ -201,16 +201,13 @@ mod tests {
         }
     }
     impl ProcessManagerInterface for FakeManager {
-        fn install(&mut self, pkg_buffer: *const u8, pkg_buffer_size: u32) -> Result<Bundle, pme> {
+        fn install(&mut self, pkg_buffer: *const u8, pkg_buffer_size: u32) -> Result<String, pme> {
             let str = (pkg_buffer as usize).to_string();
             if self.bundles.contains_key(&str) {
                 return Err(ProcessManagerError::BundleFound);
             }
             assert!(self.bundles.insert(str, pkg_buffer_size).is_none());
-            Ok(Bundle {
-                app_id: (pkg_buffer as usize).to_string(),
-                data: [0u8; 64],
-            })
+            Ok((pkg_buffer as usize).to_string())
         }
         fn uninstall(&mut self, bundle_id: &str) -> Result<(), pme> {
             match self.bundles.remove(bundle_id) {
