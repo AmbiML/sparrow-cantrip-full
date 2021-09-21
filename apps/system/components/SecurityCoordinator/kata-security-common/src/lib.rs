@@ -125,8 +125,13 @@ pub enum SecurityRequestError {
     SreValueInvalid,
     SreKeyInvalid,
     // Generic errors, mostly used in unit tests
+    SreEchoFailed,
     SreInstallFailed,
     SreUninstallFailed,
+    SreSizeBufferFailed,
+    SreGetManifestFailed,
+    SreLoadApplicationFailed,
+    SreLoadModelFailed,
     SreReadFailed,
     SreWriteFailed,
     SreDeleteFailed,

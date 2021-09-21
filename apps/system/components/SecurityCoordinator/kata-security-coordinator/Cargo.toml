@@ -3,6 +3,11 @@ name = "cantrip-security-coordinator"
 version = "0.1.0"
 edition = "2018"
 
+[features]
+default = ["fake"]  # TODO(sleffler): sel4 once it exists
+fake = []
+sel4 = []
+
 [dependencies]
 cantrip-security-common = { path = "../cantrip-security-common" }
 log = "0.4"
