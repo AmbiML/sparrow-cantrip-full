@@ -7,4 +7,3 @@ edition = "2018"
 cantrip-security-interface = { path = "../../SecurityCoordinator/cantrip-security-interface" }
 cantrip-storage-interface = { path = "../cantrip-storage-interface" }
 log = "0.4"
-postcard = "0.7"

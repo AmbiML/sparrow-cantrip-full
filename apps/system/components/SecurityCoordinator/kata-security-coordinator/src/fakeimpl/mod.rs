@@ -174,7 +174,7 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinator {
                     request.key,
                 );
                 let bundle = self.get_bundle(&request.bundle_id)?;
-                match bundle.keys.get(&request.key) {
+                match bundle.keys.get(request.key) {
                     Some(value) => {
                         // TODO(sleffler): return values are fixed size unless we serialize
                         reply_buffer[..value.len()].copy_from_slice(&value[..]);
@@ -196,7 +196,7 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinator {
                 // TODO(sleffler): optimnize with entry
                 let mut value = [0u8; KEY_VALUE_DATA_SIZE];
                 value[..request.value.len()].copy_from_slice(request.value);
-                let _ = bundle.keys.insert(request.key, value);
+                let _ = bundle.keys.insert(request.key.to_string(), value);
                 Ok(())
             }
             SecurityRequest::SrDeleteKey => {
@@ -209,7 +209,7 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinator {
                 );
                 let bundle = self.get_bundle_mut(&request.bundle_id)?;
                 // TODO(sleffler): error if no entry?
-                let _ = bundle.keys.remove(&request.key);
+                let _ = bundle.keys.remove(request.key);
                 Ok(())
             }
         }

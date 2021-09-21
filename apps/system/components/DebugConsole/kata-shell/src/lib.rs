@@ -128,12 +128,19 @@ fn echo_command(cmdline: &str, output: &mut dyn io::Write) -> Result<(), Command
 /// Implements an "scecho" command that sends arguments to the Security Core's echo service.
 fn scecho_command(cmdline: &str, output: &mut dyn io::Write) -> Result<(), CommandError> {
     use cantrip_security_interface::cantrip_security_request;
+    use cantrip_security_interface::EchoRequest;
     use cantrip_security_interface::SecurityRequest;
     use cantrip_security_interface::SECURITY_REPLY_DATA_SIZE;
 
     let (_, request) = cmdline.split_at(7); // 'scecho'
     let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
-    match cantrip_security_request(SecurityRequest::SrEcho, request.as_bytes(), reply) {
+    match cantrip_security_request(
+        SecurityRequest::SrEcho,
+        &EchoRequest {
+            value: request.as_bytes(),
+        },
+        reply,
+    ) {
         Ok(_) => {
             writeln!(
                 output,
