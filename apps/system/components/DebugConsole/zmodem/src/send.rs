@@ -1,9 +1,8 @@
-use std::io::{Read, Result, Seek, SeekFrom, Write};
+use cantrip_io as io;
 
 use consts::*;
 use frame::*;
 use proto::*;
-use rwlog;
 
 const SUBPACKET_SIZE: usize = 1024 * 8;
 const SUBPACKET_PER_ACK: usize = 10;
@@ -63,12 +62,12 @@ impl State {
     }
 }
 
-pub fn send<RW, R>(rw: RW, r: &mut R, filename: &str, filesize: Option<u32>) -> Result<()>
+pub fn send<RW, R>(rw: RW, r: &mut R, filename: &str, filesize: Option<u32>) -> io::Result<()>
 where
-    RW: Read + Write,
-    R: Read + Seek,
+    RW: io::Read + io::Write,
+    R: io::Read + io::Seek,
 {
-    let mut rw_log = rwlog::ReadWriteLog::new(rw);
+    let mut rw_log = rw;
 
     let mut data = [0; SUBPACKET_SIZE];
     let mut offset: u32;
@@ -105,7 +104,7 @@ where
             }
             State::SendingData => {
                 offset = frame.get_count();
-                r.seek(SeekFrom::Start(offset as u64))?;
+                r.seek(io::SeekFrom::Start(offset as u64))?;
 
                 let num = r.read(&mut data)?;
 

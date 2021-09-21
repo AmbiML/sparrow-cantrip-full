@@ -1,5 +1,8 @@
 #![no_std]
 
+use core::cmp;
+
+#[derive(Debug)]
 pub struct Error;
 
 pub type Result<T> = core::result::Result<T, Error>;
@@ -30,6 +33,8 @@ pub trait Read {
 /// Partial mimic of std::io::Write.
 pub trait Write {
     fn write(&mut self, buf: &[u8]) -> Result<usize>;
+
+    fn flush(&mut self) -> Result<()>;
 
     fn write_all(&mut self, mut buf: &[u8]) -> Result<()> {
         while !buf.is_empty() {
@@ -63,4 +68,38 @@ pub enum SeekFrom {
 /// Partial mimic of std::io::Seek.
 pub trait Seek {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64>;
+}
+
+impl Read for &[u8] {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        let amt = cmp::min(buf.len(), self.len());
+        let (a, b) = self.split_at(amt);
+        buf[..amt].copy_from_slice(a);
+        *self = b;
+        Ok(amt)
+    }
+}
+
+/// Forwarding implementation of Read for &mut
+impl<'a, T> Read for &'a mut T
+where
+    T: Read,
+{
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        (**self).read(buf)
+    }
+}
+
+/// Forwarding implementation of Write for &mut
+impl<'a, T> Write for &'a mut T
+where
+    T: Write,
+{
+    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        (**self).write(buf)
+    }
+
+    fn flush(&mut self) -> Result<()> {
+        (**self).flush()
+    }
 }

@@ -1,11 +1,11 @@
-use std::io::{Read, Result, Write};
-use std::str::from_utf8;
-use std::{thread, time};
+use alloc::vec::Vec;
+use core::str::from_utf8;
+
+use cantrip_io as io;
 
 use consts::*;
 use frame::*;
 use proto::*;
-use rwlog;
 
 #[derive(Debug, PartialEq)]
 enum State {
@@ -53,12 +53,13 @@ impl State {
 }
 
 /// Receives data by Z-Modem protocol
-pub fn recv<RW, W>(rw: RW, mut w: W) -> Result<usize>
+pub fn recv<RW, W>(rw: RW, mut w: W) -> io::Result<usize>
 where
-    RW: Read + Write,
-    W: Write,
+    RW: io::Read + io::Write,
+    W: io::Write,
 {
-    let mut rw_log = rwlog::ReadWriteLog::new(rw);
+    let mut rw_log = rw;
+
     let mut count = 0;
 
     let mut state = State::new();
@@ -121,7 +122,11 @@ where
             }
             State::Done => {
                 write_zfin(&mut rw_log)?;
-                thread::sleep(time::Duration::from_millis(10)); // sleep a bit
+                // NB: lexxvir/zmodem had a 10ms sleep here that has been removed
+                // due to no_std. Here we change it to flush() so that a return
+                // from this function does really indicate all the bytes have
+                // been written.
+                rw_log.flush()?;
             }
         }
     }
@@ -129,9 +134,9 @@ where
     Ok(count as usize)
 }
 
-fn recv_error<W>(w: &mut W, state: &State, count: u32) -> Result<()>
+fn recv_error<W>(w: &mut W, state: &State, count: u32) -> io::Result<()>
 where
-    W: Write,
+    W: io::Write,
 {
     // TODO: flush input
 

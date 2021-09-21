@@ -1,6 +1,8 @@
-use hex::*;
-use log::LogLevel::Debug;
-use std::io;
+use alloc::vec::Vec;
+use alloc::{format, vec};
+
+use cantrip_io as io;
+use log::Level::Debug;
 
 use consts::*;
 use crc::*;
@@ -55,7 +57,7 @@ where
     read_exact_unescaped(r, &mut v)?;
 
     if header == ZHEX {
-        v = match FromHex::from_hex(&v) {
+        v = match hex::decode(&v) {
             Ok(x) => x,
             _ => {
                 error!("from_hex error");
@@ -104,15 +106,37 @@ where
     Ok(())
 }
 
+/// Read into buf until and including the byte delim
+///
+/// This is a one-off implementation of a method of io::BufRead that the
+/// original lexxvir/zmodem had used. (So far cantrip_io is deferring implementing
+/// buffering to validate it will become needed in more places.)
+fn read_until<R>(r: &mut R, delim: u8, buf: &mut Vec<u8>) -> io::Result<usize>
+where
+    R: io::Read,
+{
+    let mut n = 0usize;
+    loop {
+        let b = read_byte(r)?;
+        buf.push(b);
+        n += 1;
+        if b == delim {
+            break;
+        }
+    }
+
+    Ok(n)
+}
+
 /// Receives sequence: <escaped data> ZLDE ZCRC* <CRC bytes>
 /// Unescapes sequencies such as 'ZLDE <escaped byte>'
 /// If Ok returns <unescaped data> in buf and ZCRC* byte as return value
 pub fn recv_zlde_frame<R>(header: u8, r: &mut R, buf: &mut Vec<u8>) -> io::Result<Option<u8>>
 where
-    R: io::BufRead,
+    R: io::Read,
 {
     loop {
-        r.read_until(ZLDE, buf)?;
+        read_until(r, ZLDE, buf)?;
         let b = read_byte(r)?;
 
         if !is_escaped(b) {
@@ -148,7 +172,7 @@ pub fn recv_data<RW, OUT>(
     out: &mut OUT,
 ) -> io::Result<bool>
 where
-    RW: io::Write + io::BufRead,
+    RW: io::Write + io::Read,
     OUT: io::Write,
 {
     let mut buf = Vec::new();
@@ -182,7 +206,8 @@ where
                 debug!("CCRCG: CRC next, frame continues nonstop");
             }
             _ => {
-                panic!(format!("unexpected ZCRC byte: {:02X}", zcrc));
+                error!("unexpected ZCRC byte: {:02X}", zcrc);
+                return Err(io::Error);
             }
         }
     }

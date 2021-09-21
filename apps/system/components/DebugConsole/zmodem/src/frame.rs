@@ -1,8 +1,11 @@
+use alloc::string::String;
+use alloc::vec::Vec;
+use core::fmt;
+
 use consts::*;
 use crc;
 use hex::*;
 use proto;
-use std::fmt;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct Frame {
@@ -59,7 +62,7 @@ impl Frame {
         out.append(&mut crc);
 
         if self.header == ZHEX {
-            let hex = out.drain(4..).collect::<Vec<u8>>().to_hex();
+            let hex = out.drain(4..).collect::<Vec<u8>>().encode_hex::<String>();
             out.extend_from_slice(&hex.as_bytes());
         }
 
@@ -95,8 +98,8 @@ fn get_crc(header: u8, buf: &[u8]) -> Vec<u8> {
     };
 
     match header {
-        ZBIN32 => crc::get_crc32(&buf[offset..], None).to_vec(),
-        _ => crc::get_crc16(&buf[offset..], None).to_vec(),
+        ZBIN32 => crc::get_crc32(&buf[offset..], None).into(),
+        _ => crc::get_crc16(&buf[offset..], None).into(),
     }
 }
 
@@ -139,6 +142,8 @@ impl fmt::Display for Frame {
 
 #[test]
 fn test_frame() {
+    use alloc::vec;
+
     assert_eq!(
         Frame::new(ZBIN, 0).build(),
         vec![ZPAD, ZLDE, ZBIN, 0, 0, 0, 0, 0, 0, 0]

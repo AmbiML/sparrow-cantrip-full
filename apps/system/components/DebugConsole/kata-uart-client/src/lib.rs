@@ -40,7 +40,7 @@ pub extern "C" fn logger_log(level: u8, msg: *const cstr_core::c_char) {
 pub struct Rx {}
 
 impl io::Read for Rx {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         unsafe {
             rx_mutex_lock();
             uart_rx_update(buf.len());
@@ -55,7 +55,7 @@ impl io::Read for Rx {
 pub struct Tx {}
 
 impl io::Write for Tx {
-    fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         unsafe {
             tx_mutex_lock();
             let port = core::slice::from_raw_parts_mut(tx_dataport, buf.len());
@@ -64,5 +64,10 @@ impl io::Write for Tx {
             tx_mutex_unlock();
         }
         Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        // Do nothing. This implementation has no internal buffering.
+        Ok(())
     }
 }
