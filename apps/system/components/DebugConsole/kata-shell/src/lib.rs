@@ -2,6 +2,7 @@
 
 extern crate alloc;
 use alloc::string::String;
+use alloc::vec::Vec;
 use core::fmt;
 use core::fmt::Write;
 use cstr_core::CString;
@@ -10,6 +11,9 @@ use postcard;
 use cantrip_io as io;
 use cantrip_line_reader::LineReader;
 use cantrip_proc_common::{BundleIdArray, ProcessManagerError, RAW_BUNDLE_ID_DATA_SIZE};
+use cantrip_storage_interface::cantrip_storage_delete;
+use cantrip_storage_interface::cantrip_storage_read;
+use cantrip_storage_interface::cantrip_storage_write;
 
 /// Error type indicating why a command line is not runnable.
 enum CommandError {
@@ -79,6 +83,9 @@ fn dispatch_command(cmdline: &str, output: &mut dyn io::Write) {
                 "echo" => echo_command(cmdline, output),
                 "clear" => clear_command(output),
                 "bundles" => bundles_command(output),
+                "kvdelete" => kvdelete_command(&mut args, output),
+                "kvread" => kvread_command(&mut args, output),
+                "kvwrite" => kvwrite_command(&mut args, output),
                 "install" => install_command(&mut args, output),
                 "loglevel" => loglevel_command(&mut args, output),
                 "ps" => ps_command(),
@@ -123,14 +130,7 @@ fn scecho_command(cmdline: &str, output: &mut dyn io::Write) -> Result<(), Comma
     use cantrip_security_common::*;
     let (_, request) = cmdline.split_at(7); // 'scecho'
     let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
-    match unsafe {
-        security_request(
-            SecurityRequest::SrEcho,
-            request.len() as u32,
-            request.as_ptr(),
-            reply as *mut _,
-        )
-    } {
+    match cantrip_security_request(SecurityRequest::SrEcho, request.as_bytes(), reply) {
         SecurityRequestError::SreSuccess => {
             writeln!(
                 output,
@@ -331,11 +331,69 @@ fn stop_command(
     }
 }
 
+fn kvdelete_command(
+    args: &mut dyn Iterator<Item = &str>,
+    output: &mut dyn io::Write,
+) -> Result<(), CommandError> {
+    if let Some(key) = args.nth(0) {
+        match cantrip_storage_delete(key) {
+            Ok(_) => {
+                writeln!(output, "Delete key \"{}\".", key)?;
+            }
+            Err(status) => {
+                writeln!(output, "Delete key \"{}\" failed: {:?}", key, status)?;
+            }
+        }
+        Ok(())
+    } else {
+        Err(CommandError::BadArgs)
+    }
+}
+
+fn kvread_command(
+    args: &mut dyn Iterator<Item = &str>,
+    output: &mut dyn io::Write,
+) -> Result<(), CommandError> {
+    if let Some(key) = args.nth(0) {
+        match cantrip_storage_read(key) {
+            Ok(value) => {
+                writeln!(output, "Read key \"{}\" = {:?}.", key, value)?;
+            }
+            Err(status) => {
+                writeln!(output, "Read key \"{}\" failed: {:?}", key, status)?;
+            }
+        }
+        Ok(())
+    } else {
+        Err(CommandError::BadArgs)
+    }
+}
+
+fn kvwrite_command(
+    args: &mut dyn Iterator<Item = &str>,
+    output: &mut dyn io::Write,
+) -> Result<(), CommandError> {
+    if let Some(key) = args.nth(0) {
+        let value = args.collect::<Vec<&str>>().join(" ");
+        match cantrip_storage_write(key, value.as_bytes()) {
+            Ok(_) => {
+                writeln!(output, "Write key \"{}\" = {:?}.", key, value)?;
+            }
+            Err(status) => {
+                writeln!(output, "Write key \"{}\" failed: {:?}", key, status)?;
+            }
+        }
+        Ok(())
+    } else {
+        Err(CommandError::BadArgs)
+    }
+}
+
 /// Implements a command that tests facilities that use the global allocator.
 /// Shamelessly cribbed from https://os.phil-opp.com/heap-allocation/
 fn test_alloc_command(output: &mut dyn io::Write) -> Result<(), CommandError> {
     extern crate alloc;
-    use alloc::{boxed::Box, rc::Rc, vec, vec::Vec};
+    use alloc::{boxed::Box, rc::Rc, vec};
 
     // allocate a number on the heap
     let heap_value = Box::new(41);
@@ -370,9 +428,6 @@ fn test_alloc_command(output: &mut dyn io::Write) -> Result<(), CommandError> {
 
 /// Implements a command that tests the global allocator error handling.
 fn test_alloc_error_command(output: &mut dyn io::Write) -> Result<(), CommandError> {
-    extern crate alloc;
-    use alloc::vec::Vec;
-
     // Default heap holds 16KB.
     let mut vec = Vec::with_capacity(16384);
     for i in 0..16348 {

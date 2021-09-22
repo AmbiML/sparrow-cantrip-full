@@ -1,0 +1,19 @@
+[package]
+name = "cantrip-storage-component"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+cstr_core = { version = "0.2.3", default-features = false }
+cantrip-allocator = { path = "../../DebugConsole/cantrip-allocator" }
+cantrip-logger = { path = "../../DebugConsole/cantrip-logger" }
+cantrip-panic = { path = "../../DebugConsole/cantrip-panic" }
+cantrip-storage-interface = { path = "../cantrip-storage-interface" }
+cantrip-storage-manager = { path = "../cantrip-storage-manager" }
+log = "0.4"
+postcard = "0.7"
+
+[lib]
+name = "cantrip_storage_manager"
+path = "src/run.rs"
+crate-type = ["staticlib"]

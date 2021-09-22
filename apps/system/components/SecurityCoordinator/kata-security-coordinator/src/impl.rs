@@ -5,17 +5,17 @@ use cantrip_security_common::*;
 use log::trace;
 use postcard;
 
-pub struct SeL4SecurityCoordinatorInterface {
+pub struct SeL4SecurityCoordinator {
     // TODO(sleffler): mailbox ipc state
 }
-impl SeL4SecurityCoordinatorInterface {
+impl SeL4SecurityCoordinator {
     pub fn new() -> Self {
-        SeL4SecurityCoordinatorInterface {}
+        SeL4SecurityCoordinator {}
     }
 }
-pub type CantripSecurityCoordinatorInterface = SeL4SecurityCoordinatorInterface;
+pub type CantripSecurityCoordinatorInterface = SeL4SecurityCoordinator;
 
-impl SecurityCoordinatorInterface for SeL4SecurityCoordinatorInterface {
+impl SecurityCoordinatorInterface for SeL4SecurityCoordinator {
     fn request(
         &mut self,
         request_id: SecurityRequest,

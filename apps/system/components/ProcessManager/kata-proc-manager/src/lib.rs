@@ -4,6 +4,7 @@
 
 extern crate alloc;
 use alloc::string::String;
+use core::slice;
 use cantrip_proc_common::*;
 use cantrip_security_common::*;
 use log::trace;
@@ -89,14 +90,11 @@ impl ProcessManagerInterface for CantripManagerInterface {
 
         // This is handled by the SecurityCoordinator.
         let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
-        match unsafe {
-            security_request(
-                SecurityRequest::SrInstall,
-                pkg_buffer_size,
-                pkg_buffer,
-                reply as *mut _,
-            )
-        } {
+        match cantrip_security_request(
+            SecurityRequest::SrInstall,
+            unsafe { slice::from_raw_parts(pkg_buffer, pkg_buffer_size as usize) },
+            reply,
+        ) {
             SecurityRequestError::SreSuccess => {
                 fn deserialize_failure(e: postcard::Error) -> ProcessManagerError {
                     trace!("install failed: deserialize {:?}", e);
@@ -123,14 +121,7 @@ impl ProcessManagerInterface for CantripManagerInterface {
         let mut request_data = [0u8; SECURITY_REQUEST_DATA_SIZE];
         let _ = postcard::to_slice(&bundle_id, &mut request_data).map_err(serialize_failure)?;
         let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
-        match unsafe {
-            security_request(
-                SecurityRequest::SrUninstall,
-                request_data.len() as u32,
-                request_data.as_ptr(),
-                reply as *mut _,
-            )
-        } {
+        match cantrip_security_request(SecurityRequest::SrUninstall, &request_data, reply) {
             SecurityRequestError::SreSuccess => Ok(()),
             status => {
                 trace!("uninstall failed: {:?}", status);
@@ -139,7 +130,7 @@ impl ProcessManagerInterface for CantripManagerInterface {
         }
     }
     fn start(&mut self, _bundle: &Bundle) -> Result<(), ProcessManagerError> {
-        // 1. Ask security core for application footprint with SizeBuffer 
+        // 1. Ask security core for application footprint with SizeBuffer
         // 2. Ask security core for manifest (maybe piggyback on SizeBuffer)
         //    and parse for necessary info (e.g. whether kv Storage is
         //    required, other privileges/capabilities)

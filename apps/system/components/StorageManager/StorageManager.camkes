@@ -1,0 +1,12 @@
+// Cantrip OS StorageManager services.
+
+import <LoggerInterface.camkes>;
+import <SecurityCoordinatorInterface.camkes>;
+import <StorageInterface.camkes>;
+
+component StorageManager {
+  provides StorageInterface storage;
+
+  uses LoggerInterface logger;
+  uses SecurityCoordinatorInterface security;
+}

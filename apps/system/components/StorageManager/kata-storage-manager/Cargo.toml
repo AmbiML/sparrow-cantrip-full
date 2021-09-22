@@ -1,0 +1,10 @@
+[package]
+name = "cantrip-storage-manager"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+cantrip-security-common = { path = "../../SecurityCoordinator/cantrip-security-common" }
+cantrip-storage-interface = { path = "../cantrip-storage-interface" }
+log = "0.4"
+postcard = "0.7"

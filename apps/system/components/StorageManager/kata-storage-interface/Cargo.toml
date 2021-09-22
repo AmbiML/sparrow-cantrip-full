@@ -1,0 +1,7 @@
+[package]
+name = "cantrip-storage-interface"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+cstr_core = "0.2"

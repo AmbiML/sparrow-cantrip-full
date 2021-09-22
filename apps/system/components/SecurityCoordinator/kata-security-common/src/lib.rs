@@ -45,6 +45,8 @@ mod mut_ptr_helper {
     }
 }
 
+// TODO(sleffler): convert String to &str
+
 // NB: SecurityRequestInstall is handled specially.
 
 // SecurityRequestUninstall
@@ -145,8 +147,8 @@ pub enum SecurityRequest {
     SrInstall,   // Install package [pkg_buffer] -> bundle_id
     SrUninstall, // Uninstall package [bundle_id]
 
-    SrSizeBuffer, // Size application image [bundle_id] -> u32
-    SrGetManifest, // Return application manifest [bundle_id] -> String
+    SrSizeBuffer,      // Size application image [bundle_id] -> u32
+    SrGetManifest,     // Return application manifest [bundle_id] -> String
     SrLoadApplication, // Load application [bundle_id]
     // TODO(sleffler): define <tag>?
     SrLoadModel, // Load ML model [bundle_id, <tag>]
@@ -166,14 +168,29 @@ pub trait SecurityCoordinatorInterface {
     ) -> Result<(), SecurityRequestError>;
 }
 
-// Camkes-generated rpc api.
-// NB: this requires the SecurityCoordinator component be named "security".
+// TODO(sleffler): try cantrip_security_request<T> to lower serde work
+#[inline]
 #[allow(dead_code)]
-extern "C" {
-    pub fn security_request(
-        c_request: SecurityRequest,
-        c_request_buffer_len: u32,
-        c_request_buffer: *const u8,
-        c_reply_buffer: *mut SecurityReplyData,
-    ) -> SecurityRequestError;
+pub fn cantrip_security_request(
+    request: SecurityRequest,
+    request_buffer: &[u8],
+    reply_buffer: &mut SecurityReplyData,
+) -> SecurityRequestError {
+    // NB: this assumes the SecurityCoordinator component is named "security".
+    extern "C" {
+        pub fn security_request(
+            c_request: SecurityRequest,
+            c_request_buffer_len: u32,
+            c_request_buffer: *const u8,
+            c_reply_buffer: *mut SecurityReplyData,
+        ) -> SecurityRequestError;
+    }
+    unsafe {
+        security_request(
+            request,
+            request_buffer.len() as u32,
+            request_buffer.as_ptr(),
+            reply_buffer as *mut _,
+        )
+    }
 }

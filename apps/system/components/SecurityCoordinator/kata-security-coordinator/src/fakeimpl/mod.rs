@@ -1,22 +1,69 @@
 //! Cantrip OS security coordinator fake support
 
 extern crate alloc;
-use alloc::string::ToString;
+use alloc::string::{String, ToString};
+use hashbrown::HashMap;
 use cantrip_security_common::*;
+use cantrip_storage_interface::{KeyValueData, KEY_VALUE_DATA_SIZE};
 use log::trace;
 use postcard;
 
-pub struct FakeSecurityCoordinatorInterface {
-    // TODO(sleffler): mailbox ipc state
+struct BundleData {
+    pkg_size: usize,
+    manifest: String,
+    keys: HashMap<String, KeyValueData>,
 }
-impl FakeSecurityCoordinatorInterface {
-    pub fn new() -> Self {
-        FakeSecurityCoordinatorInterface {}
+impl BundleData {
+    fn new(pkg_size: usize) -> Self {
+        BundleData {
+            pkg_size: pkg_size,
+            manifest: String::from(
+                "# Comments like this
+                        [Manifest]
+                        BundleId=com.google.cerebra.hw.HelloWorld
+
+                        [Binaries]
+                        App=HelloWorldBin
+                        Model=NeuralNetworkName
+
+                        [Storage]
+                        Required=1
+                      ",
+            ),
+            keys: HashMap::with_capacity(2),
+        }
     }
 }
-pub type CantripSecurityCoordinatorInterface = FakeSecurityCoordinatorInterface;
 
-impl SecurityCoordinatorInterface for FakeSecurityCoordinatorInterface {
+pub struct FakeSecurityCoordinator {
+    bundles: HashMap<String, BundleData>,
+}
+impl FakeSecurityCoordinator {
+    pub fn new() -> Self {
+        FakeSecurityCoordinator {
+            bundles: HashMap::with_capacity(2),
+        }
+    }
+
+    fn get_bundle(&self, bundle_id: &str) -> Result<&BundleData, SecurityRequestError> {
+        self.bundles
+            .get(bundle_id)
+            .map_or_else(|| Err(SecurityRequestError::SreBundleNotFound), |v| Ok(v))
+    }
+    fn get_bundle_mut(&mut self, bundle_id: &str) -> Result<&mut BundleData, SecurityRequestError> {
+        self.bundles
+            .get_mut(bundle_id)
+            .map_or_else(|| Err(SecurityRequestError::SreBundleNotFound), |v| Ok(v))
+    }
+    fn remove_bundle(&mut self, bundle_id: &str) -> Result<(), SecurityRequestError> {
+        self.bundles
+            .remove(bundle_id)
+            .map_or_else(|| Err(SecurityRequestError::SreBundleNotFound), |_v| Ok(()))
+    }
+}
+pub type CantripSecurityCoordinatorInterface = FakeSecurityCoordinator;
+
+impl SecurityCoordinatorInterface for FakeSecurityCoordinator {
     fn request(
         &mut self,
         request_id: SecurityRequest,
@@ -47,25 +94,29 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinatorInterface {
                     request_buffer.as_ptr(),
                     request_buffer.len()
                 );
-                let _ = postcard::to_slice(
-                    &(request_buffer.as_ptr() as usize).to_string(),
-                    reply_buffer,
-                )
-                .map_err(serialize_failure)?;
+                //                let bundle_id = (request_buffer.as_ptr() as usize).to_string();
+                // TODO(sleffler): used by cantrip-storage-component for kvops
+                let bundle_id = "fubar".to_string();
+                let _ = postcard::to_slice(&bundle_id, reply_buffer).map_err(serialize_failure)?;
+                assert!(self
+                    .bundles
+                    .insert(bundle_id, BundleData::new(request_buffer.len()))
+                    .is_none());
                 Ok(())
             }
             SecurityRequest::SrUninstall => {
                 let request = postcard::from_bytes::<UninstallRequest>(&request_buffer[..])
                     .map_err(deserialize_failure)?;
                 trace!("UNINSTALL {}", request.bundle_id);
-                Ok(())
+                self.remove_bundle(&request.bundle_id)
             }
             SecurityRequest::SrSizeBuffer => {
                 let request = postcard::from_bytes::<SizeBufferRequest>(&request_buffer[..])
                     .map_err(deserialize_failure)?;
                 trace!("SIZE BUFFER bundle_id {}", request.bundle_id);
+                let bundle = self.get_bundle(&request.bundle_id)?;
                 let _ = postcard::to_slice(
-                    &0u32, // TODO(sleffler): fill-in
+                    &bundle.pkg_size, // TODO(sleffler): do better
                     reply_buffer,
                 )
                 .map_err(serialize_failure)?;
@@ -75,21 +126,9 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinatorInterface {
                 let request = postcard::from_bytes::<SizeBufferRequest>(&request_buffer[..])
                     .map_err(deserialize_failure)?;
                 trace!("GET MANIFEST bundle_id {}", request.bundle_id);
-                let _ = postcard::to_slice(
-                    "# Comments like this
-                        [Manifest]
-                        BundleId=com.google.cerebra.hw.HelloWorld
-
-                        [Binaries]
-                        App=HelloWorldBin
-                        Model=NeuralNetworkName
-
-                        [Storage]
-                        Required=1
-                        ", // TODO(sleffler): fill-in
-                    reply_buffer,
-                )
-                .map_err(serialize_failure)?;
+                let bundle = self.get_bundle(&request.bundle_id)?;
+                let _ = postcard::to_slice(&bundle.manifest, reply_buffer)
+                    .map_err(serialize_failure)?;
                 Ok(())
             }
             SecurityRequest::SrLoadApplication => {
@@ -100,6 +139,7 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinatorInterface {
                     request.bundle_id,
                     request.app_binary
                 );
+                let _ = self.get_bundle(&request.bundle_id)?;
                 Ok(())
             }
             SecurityRequest::SrLoadModel => {
@@ -111,6 +151,8 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinatorInterface {
                     request.model_id,
                     request.model_binary
                 );
+                // TODO(sleffler): check model id
+                let _ = self.get_bundle(&request.bundle_id)?;
                 Ok(())
             }
             SecurityRequest::SrReadKey => {
@@ -121,8 +163,15 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinatorInterface {
                     request.bundle_id,
                     request.key,
                 );
-                // TODO(sleffler): fill-in
-                Err(SreReadFailed)
+                let bundle = self.get_bundle(&request.bundle_id)?;
+                match bundle.keys.get(&request.key) {
+                    Some(value) => {
+                        // TODO(sleffler): return values are fixed size unless we serialize
+                        reply_buffer[..value.len()].copy_from_slice(&value[..]);
+                        Ok(())
+                    }
+                    None => Err(SreKeyNotFound),
+                }
             }
             SecurityRequest::SrWriteKey => {
                 let request = postcard::from_bytes::<WriteKeyRequest>(&request_buffer[..])
@@ -133,8 +182,12 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinatorInterface {
                     request.key,
                     request.value,
                 );
-                // TODO(sleffler): fill-in
-                Err(SreWriteFailed)
+                let bundle = self.get_bundle_mut(&request.bundle_id)?;
+                // TODO(sleffler): optimnize with entry
+                let mut value = [0u8; KEY_VALUE_DATA_SIZE];
+                value[..request.value.len()].copy_from_slice(request.value);
+                let _ = bundle.keys.insert(request.key, value);
+                Ok(())
             }
             SecurityRequest::SrDeleteKey => {
                 let request = postcard::from_bytes::<DeleteKeyRequest>(&request_buffer[..])
@@ -144,8 +197,10 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinatorInterface {
                     request.bundle_id,
                     request.key,
                 );
-                // TODO(sleffler): fill-in
-                Err(SreDeleteFailed)
+                let bundle = self.get_bundle_mut(&request.bundle_id)?;
+                // TODO(sleffler): error if no entry?
+                let _ = bundle.keys.remove(&request.key);
+                Ok(())
             }
         }
     }
