@@ -11,6 +11,7 @@
 
 #![no_std]
 
+#[cfg(not(test))]
 extern crate cantrip_panic;
 
 use cantrip_allocator;

@@ -1,12 +1,12 @@
 #![no_std]
 
-use core::panic::PanicInfo;
-use core::sync::atomic::{self, Ordering};
-use log::error;
-
+#[cfg(not(test))]
 #[inline(never)]
 #[panic_handler]
-fn panic(info: &PanicInfo) -> ! {
+fn panic(info: &core::panic::PanicInfo) -> ! {
+    use core::sync::atomic::{self, Ordering};
+    use log::error;
+
     // Could use panic::set_hook but we're already here...
     error!("{}", info);
 

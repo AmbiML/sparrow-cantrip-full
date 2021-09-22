@@ -1,12 +1,10 @@
 //! An allocator for Cantrip OS (derived from CortexM).
 
 #![no_std]
-#![feature(alloc_error_handler)]
+#![cfg_attr(not(test), feature(alloc_error_handler))]
 
 use core::alloc::{GlobalAlloc, Layout};
-use core::panic;
 use core::ptr::{self, NonNull};
-
 use linked_list_allocator::Heap;
 use spin::Mutex;
 
@@ -14,12 +12,14 @@ pub struct CantripHeap {
     heap: Mutex<Heap>,
 }
 
+#[cfg(not(test))]
 #[global_allocator]
 pub static ALLOCATOR: CantripHeap = CantripHeap::empty();
 
+#[cfg(not(test))]
 #[alloc_error_handler]
 fn alloc_error_handler(layout: Layout) -> ! {
-    panic!("Global allocation failure: {:?}", layout);
+    core::panic!("Global allocation failure: {:?}", layout);
 }
 
 impl CantripHeap {

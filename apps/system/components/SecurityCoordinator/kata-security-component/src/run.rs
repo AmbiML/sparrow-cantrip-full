@@ -6,6 +6,7 @@
 use core::slice;
 use cantrip_allocator;
 use cantrip_logger::CantripLogger;
+#[cfg(not(test))]
 extern crate cantrip_panic;
 use cantrip_security_common::*;
 use cantrip_security_coordinator::CANTRIP_SECURITY;
