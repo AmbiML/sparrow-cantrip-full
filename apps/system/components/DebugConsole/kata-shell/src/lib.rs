@@ -6,6 +6,7 @@ use alloc::vec::Vec;
 use core::fmt;
 use core::fmt::Write;
 use cstr_core::CString;
+use hex;
 use postcard;
 
 use cantrip_io as io;
@@ -15,10 +16,13 @@ use cantrip_storage_interface::cantrip_storage_delete;
 use cantrip_storage_interface::cantrip_storage_read;
 use cantrip_storage_interface::cantrip_storage_write;
 
+mod rz;
+
 /// Error type indicating why a command line is not runnable.
 enum CommandError {
     UnknownCommand,
     BadArgs,
+    IO,
     Formatter(fmt::Error),
 }
 
@@ -27,6 +31,7 @@ impl fmt::Display for CommandError {
         match self {
             CommandError::UnknownCommand => write!(f, "unknown command"),
             CommandError::BadArgs => write!(f, "invalid arguments"),
+            CommandError::IO => write!(f, "input / output error"),
             CommandError::Formatter(e) => write!(f, "{}", e),
         }
     }
@@ -50,6 +55,12 @@ impl From<fmt::Error> for CommandError {
     }
 }
 
+impl From<io::Error> for CommandError {
+    fn from(_err: io::Error) -> CommandError {
+        CommandError::IO
+    }
+}
+
 /// Read-eval-print loop for the DebugConsole command line interface.
 pub fn repl(output: &mut dyn io::Write, input: &mut dyn io::Read) -> ! {
     let mut line_reader = LineReader::new();
@@ -57,7 +68,7 @@ pub fn repl(output: &mut dyn io::Write, input: &mut dyn io::Read) -> ! {
         const PROMPT: &str = "CANTRIP> ";
         let _ = output.write_str(PROMPT);
         match line_reader.read_line(output, input) {
-            Ok(cmdline) => dispatch_command(cmdline, output),
+            Ok(cmdline) => dispatch_command(cmdline, input, output),
             Err(e) => {
                 let _ = writeln!(output, "\n{}", e);
             }
@@ -69,7 +80,7 @@ pub fn repl(output: &mut dyn io::Write, input: &mut dyn io::Read) -> ! {
 ///
 /// The line is split on whitespace. The first token is the command; the
 /// remaining tokens are the arguments.
-fn dispatch_command(cmdline: &str, output: &mut dyn io::Write) {
+fn dispatch_command(cmdline: &str, input: &mut dyn io::Read, output: &mut dyn io::Write) {
     let mut args = cmdline.split_ascii_whitespace();
     match args.nth(0) {
         Some(command) => {
@@ -88,6 +99,7 @@ fn dispatch_command(cmdline: &str, output: &mut dyn io::Write) {
                 "kvwrite" => kvwrite_command(&mut args, output),
                 "install" => install_command(&mut args, output),
                 "loglevel" => loglevel_command(&mut args, output),
+                "rz" => rz_command(input, output),
                 "ps" => ps_command(),
                 "scecho" => scecho_command(cmdline, output),
                 "start" => start_command(&mut args, output),
@@ -155,7 +167,7 @@ fn scecho_command(cmdline: &str, output: &mut dyn io::Write) -> Result<(), Comma
     Ok(())
 }
 
-// Set/display the max log level for the DebugConsole.
+/// Implements a command to configure the max log level for the DebugConsole.
 fn loglevel_command(
     args: &mut dyn Iterator<Item = &str>,
     output: &mut dyn io::Write,
@@ -173,6 +185,21 @@ fn loglevel_command(
         }
     }
     Ok(writeln!(output, "{}", log::max_level())?)
+}
+
+/// Implements a command to receive a blob using ZMODEM.
+fn rz_command(
+    input: &mut dyn io::Read,
+    mut output: &mut dyn io::Write,
+) -> Result<(), CommandError> {
+    let upload = rz::rz(input, &mut output)?;
+    writeln!(
+        output,
+        "size: {}, crc32: {}",
+        upload.contents().len(),
+        hex::encode(upload.crc32().to_be_bytes())
+    )?;
+    Ok(())
 }
 
 /// Implements a "ps" command that dumps seL4 scheduler state to the console.
