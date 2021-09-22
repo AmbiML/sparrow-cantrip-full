@@ -65,7 +65,7 @@ impl State {
 pub fn send<CI, CO, DI>(
     mut channel_in: CI,
     mut channel_out: CO,
-    mut r: DI,
+    mut data_in: DI,
     filename: &str,
     filesize: Option<u32>,
 ) -> io::Result<()>
@@ -109,9 +109,9 @@ where
             }
             State::SendingData => {
                 offset = frame.get_count();
-                r.seek(io::SeekFrom::Start(offset as u64))?;
+                data_in.seek(io::SeekFrom::Start(offset as u64))?;
 
-                let num = r.read(&mut data)?;
+                let num = data_in.read(&mut data)?;
 
                 if num == 0 {
                     write_zeof(&mut channel_out, offset)?;
@@ -130,7 +130,7 @@ where
                         write_zlde_data(&mut channel_out, ZCRCG, &data[..num])?;
                         offset += num as u32;
 
-                        let num = r.read(&mut data)?;
+                        let num = data_in.read(&mut data)?;
                         if num < data.len() || i >= SUBPACKET_PER_ACK {
                             write_zlde_data(&mut channel_out, ZCRCW, &data[..num])?;
                             break;
