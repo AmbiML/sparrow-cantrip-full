@@ -53,28 +53,31 @@ impl State {
 }
 
 /// Receives data by Z-Modem protocol
-pub fn recv<RW, W>(rw: RW, mut w: W) -> io::Result<usize>
+pub fn recv<CI, CO, DO>(
+    mut channel_in: CI,
+    mut channel_out: CO,
+    mut data_out: DO,
+) -> io::Result<usize>
 where
-    RW: io::Read + io::Write,
-    W: io::Write,
+    CI: io::Read,
+    CO: io::Write,
+    DO: io::Write,
 {
-    let mut rw_log = rw;
-
     let mut count = 0;
 
     let mut state = State::new();
 
-    write_zrinit(&mut rw_log)?;
+    write_zrinit(&mut channel_out)?;
 
     while state != State::Done {
-        if !find_zpad(&mut rw_log)? {
+        if !find_zpad(&mut channel_in)? {
             continue;
         }
 
-        let frame = match parse_header(&mut rw_log)? {
+        let frame = match parse_header(&mut channel_in)? {
             Some(x) => x,
             None => {
-                recv_error(&mut rw_log, &state, count)?;
+                recv_error(&mut channel_out, &state, count)?;
                 continue;
             }
         };
@@ -85,15 +88,15 @@ where
         // do things according new state
         match state {
             State::SendingZRINIT => {
-                write_zrinit(&mut rw_log)?;
+                write_zrinit(&mut channel_out)?;
             }
             State::ProcessingZFILE => {
                 let mut buf = Vec::new();
 
-                if recv_zlde_frame(frame.get_header(), &mut rw_log, &mut buf)?.is_none() {
-                    write_znak(&mut rw_log)?;
+                if recv_zlde_frame(frame.get_header(), &mut channel_in, &mut buf)?.is_none() {
+                    write_znak(&mut channel_out)?;
                 } else {
-                    write_zrpos(&mut rw_log, count)?;
+                    write_zrpos(&mut channel_out, count)?;
 
                     // TODO: process supplied data
                     if let Ok(s) = from_utf8(&buf) {
@@ -103,9 +106,15 @@ where
             }
             State::ReceivingData => {
                 if frame.get_count() != count
-                    || !recv_data(frame.get_header(), &mut count, &mut rw_log, &mut w)?
+                    || !recv_data(
+                        frame.get_header(),
+                        &mut count,
+                        &mut channel_in,
+                        &mut channel_out,
+                        &mut data_out,
+                    )?
                 {
-                    write_zrpos(&mut rw_log, count)?;
+                    write_zrpos(&mut channel_out, count)?;
                 }
             }
             State::CheckingData => {
@@ -117,16 +126,20 @@ where
                     );
                     // receiver ignores the ZEOF because a new zdata is coming
                 } else {
-                    write_zrinit(&mut rw_log)?;
+                    write_zrinit(&mut channel_out)?;
                 }
             }
             State::Done => {
-                write_zfin(&mut rw_log)?;
-                // NB: lexxvir/zmodem had a 10ms sleep here that has been removed
-                // due to no_std. Here we change it to flush() so that a return
-                // from this function does really indicate all the bytes have
-                // been written.
-                rw_log.flush()?;
+                write_zfin(&mut channel_out)?;
+                // lexxvir/zmodem had a 30ms sleep here, maybe for the
+                // following behavior from the ZMODEM spec: "The receiver
+                // waits briefly for the "O" characters, then exits whether
+                // they were received or not."
+                //
+                // sz does send these characters, and 2 more bytes before them.
+                // If we don't consume them here, they will become garbage on
+                // input after returning.
+                read_until_match(OO.as_bytes(), &mut channel_in)?;
             }
         }
     }
@@ -144,4 +157,16 @@ where
         State::ReceivingData => write_zrpos(w, count),
         _ => write_znak(w),
     }
+}
+
+fn read_until_match<R: io::Read>(pattern: &[u8], mut r: R) -> io::Result<()> {
+    let mut remainder = pattern;
+    let mut b = [0u8; 1];
+    while !remainder.is_empty() {
+        r.read(&mut b)?;
+        if b[0] == remainder[0] {
+            remainder = &remainder[1..];
+        }
+    }
+    Ok(())
 }

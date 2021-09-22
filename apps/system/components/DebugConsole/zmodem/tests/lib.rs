@@ -18,24 +18,21 @@ fn forget_err(_e: std::io::Error) -> cantrip_io::Error {
     cantrip_io::Error {}
 }
 
-struct InOut<R: Read, W: Write> {
+struct ReadWrapper<R: std::io::Read> {
     r: R,
-    w: W,
 }
 
-impl<R: Read, W: Write> InOut<R, W> {
-    pub fn new(r: R, w: W) -> InOut<R, W> {
-        InOut { r, w }
-    }
-}
-
-impl<R: Read, W: Write> cantrip_io::Read for InOut<R, W> {
+impl<R: std::io::Read> cantrip_io::Read for ReadWrapper<R> {
     fn read(&mut self, buf: &mut [u8]) -> cantrip_io::Result<usize> {
         self.r.read(buf).map_err(forget_err)
     }
 }
 
-impl<R: Read, W: Write> cantrip_io::Write for InOut<R, W> {
+struct WriteWrapper<W: std::io::Write> {
+    w: W,
+}
+
+impl<W: std::io::Write> cantrip_io::Write for WriteWrapper<W> {
     fn write(&mut self, buf: &[u8]) -> cantrip_io::Result<usize> {
         self.w.write(buf).map_err(forget_err)
     }
@@ -45,45 +42,24 @@ impl<R: Read, W: Write> cantrip_io::Write for InOut<R, W> {
     }
 }
 
-/// Minimal vector-backed cantrip_io::Read and cantrip_io::Write
-///
-/// This is a workaround to not being able to implement the cantrip_io traits for
-/// std::io::Cursor in this file, since none of those come from the current
-/// crate.
-struct WrappedCursor<T> {
-    c: std::io::Cursor<T>,
+struct SendInput<T: std::io::Read + std::io::Seek> {
+    t: T,
 }
 
-impl<T> WrappedCursor<T> {
-    pub fn into_inner(self) -> T {
-        self.c.into_inner()
-    }
-}
-
-impl cantrip_io::Read for WrappedCursor<&Vec<u8>> {
+impl<T: std::io::Read + std::io::Seek> cantrip_io::Read for SendInput<T> {
     fn read(&mut self, buf: &mut [u8]) -> cantrip_io::Result<usize> {
-        self.c.read(buf).map_err(forget_err)
+        self.t.read(buf).map_err(forget_err)
     }
 }
 
-impl cantrip_io::Write for WrappedCursor<Vec<u8>> {
-    fn write(&mut self, buf: &[u8]) -> cantrip_io::Result<usize> {
-        self.c.write(buf).map_err(forget_err)
-    }
-
-    fn flush(&mut self) -> cantrip_io::Result<()> {
-        self.c.flush().map_err(forget_err)
-    }
-}
-
-impl cantrip_io::Seek for WrappedCursor<&Vec<u8>> {
+impl<T: std::io::Read + std::io::Seek> cantrip_io::Seek for SendInput<T> {
     fn seek(&mut self, pos: cantrip_io::SeekFrom) -> cantrip_io::Result<u64> {
         let std_pos = match pos {
             cantrip_io::SeekFrom::Start(n) => std::io::SeekFrom::Start(n),
             cantrip_io::SeekFrom::End(n) => std::io::SeekFrom::End(n),
             cantrip_io::SeekFrom::Current(n) => std::io::SeekFrom::Current(n),
         };
-        self.c.seek(std_pos).map_err(forget_err)
+        self.t.seek(std_pos).map_err(forget_err)
     }
 }
 
@@ -113,14 +89,18 @@ fn recv_from_sz() {
         .spawn()
         .expect("sz failed to run");
 
-    let child_stdin = sz.stdin.unwrap();
-    let child_stdout = sz.stdout.unwrap();
-    let mut inout = InOut::new(child_stdout, child_stdin);
+    let mut c = Cursor::new(Vec::new());
 
-    let mut c = WrappedCursor {
-        c: Cursor::new(Vec::new()),
-    };
-    zmodem::recv::recv(&mut inout, &mut c).unwrap();
+    zmodem::recv::recv(
+        ReadWrapper {
+            r: sz.stdout.unwrap(),
+        },
+        WriteWrapper {
+            w: sz.stdin.unwrap(),
+        },
+        WriteWrapper { w: &mut c },
+    )
+    .unwrap();
 
     sleep(Duration::from_millis(300));
     remove_file("recv_from_sz").unwrap();
@@ -135,26 +115,31 @@ fn send_to_rz() {
 
     let _ = remove_file("send_to_rz");
 
-    let sz = Command::new("rz")
+    let rz = Command::new("rz")
         .stdout(Stdio::piped())
         .stdin(Stdio::piped())
         .spawn()
         .expect("rz failed to run");
 
-    let child_stdin = sz.stdin.unwrap();
-    let child_stdout = sz.stdout.unwrap();
-    let mut inout = InOut::new(child_stdout, child_stdin);
-
     let len = RND_VALUES.len() as u32;
     let copy = RND_VALUES.clone();
-    let mut cur = WrappedCursor {
-        c: Cursor::new(&copy),
-    };
 
     sleep(Duration::from_millis(300));
 
-    zmodem::send::send(&mut inout, &mut cur, "send_to_rz", Some(len)).unwrap();
-
+    zmodem::send::send(
+        ReadWrapper {
+            r: rz.stdout.unwrap(),
+        },
+        WriteWrapper {
+            w: rz.stdin.unwrap(),
+        },
+        SendInput {
+            t: Cursor::new(&copy),
+        },
+        "send_to_rz",
+        Some(len),
+    )
+    .unwrap();
     sleep(Duration::from_millis(300));
 
     let mut f = File::open("send_to_rz").expect("open 'send_to_rz'");
@@ -189,26 +174,32 @@ fn lib_send_recv() {
 
     spawn(move || {
         let outf = OpenOptions::new().write(true).open("test-fifo1").unwrap();
-        let inf = File::open("test-fifo2").unwrap();
-        let mut inout = InOut::new(inf, outf);
-
-        let origin = RND_VALUES.clone();
-        let mut c = WrappedCursor {
-            c: Cursor::new(&origin),
-        };
-
-        zmodem::send::send(&mut inout, &mut c, "test", None).unwrap();
+        zmodem::send::send(
+            ReadWrapper {
+                r: File::open("test-fifo2").unwrap(),
+            },
+            WriteWrapper { w: outf },
+            SendInput {
+                t: Cursor::new(&RND_VALUES.clone()),
+            },
+            "test",
+            None,
+        )
+        .unwrap();
     });
 
-    let mut c = WrappedCursor {
-        c: Cursor::new(Vec::new()),
-    };
+    let mut c = Cursor::new(Vec::new());
 
-    let inf = File::open("test-fifo1").unwrap();
-    let outf = OpenOptions::new().write(true).open("test-fifo2").unwrap();
-    let mut inout = InOut::new(inf, outf);
-
-    zmodem::recv::recv(&mut inout, &mut c).unwrap();
+    zmodem::recv::recv(
+        ReadWrapper {
+            r: File::open("test-fifo1").unwrap(),
+        },
+        WriteWrapper {
+            w: OpenOptions::new().write(true).open("test-fifo2").unwrap(),
+        },
+        WriteWrapper { w: &mut c },
+    )
+    .unwrap();
 
     let _ = remove_file("test-fifo1");
     let _ = remove_file("test-fifo2");

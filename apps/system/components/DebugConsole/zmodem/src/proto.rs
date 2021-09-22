@@ -165,33 +165,35 @@ where
     Ok(buf.pop()) // pop ZCRC* byte
 }
 
-pub fn recv_data<RW, OUT>(
+pub fn recv_data<CI, CO, DO>(
     header: u8,
     count: &mut u32,
-    rw: &mut RW,
-    out: &mut OUT,
+    channel_in: &mut CI,
+    channel_out: &mut CO,
+    data_out: &mut DO,
 ) -> io::Result<bool>
 where
-    RW: io::Write + io::Read,
-    OUT: io::Write,
+    CI: io::Read,
+    CO: io::Write,
+    DO: io::Write,
 {
     let mut buf = Vec::new();
 
     loop {
         buf.clear();
 
-        let zcrc = match recv_zlde_frame(header, rw, &mut buf)? {
+        let zcrc = match recv_zlde_frame(header, channel_in, &mut buf)? {
             Some(x) => x,
             None => return Ok(false),
         };
 
-        out.write_all(&buf)?;
+        data_out.write_all(&buf)?;
         *count += buf.len() as u32;
 
         match zcrc {
             ZCRCW => {
                 debug!("ZCRCW: CRC next, ZACK expected, end of frame");
-                write_zack(rw, *count)?;
+                write_zack(channel_out, *count)?;
                 return Ok(true);
             }
             ZCRCE => {
@@ -200,7 +202,7 @@ where
             }
             ZCRCQ => {
                 debug!("ZCRCQ: CRC next, frame continues, ZACK expected");
-                write_zack(rw, *count)?
+                write_zack(channel_out, *count)?
             }
             ZCRCG => {
                 debug!("CCRCG: CRC next, frame continues nonstop");
@@ -377,7 +379,7 @@ pub fn write_over_and_out<W>(w: &mut W) -> io::Result<()>
 where
     W: io::Write,
 {
-    w.write_all("OO".as_bytes())
+    w.write_all(OO.as_bytes())
 }
 
 pub fn escape_buf(src: &[u8], dst: &mut Vec<u8>) {

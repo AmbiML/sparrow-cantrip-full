@@ -37,3 +37,5 @@ pub const ZCRCQ: u8 = b'j'; /* CRC next, frame continues, ZACK expected */
 pub const ZCRCW: u8 = b'k'; /* CRC next, ZACK expected, end of frame */
 
 pub const XON: u8 = 0x11;
+
+pub const OO: &str = "OO";

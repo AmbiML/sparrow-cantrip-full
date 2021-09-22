@@ -81,7 +81,7 @@ impl Read for &[u8] {
 }
 
 /// Forwarding implementation of Read for &mut
-impl<'a, T> Read for &'a mut T
+impl<'a, T: ?Sized> Read for &'a mut T
 where
     T: Read,
 {
@@ -91,7 +91,7 @@ where
 }
 
 /// Forwarding implementation of Write for &mut
-impl<'a, T> Write for &'a mut T
+impl<'a, T: ?Sized> Write for &'a mut T
 where
     T: Write,
 {

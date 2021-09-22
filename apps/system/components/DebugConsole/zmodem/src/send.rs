@@ -62,31 +62,36 @@ impl State {
     }
 }
 
-pub fn send<RW, R>(rw: RW, r: &mut R, filename: &str, filesize: Option<u32>) -> io::Result<()>
+pub fn send<CI, CO, DI>(
+    mut channel_in: CI,
+    mut channel_out: CO,
+    mut r: DI,
+    filename: &str,
+    filesize: Option<u32>,
+) -> io::Result<()>
 where
-    RW: io::Read + io::Write,
-    R: io::Read + io::Seek,
+    CI: io::Read,
+    CO: io::Write,
+    DI: io::Read + io::Seek,
 {
-    let mut rw_log = rw;
-
     let mut data = [0; SUBPACKET_SIZE];
     let mut offset: u32;
 
-    write_zrqinit(&mut rw_log)?;
+    write_zrqinit(&mut channel_out)?;
 
     let mut state = State::new();
 
     while state != State::Done {
-        rw_log.flush()?;
+        channel_out.flush()?;
 
-        if !find_zpad(&mut rw_log)? {
+        if !find_zpad(&mut channel_in)? {
             continue;
         }
 
-        let frame = match parse_header(&mut rw_log)? {
+        let frame = match parse_header(&mut channel_in)? {
             Some(x) => x,
             None => {
-                write_znak(&mut rw_log)?;
+                write_znak(&mut channel_out)?;
                 continue;
             }
         };
@@ -97,10 +102,10 @@ where
         // do things according new state
         match state {
             State::SendingZRQINIT => {
-                write_zrqinit(&mut rw_log)?;
+                write_zrqinit(&mut channel_out)?;
             }
             State::SendingZFILE => {
-                write_zfile(&mut rw_log, filename, filesize)?;
+                write_zfile(&mut channel_out, filename, filesize)?;
             }
             State::SendingData => {
                 offset = frame.get_count();
@@ -109,35 +114,35 @@ where
                 let num = r.read(&mut data)?;
 
                 if num == 0 {
-                    write_zeof(&mut rw_log, offset)?;
+                    write_zeof(&mut channel_out, offset)?;
                 } else {
                     // ZBIN32|ZDATA
                     // ZCRCG - best perf
                     // ZCRCQ - mid perf
                     // ZCRCW - worst perf
                     // ZCRCE - send at end
-                    write_zdata(&mut rw_log, offset)?;
+                    write_zdata(&mut channel_out, offset)?;
 
                     let mut i = 0;
                     loop {
                         i += 1;
 
-                        write_zlde_data(&mut rw_log, ZCRCG, &data[..num])?;
+                        write_zlde_data(&mut channel_out, ZCRCG, &data[..num])?;
                         offset += num as u32;
 
                         let num = r.read(&mut data)?;
                         if num < data.len() || i >= SUBPACKET_PER_ACK {
-                            write_zlde_data(&mut rw_log, ZCRCW, &data[..num])?;
+                            write_zlde_data(&mut channel_out, ZCRCW, &data[..num])?;
                             break;
                         }
                     }
                 }
             }
             State::SendingZFIN => {
-                write_zfin(&mut rw_log)?;
+                write_zfin(&mut channel_out)?;
             }
             State::Done => {
-                write_over_and_out(&mut rw_log)?;
+                write_over_and_out(&mut channel_out)?;
             }
             _ => (),
         }
