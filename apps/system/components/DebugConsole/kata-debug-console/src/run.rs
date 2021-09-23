@@ -27,8 +27,9 @@ pub extern "C" fn pre_init() {
     // NB: set to Trace for early-boot msgs
     log::set_max_level(log::LevelFilter::Debug);
 
-    // TODO(sleffler): temp until we integrate with seL4
-    static mut HEAP_MEMORY: [u8; 16 * 1024] = [0; 16 * 1024];
+    // TODO(b/200946906): Review per-component heap allocations, including this one.
+    const HEAP_SIZE: usize = 1 << 20;
+    static mut HEAP_MEMORY: [u8; HEAP_SIZE] = [0; HEAP_SIZE];
     unsafe {
         cantrip_allocator::ALLOCATOR.init(HEAP_MEMORY.as_mut_ptr() as usize, HEAP_MEMORY.len());
         trace!(
