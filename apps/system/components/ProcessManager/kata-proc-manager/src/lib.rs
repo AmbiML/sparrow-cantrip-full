@@ -4,13 +4,17 @@
 
 extern crate alloc;
 use alloc::string::String;
-use cantrip_proc_common::*;
+use cantrip_proc_interface::Bundle;
+use cantrip_proc_interface::BundleIdArray;
+use cantrip_proc_interface::PackageManagementInterface;
+use cantrip_proc_interface::ProcessControlInterface;
+use cantrip_proc_interface::ProcessManagerError;
+use cantrip_proc_interface::ProcessManagerInterface;
 use cantrip_security_interface::cantrip_security_request;
 use cantrip_security_interface::InstallRequest;
 use cantrip_security_interface::SecurityRequest;
 use cantrip_security_interface::UninstallRequest;
 use cantrip_security_interface::SECURITY_REPLY_DATA_SIZE;
-use log::trace;
 use postcard;
 use spin::Mutex;
 
@@ -93,26 +97,16 @@ impl ProcessManagerInterface for CantripManagerInterface {
 
         // This is handled by the SecurityCoordinator.
         let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
-        match cantrip_security_request(
+        cantrip_security_request(
             SecurityRequest::SrInstall,
             &InstallRequest {
                 pkg_buffer_size: pkg_buffer_size,
                 pkg_buffer: pkg_buffer,
             },
             reply,
-        ) {
-            Ok(_) => {
-                fn deserialize_failure(e: postcard::Error) -> ProcessManagerError {
-                    trace!("install failed: deserialize {:?}", e);
-                    ProcessManagerError::BundleDataInvalid
-                }
-                postcard::from_bytes::<String>(reply).map_err(deserialize_failure)
-            }
-            Err(status) => {
-                trace!("install failed: {:?}", status);
-                Err(ProcessManagerError::InstallFailed)
-            }
-        }
+        )?;
+        let bundle_id = postcard::from_bytes::<String>(reply)?;
+        Ok(bundle_id)
     }
     fn uninstall(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError> {
         // NB: the caller has already checked no running application exists
@@ -120,19 +114,14 @@ impl ProcessManagerInterface for CantripManagerInterface {
 
         // This is handled by the SecurityCoordinator.
         let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
-        match cantrip_security_request(
+        cantrip_security_request(
             SecurityRequest::SrUninstall,
             &UninstallRequest {
                 bundle_id: &bundle_id,
             },
             reply,
-        ) {
-            Ok(_) => Ok(()),
-            Err(status) => {
-                trace!("uninstall failed: {:?}", status);
-                Err(ProcessManagerError::UninstallFailed)
-            }
-        }
+        )?;
+        Ok(())
     }
     fn start(&mut self, _bundle: &Bundle) -> Result<(), ProcessManagerError> {
         // 1. Ask security core for application footprint with SizeBuffer

@@ -1,8 +1,8 @@
 [workspace]
 
 members = [
-    "cantrip-proc-common",
     "cantrip-proc-component",
+    "cantrip-proc-interface",
     "cantrip-proc-manager",
 ]
 

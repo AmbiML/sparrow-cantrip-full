@@ -6,6 +6,8 @@ extern crate alloc;
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::str;
+use cantrip_security_interface::SecurityRequestError;
+use postcard;
 use serde::{Deserialize, Serialize};
 
 pub type BundleIdArray = Vec<String>;
@@ -73,12 +75,13 @@ impl Bundle {
 pub enum ProcessManagerError {
     Success = 0,
     BundleIdInvalid,
-    BundleDataInvalid,
     PackageBufferLenInvalid,
     BundleNotFound,
     BundleFound,
     BundleRunning,
-    NoSpace,
+    UnknownError,
+    DeserializeError,
+    SerializeError,
     // Generic errors, mostly for unit tests.
     InstallFailed,
     UninstallFailed,
@@ -120,6 +123,109 @@ pub trait ProcessControlInterface {
     fn get_running_bundles(&self) -> Result<BundleIdArray, ProcessManagerError>;
 }
 
+impl From<postcard::Error> for ProcessManagerError {
+    fn from(err: postcard::Error) -> ProcessManagerError {
+        match err {
+            postcard::Error::SerializeBufferFull
+            | postcard::Error::SerializeSeqLengthUnknown
+            | postcard::Error::SerdeSerCustom => ProcessManagerError::SerializeError,
+            // NB: bit of a cheat; this lumps in *Implement*
+            _ => ProcessManagerError::DeserializeError,
+        }
+    }
+}
+
+impl From<SecurityRequestError> for ProcessManagerError {
+    fn from(err: SecurityRequestError) -> ProcessManagerError {
+        match err {
+            SecurityRequestError::SreSuccess => ProcessManagerError::Success,
+            SecurityRequestError::SreBundleIdInvalid => ProcessManagerError::BundleIdInvalid,
+            SecurityRequestError::SreBundleNotFound => ProcessManagerError::BundleNotFound,
+            SecurityRequestError::SrePackageBufferLenInvalid => {
+                ProcessManagerError::PackageBufferLenInvalid
+            }
+            SecurityRequestError::SreInstallFailed => ProcessManagerError::InstallFailed,
+            SecurityRequestError::SreUninstallFailed => ProcessManagerError::UninstallFailed,
+            // NB: other errors "cannot happen" so just return something unique
+            _ => ProcessManagerError::UnknownError,
+        }
+    }
+}
+
+impl From<ProcessManagerError> for Result<(), ProcessManagerError> {
+    fn from(err: ProcessManagerError) -> Result<(), ProcessManagerError> {
+        if err == ProcessManagerError::Success {
+            Ok(())
+        } else {
+            Err(err)
+        }
+    }
+}
+
+#[inline]
+#[allow(dead_code)]
+pub fn cantrip_proc_ctrl_get_running_bundles() -> Result<BundleIdArray, ProcessManagerError> {
+    extern "C" {
+        fn proc_ctrl_get_running_bundles(c_raw_data: *mut u8) -> ProcessManagerError;
+    }
+    let raw_data = &mut [0u8; RAW_BUNDLE_ID_DATA_SIZE];
+    match unsafe { proc_ctrl_get_running_bundles(raw_data as *mut _) } {
+        ProcessManagerError::Success => {
+            let bids = postcard::from_bytes::<BundleIdArray>(raw_data)?;
+            Ok(bids)
+        }
+        status => Err(status),
+    }
+}
+
+#[inline]
+#[allow(dead_code)]
+pub fn cantrip_pkg_mgmt_install(pkg_buffer: &[u8]) -> Result<String, ProcessManagerError> {
+    extern "C" {
+        fn pkg_mgmt_install(
+            c_pkg_buffer_size: usize,
+            c_pkg_buffer: *const u8,
+            c_raw_data: *mut u8,
+        ) -> ProcessManagerError;
+    }
+    let raw_data = &mut [0u8; RAW_BUNDLE_ID_DATA_SIZE];
+    match unsafe { pkg_mgmt_install(pkg_buffer.len(), pkg_buffer.as_ptr(), raw_data as *mut _) } {
+        ProcessManagerError::Success => {
+            let bundle_id = postcard::from_bytes::<String>(raw_data.as_ref())?;
+            Ok(bundle_id)
+        }
+        status => Err(status),
+    }
+}
+
+#[inline]
+#[allow(dead_code)]
+pub fn cantrip_pkg_mgmt_uninstall(bundle_id: &str) -> Result<(), ProcessManagerError> {
+    extern "C" {
+        fn pkg_mgmt_uninstall(c_bundle_id: *const cstr_core::c_char) -> ProcessManagerError;
+    }
+    unsafe { pkg_mgmt_uninstall(bundle_id.as_ptr()) }.into()
+}
+
+#[inline]
+#[allow(dead_code)]
+pub fn cantrip_proc_ctrl_start(bundle_id: &str) -> Result<(), ProcessManagerError> {
+    extern "C" {
+        fn proc_ctrl_start(c_bundle_id: *const cstr_core::c_char) -> ProcessManagerError;
+    }
+    unsafe { proc_ctrl_start(bundle_id.as_ptr()) }.into()
+}
+
+#[inline]
+#[allow(dead_code)]
+pub fn cantrip_proc_ctrl_stop(bundle_id: &str) -> Result<(), ProcessManagerError> {
+    extern "C" {
+        fn proc_ctrl_stop(c_bundle_id: *const cstr_core::c_char) -> ProcessManagerError;
+    }
+    unsafe { proc_ctrl_stop(bundle_id.as_ptr()) }.into()
+}
+
+// TODO(sleffler): move out of interface?
 #[cfg(test)]
 mod tests {
     use super::*;

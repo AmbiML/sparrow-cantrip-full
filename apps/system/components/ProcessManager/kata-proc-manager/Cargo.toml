@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 hashbrown = { version = "0.11", features = ["ahash-compile-time-rng"] }
-cantrip-proc-common = { path = "../cantrip-proc-common" }
+cantrip-proc-interface = { path = "../cantrip-proc-interface" }
 cantrip-security-interface = { path = "../../SecurityCoordinator/cantrip-security-interface" }
 log = "0.4"
 postcard = { version = "0.7", features = ["alloc"], default-features = false }

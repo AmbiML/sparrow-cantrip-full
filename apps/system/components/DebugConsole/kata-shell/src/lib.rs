@@ -5,13 +5,16 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt;
 use core::fmt::Write;
-use cstr_core::CString;
 use hex;
-use postcard;
+use log;
 
 use cantrip_io as io;
 use cantrip_line_reader::LineReader;
-use cantrip_proc_common::{BundleIdArray, ProcessManagerError, RAW_BUNDLE_ID_DATA_SIZE};
+use cantrip_proc_interface::cantrip_pkg_mgmt_install;
+use cantrip_proc_interface::cantrip_pkg_mgmt_uninstall;
+use cantrip_proc_interface::cantrip_proc_ctrl_get_running_bundles;
+use cantrip_proc_interface::cantrip_proc_ctrl_start;
+use cantrip_proc_interface::cantrip_proc_ctrl_stop;
 use cantrip_storage_interface::cantrip_storage_delete;
 use cantrip_storage_interface::cantrip_storage_read;
 use cantrip_storage_interface::cantrip_storage_write;
@@ -240,28 +243,11 @@ fn clear_command(output: &mut dyn io::Write) -> Result<(), CommandError> {
 }
 
 fn bundles_command(output: &mut dyn io::Write) -> Result<(), CommandError> {
-    extern "C" {
-        fn proc_ctrl_get_running_bundles(c_raw_data: *mut u8) -> ProcessManagerError;
-    }
-    let mut raw_data = [0u8; RAW_BUNDLE_ID_DATA_SIZE];
-    match unsafe { proc_ctrl_get_running_bundles(raw_data.as_mut_ptr()) } {
-        ProcessManagerError::Success => {
-            match postcard::from_bytes::<BundleIdArray>(raw_data.as_ref()) {
-                Ok(bundle_ids) => {
-                    for bundle_id in bundle_ids {
-                        writeln!(output, "{}", bundle_id)?;
-                    }
-                }
-                Err(e) => {
-                    writeln!(
-                        output,
-                        "get_running_bundles failed: deserialize returned {:?}",
-                        e
-                    )?;
-                }
-            }
+    match cantrip_proc_ctrl_get_running_bundles() {
+        Ok(bundle_ids) => {
+            writeln!(output, "{}", bundle_ids.join("\n"))?;
         }
-        status => {
+        Err(status) => {
             writeln!(output, "get_running_bundles failed: {:?}", status)?;
         }
     }
@@ -272,27 +258,13 @@ fn install_command(
     _args: &mut dyn Iterator<Item = &str>,
     output: &mut dyn io::Write,
 ) -> Result<(), CommandError> {
-    extern "C" {
-        fn pkg_mgmt_install(
-            c_pkg_buffer_size: usize,
-            c_pkg_buffer: *const u8,
-            c_raw_data: *mut u8,
-        ) -> ProcessManagerError;
-    }
     // TODO(sleffler): supply a real bundle (e.g. from serial)
-    let pkg_buffer = [0u8; 64]; // NB: limited by 120 byte ipc buffer
-    let mut raw_data = [0u8; RAW_BUNDLE_ID_DATA_SIZE];
-    match unsafe { pkg_mgmt_install(pkg_buffer.len(), pkg_buffer.as_ptr(), raw_data.as_mut_ptr()) }
-    {
-        ProcessManagerError::Success => match postcard::from_bytes::<String>(raw_data.as_ref()) {
-            Ok(bundle_id) => {
-                writeln!(output, "Bundle \"{}\" installed", bundle_id)?;
-            }
-            Err(e) => {
-                writeln!(output, "install failed: deserialize returned {:?}", e)?;
-            }
-        },
-        status => {
+    let pkg_buffer = &[0u8; 64];
+    match cantrip_pkg_mgmt_install(pkg_buffer) {
+        Ok(bundle_id) => {
+            writeln!(output, "Bundle \"{}\" installed", bundle_id)?;
+        }
+        Err(status) => {
             writeln!(output, "install failed: {:?}", status)?;
         }
     }
@@ -303,16 +275,12 @@ fn uninstall_command(
     args: &mut dyn Iterator<Item = &str>,
     output: &mut dyn io::Write,
 ) -> Result<(), CommandError> {
-    extern "C" {
-        fn pkg_mgmt_uninstall(c_bundle_id: *const cstr_core::c_char) -> ProcessManagerError;
-    }
     if let Some(bundle_id) = args.nth(0) {
-        let cstr = CString::new(bundle_id).unwrap();
-        match unsafe { pkg_mgmt_uninstall(cstr.as_ptr()) } {
-            ProcessManagerError::Success => {
+        match cantrip_pkg_mgmt_uninstall(bundle_id) {
+            Ok(_) => {
                 writeln!(output, "Bundle \"{}\" uninstalled.", bundle_id)?;
             }
-            status => {
+            Err(status) => {
                 writeln!(output, "uninstall failed: {:?}", status)?;
             }
         }
@@ -326,16 +294,12 @@ fn start_command(
     args: &mut dyn Iterator<Item = &str>,
     output: &mut dyn io::Write,
 ) -> Result<(), CommandError> {
-    extern "C" {
-        fn proc_ctrl_start(c_bundle_id: *const cstr_core::c_char) -> ProcessManagerError;
-    }
     if let Some(bundle_id) = args.nth(0) {
-        let cstr = CString::new(bundle_id).unwrap();
-        match unsafe { proc_ctrl_start(cstr.as_ptr()) } {
-            ProcessManagerError::Success => {
+        match cantrip_proc_ctrl_start(bundle_id) {
+            Ok(_) => {
                 writeln!(output, "Bundle \"{}\" started.", bundle_id)?;
             }
-            status => {
+            Err(status) => {
                 writeln!(output, "start failed: {:?}", status)?;
             }
         }
@@ -349,16 +313,12 @@ fn stop_command(
     args: &mut dyn Iterator<Item = &str>,
     output: &mut dyn io::Write,
 ) -> Result<(), CommandError> {
-    extern "C" {
-        fn proc_ctrl_stop(c_bundle_id: *const cstr_core::c_char) -> ProcessManagerError;
-    }
     if let Some(bundle_id) = args.nth(0) {
-        let cstr = CString::new(bundle_id).unwrap();
-        match unsafe { proc_ctrl_stop(cstr.as_ptr()) } {
-            ProcessManagerError::Success => {
+        match cantrip_proc_ctrl_stop(bundle_id) {
+            Ok(_) => {
                 writeln!(output, "Bundle \"{}\" stopped.", bundle_id)?;
             }
-            status => {
+            Err(status) => {
                 writeln!(output, "stop failed: {:?}", status)?;
             }
         }

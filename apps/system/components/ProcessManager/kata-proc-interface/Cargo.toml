@@ -1,9 +1,10 @@
 [package]
-name = "cantrip-proc-common"
+name = "cantrip-proc-interface"
 version = "0.1.0"
 edition = "2018"
 
 [dependencies]
+cstr_core = { version = "0.2.3", default-features = false }
 cantrip-security-interface = { path = "../../SecurityCoordinator/cantrip-security-interface" }
 postcard = { version = "0.7", features = ["alloc"], default-features = false }
 serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }

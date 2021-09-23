@@ -6,12 +6,15 @@ use alloc::string::String;
 use core::convert::TryFrom;
 use core::marker::Sync;
 use hashbrown::HashMap;
-use cantrip_proc_common::{Bundle, DEFAULT_BUNDLE_ID_CAPACITY};
+use cantrip_proc_interface::Bundle;
+use cantrip_proc_interface::BundleIdArray;
+use cantrip_proc_interface::PackageManagementInterface;
+use cantrip_proc_interface::ProcessControlInterface;
+use cantrip_proc_interface::ProcessManagerError;
+use cantrip_proc_interface::ProcessManagerInterface;
+use cantrip_proc_interface::DEFAULT_BUNDLE_ID_CAPACITY;
 use log::trace;
 use smallstr::SmallString;
-
-use cantrip_proc_common as proc;
-use proc::*;
 
 pub type BundleId = SmallString<[u8; DEFAULT_BUNDLE_ID_CAPACITY]>;
 
@@ -187,7 +190,7 @@ impl ProcessControlInterface for ProcessManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use proc::ProcessManagerError as pme;
+    use cantrip_proc_interface::ProcessManagerError as pme;
 
     // NB: just enough state to track install'd bundles
     struct FakeManager {

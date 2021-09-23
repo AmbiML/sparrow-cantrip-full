@@ -6,13 +6,11 @@ edition = "2018"
 
 [dependencies]
 crc = { version = "1.4.0", default_features = false }
-cstr_core = "0.2"
 hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
 cantrip-io = { path = "../cantrip-io" }
 cantrip-line-reader = { path = "../cantrip-line-reader" }
-cantrip-proc-common = { path = "../../ProcessManager/cantrip-proc-common" }
+cantrip-proc-interface = { path = "../../ProcessManager/cantrip-proc-interface" }
 cantrip-security-interface = { path = "../../SecurityCoordinator/cantrip-security-interface" }
 cantrip-storage-interface = { path = "../../StorageManager/cantrip-storage-interface" }
 log = "0.4"
-postcard = { version = "0.7", features = ["alloc"], default-features = false }
 zmodem = { path = "../zmodem" }
