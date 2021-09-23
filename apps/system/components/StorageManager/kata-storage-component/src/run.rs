@@ -10,7 +10,6 @@ extern crate cantrip_panic;
 use cantrip_allocator;
 use cantrip_logger::CantripLogger;
 use cantrip_storage_interface::KeyValueData;
-use cantrip_storage_interface::StorageError;
 use cantrip_storage_interface::StorageManagerError;
 use cantrip_storage_interface::StorageManagerInterface;
 use cantrip_storage_manager::CANTRIP_STORAGE;
@@ -35,17 +34,6 @@ pub extern "C" fn pre_init() {
     }
 }
 
-fn map_storage_error(se: StorageError, def: StorageManagerError) -> StorageManagerError {
-    match se {
-        StorageError::Success => StorageManagerError::SmeSuccess,
-        StorageError::BundleNotFound => StorageManagerError::SmeBundleNotFound,
-        StorageError::KeyNotFound => StorageManagerError::SmeKeyNotFound,
-        StorageError::KeyInvalid => StorageManagerError::SmeKeyInvalid,
-        StorageError::ValueInvalid => StorageManagerError::SmeValueInvalid,
-        _ => def,
-    }
-}
-
 // StorageInterface glue stubs.
 #[no_mangle]
 pub extern "C" fn storage_read(
@@ -57,18 +45,15 @@ pub extern "C" fn storage_read(
             Ok(key) => {
                 // TODO(sleffler): de-badge reply cap to get bundle_id
                 match CANTRIP_STORAGE.read("fubar", key) {
-                    // NB: no serialization, returns raw data
                     Ok(value) => {
+                        // NB: no serialization, returns raw data
                         (*c_raw_value).copy_from_slice(&value);
                         StorageManagerError::SmeSuccess
                     }
-                    Err(e) => map_storage_error(e, StorageManagerError::SmeReadFailed),
+                    Err(e) => StorageManagerError::from(e),
                 }
             }
-            Err(e) => {
-                trace!("read: keyinvalid {:?}", e);
-                StorageManagerError::SmeKeyInvalid
-            }
+            Err(_) => StorageManagerError::SmeKeyInvalid,
         }
     }
 }
@@ -79,42 +64,29 @@ pub extern "C" fn storage_write(
     c_raw_value_len: usize,
     c_raw_value: *const u8,
 ) -> StorageManagerError {
-    unsafe {
-        match CStr::from_ptr(c_key).to_str() {
-            Ok(key) => {
-                // TODO(sleffler): de-badge reply cap to get bundle_id
-                match CANTRIP_STORAGE.write(
+    match unsafe { CStr::from_ptr(c_key).to_str() } {
+        Ok(key) => {
+            // TODO(sleffler): de-badge reply cap to get bundle_id
+            unsafe {
+                CANTRIP_STORAGE.write(
                     "fubar",
                     key,
                     slice::from_raw_parts(c_raw_value, c_raw_value_len),
-                ) {
-                    Ok(_) => StorageManagerError::SmeSuccess,
-                    Err(e) => map_storage_error(e, StorageManagerError::SmeWriteFailed),
-                }
+                )
             }
-            Err(e) => {
-                trace!("write: keyinvalid {:?}", e);
-                StorageManagerError::SmeKeyInvalid
-            }
+            .into()
         }
+        Err(_) => StorageManagerError::SmeKeyInvalid,
     }
 }
 
 #[no_mangle]
 pub extern "C" fn storage_delete(c_key: *const cstr_core::c_char) -> StorageManagerError {
-    unsafe {
-        match CStr::from_ptr(c_key).to_str() {
-            Ok(key) => {
-                // TODO(sleffler): de-badge reply cap to get bundle_id
-                match CANTRIP_STORAGE.delete("fubar", key) {
-                    Ok(_) => StorageManagerError::SmeSuccess,
-                    Err(e) => map_storage_error(e, StorageManagerError::SmeDeleteFailed),
-                }
-            }
-            Err(e) => {
-                trace!("delete: keyinvalid {:?}", e);
-                StorageManagerError::SmeKeyInvalid
-            }
+    match unsafe { CStr::from_ptr(c_key).to_str() } {
+        Ok(key) => {
+            // TODO(sleffler): de-badge reply cap to get bundle_id
+            unsafe { CANTRIP_STORAGE.delete("fubar", key) }.into()
         }
+        Err(_) => StorageManagerError::SmeKeyInvalid,
     }
 }

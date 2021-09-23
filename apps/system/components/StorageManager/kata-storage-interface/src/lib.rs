@@ -16,8 +16,7 @@ pub type KeyValueData = [u8; KEY_VALUE_DATA_SIZE];
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum StorageError {
-    Success = 0,
-    BundleNotFound,
+    BundleNotFound = 0,
     KeyNotFound,
     KeyInvalid,
     ValueInvalid,
@@ -29,24 +28,25 @@ pub enum StorageError {
     DeleteFailed,
 }
 
-impl From<postcard::Error> for StorageError {
-    fn from(_err: postcard::Error) -> StorageError {
-        StorageError::SerializeFailed
-    }
-}
 impl From<SecurityRequestError> for StorageError {
     fn from(err: SecurityRequestError) -> StorageError {
         match err {
-            SecurityRequestError::SreSuccess => StorageError::Success,
             SecurityRequestError::SreBundleNotFound => StorageError::BundleNotFound,
             SecurityRequestError::SreKeyNotFound => StorageError::KeyNotFound,
             SecurityRequestError::SreValueInvalid => StorageError::ValueInvalid,
             SecurityRequestError::SreKeyInvalid => StorageError::KeyInvalid,
+            SecurityRequestError::SreSerializeFailed => StorageError::SerializeFailed,
             SecurityRequestError::SreReadFailed => StorageError::ReadFailed,
             SecurityRequestError::SreWriteFailed => StorageError::WriteFailed,
             SecurityRequestError::SreDeleteFailed => StorageError::DeleteFailed,
-            _ => StorageError::UnknownSecurityError,  // NB: cannot happen
+            _ => StorageError::UnknownSecurityError, // NB: cannot happen
         }
+    }
+}
+
+impl From<postcard::Error> for StorageError {
+    fn from(_err: postcard::Error) -> StorageError {
+        StorageError::SerializeFailed
     }
 }
 
@@ -73,6 +73,31 @@ pub enum StorageManagerError {
     SmeReadFailed,
     SmeWriteFailed,
     SmeDeleteFailed,
+    SmeUnknownError,
+}
+
+impl From<StorageError> for StorageManagerError {
+    fn from(err: StorageError) -> StorageManagerError {
+        match err {
+            StorageError::BundleNotFound => StorageManagerError::SmeBundleNotFound,
+            StorageError::KeyNotFound => StorageManagerError::SmeKeyNotFound,
+            StorageError::KeyInvalid => StorageManagerError::SmeKeyInvalid,
+            StorageError::ValueInvalid => StorageManagerError::SmeValueInvalid,
+            StorageError::ReadFailed => StorageManagerError::SmeReadFailed,
+            StorageError::WriteFailed => StorageManagerError::SmeWriteFailed,
+            StorageError::DeleteFailed => StorageManagerError::SmeDeleteFailed,
+            _ => StorageManagerError::SmeUnknownError,
+        }
+    }
+}
+
+impl From<Result<(), StorageError>> for StorageManagerError {
+    fn from(result: Result<(), StorageError>) -> StorageManagerError {
+        result.map_or_else(
+            |e| StorageManagerError::from(e),
+            |_v| StorageManagerError::SmeSuccess,
+        )
+    }
 }
 
 impl From<cstr_core::NulError> for StorageManagerError {
