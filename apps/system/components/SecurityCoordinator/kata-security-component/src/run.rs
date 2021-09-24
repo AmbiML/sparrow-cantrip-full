@@ -8,8 +8,11 @@ use cantrip_allocator;
 use cantrip_logger::CantripLogger;
 #[cfg(not(test))]
 extern crate cantrip_panic;
-use cantrip_security_common::*;
 use cantrip_security_coordinator::CANTRIP_SECURITY;
+use cantrip_security_interface::SecurityCoordinatorInterface;
+use cantrip_security_interface::SecurityReplyData;
+use cantrip_security_interface::SecurityRequest;
+use cantrip_security_interface::SecurityRequestError;
 use log::trace;
 
 #[no_mangle]

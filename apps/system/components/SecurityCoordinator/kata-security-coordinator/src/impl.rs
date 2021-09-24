@@ -1,7 +1,16 @@
 //! Cantrip OS security coordinator seL4 support
 
-extern crate alloc;
-use cantrip_security_common::*;
+use cantrip_security_interface::DeleteKeyRequest;
+use cantrip_security_interface::GetManifestRequest;
+use cantrip_security_interface::LoadApplicationRequest;
+use cantrip_security_interface::LoadModelRequest;
+use cantrip_security_interface::ReadKeyRequest;
+use cantrip_security_interface::SecurityCoordinatorInterface;
+use cantrip_security_interface::SecurityRequest;
+use cantrip_security_interface::SecurityRequestError;
+use cantrip_security_interface::SizeBufferRequest;
+use cantrip_security_interface::UninstallRequest;
+use cantrip_security_interface::WriteKeyRequest;
 use log::trace;
 use postcard;
 
@@ -64,7 +73,7 @@ impl SecurityCoordinatorInterface for SeL4SecurityCoordinator {
                 Err(SreSizeBufferFailed)
             }
             SecurityRequest::SrGetManifest => {
-                let request = postcard::from_bytes::<SizeBufferRequest>(&request_buffer[..])
+                let request = postcard::from_bytes::<GetManifestRequest>(&request_buffer[..])
                     .map_err(deserialize_failure)?;
                 trace!("GET MANIFEST bundle_id {}", request.bundle_id);
                 // TODO(sleffler): fill-in

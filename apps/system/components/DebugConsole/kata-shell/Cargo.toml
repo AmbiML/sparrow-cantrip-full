@@ -9,7 +9,7 @@ cstr_core = "0.2"
 cantrip-io = { path = "../cantrip-io" }
 cantrip-line-reader = { path = "../cantrip-line-reader" }
 cantrip-proc-common = { path = "../../ProcessManager/cantrip-proc-common" }
-cantrip-security-common = { path = "../../SecurityCoordinator/cantrip-security-common" }
+cantrip-security-interface = { path = "../../SecurityCoordinator/cantrip-security-interface" }
 cantrip-storage-interface = { path = "../../StorageManager/cantrip-storage-interface" }
 log = "0.4"
 postcard = { version = "0.7", features = ["alloc"] }

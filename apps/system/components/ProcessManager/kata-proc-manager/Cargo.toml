@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 hashbrown = { version = "0.11", features = ["ahash-compile-time-rng"] }
 cantrip-proc-common = { path = "../cantrip-proc-common" }
-cantrip-security-common = { path = "../../SecurityCoordinator/cantrip-security-common" }
+cantrip-security-interface = { path = "../../SecurityCoordinator/cantrip-security-interface" }
 log = "0.4"
 postcard = "0.7"
 smallstr = "0.2"

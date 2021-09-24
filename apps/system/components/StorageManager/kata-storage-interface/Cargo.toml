@@ -5,3 +5,5 @@ edition = "2018"
 
 [dependencies]
 cstr_core = "0.2"
+cantrip-security-interface = { path = "../../SecurityCoordinator/cantrip-security-interface" }
+postcard = "0.7"

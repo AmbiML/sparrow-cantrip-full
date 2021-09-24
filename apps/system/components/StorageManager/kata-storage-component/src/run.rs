@@ -11,8 +11,8 @@ use cantrip_allocator;
 use cantrip_logger::CantripLogger;
 use cantrip_storage_interface::KeyValueData;
 use cantrip_storage_interface::StorageError;
-use cantrip_storage_interface::StorageManagerInterface;
 use cantrip_storage_interface::StorageManagerError;
+use cantrip_storage_interface::StorageManagerInterface;
 use cantrip_storage_manager::CANTRIP_STORAGE;
 use log::trace;
 

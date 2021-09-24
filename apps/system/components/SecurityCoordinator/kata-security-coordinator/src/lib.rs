@@ -6,7 +6,9 @@
 
 extern crate alloc;
 use alloc::boxed::Box;
-use cantrip_security_common::*;
+use cantrip_security_interface::SecurityCoordinatorInterface;
+use cantrip_security_interface::SecurityRequest;
+use cantrip_security_interface::SecurityRequestError;
 
 #[cfg(all(feature = "fake", feature = "sel4"))]
 compile_error!("features \"fake\" and \"sel4\" are mutually exclusive");

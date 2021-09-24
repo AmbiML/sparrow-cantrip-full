@@ -1,9 +1,9 @@
 [workspace]
 
 members = [
-    "cantrip-security-common",
     "cantrip-security-component",
     "cantrip-security-coordinator",
+    "cantrip-security-interface",
 ]
 
 [profile.dev]

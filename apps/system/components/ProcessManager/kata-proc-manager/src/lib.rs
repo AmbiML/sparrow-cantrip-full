@@ -6,7 +6,10 @@ extern crate alloc;
 use alloc::string::String;
 use core::slice;
 use cantrip_proc_common::*;
-use cantrip_security_common::*;
+use cantrip_security_interface::cantrip_security_request;
+use cantrip_security_interface::SecurityRequest;
+use cantrip_security_interface::SECURITY_REPLY_DATA_SIZE;
+use cantrip_security_interface::SECURITY_REQUEST_DATA_SIZE;
 use log::trace;
 use postcard;
 use spin::Mutex;
@@ -95,14 +98,14 @@ impl ProcessManagerInterface for CantripManagerInterface {
             unsafe { slice::from_raw_parts(pkg_buffer, pkg_buffer_size as usize) },
             reply,
         ) {
-            SecurityRequestError::SreSuccess => {
+            Ok(_) => {
                 fn deserialize_failure(e: postcard::Error) -> ProcessManagerError {
                     trace!("install failed: deserialize {:?}", e);
                     ProcessManagerError::BundleDataInvalid
                 }
                 postcard::from_bytes::<String>(reply).map_err(deserialize_failure)
             }
-            status => {
+            Err(status) => {
                 trace!("install failed: {:?}", status);
                 Err(ProcessManagerError::InstallFailed)
             }
@@ -122,8 +125,8 @@ impl ProcessManagerInterface for CantripManagerInterface {
         let _ = postcard::to_slice(&bundle_id, &mut request_data).map_err(serialize_failure)?;
         let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
         match cantrip_security_request(SecurityRequest::SrUninstall, &request_data, reply) {
-            SecurityRequestError::SreSuccess => Ok(()),
-            status => {
+            Ok(_) => Ok(()),
+            Err(status) => {
                 trace!("uninstall failed: {:?}", status);
                 Err(ProcessManagerError::UninstallFailed)
             }

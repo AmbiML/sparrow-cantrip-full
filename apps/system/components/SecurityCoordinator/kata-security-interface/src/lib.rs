@@ -175,7 +175,7 @@ pub fn cantrip_security_request(
     request: SecurityRequest,
     request_buffer: &[u8],
     reply_buffer: &mut SecurityReplyData,
-) -> SecurityRequestError {
+) -> Result<(), SecurityRequestError> {
     // NB: this assumes the SecurityCoordinator component is named "security".
     extern "C" {
         pub fn security_request(
@@ -185,12 +185,15 @@ pub fn cantrip_security_request(
             c_reply_buffer: *mut SecurityReplyData,
         ) -> SecurityRequestError;
     }
-    unsafe {
+    match unsafe {
         security_request(
             request,
             request_buffer.len() as u32,
             request_buffer.as_ptr(),
             reply_buffer as *mut _,
         )
+    } {
+        SecurityRequestError::SreSuccess => Ok(()),
+        status => Err(status),
     }
 }

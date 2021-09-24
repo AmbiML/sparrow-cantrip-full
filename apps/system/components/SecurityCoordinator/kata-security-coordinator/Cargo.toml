@@ -10,7 +10,7 @@ sel4 = []
 
 [dependencies]
 hashbrown = { version = "0.11", features = ["ahash-compile-time-rng"] }
-cantrip-security-common = { path = "../cantrip-security-common" }
+cantrip-security-interface = { path = "../cantrip-security-interface" }
 cantrip-storage-interface = { path = "../../StorageManager/cantrip-storage-interface" }
 log = "0.4"
 postcard = "0.7"
