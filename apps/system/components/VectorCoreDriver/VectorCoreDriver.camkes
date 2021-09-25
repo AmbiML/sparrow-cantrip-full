@@ -6,4 +6,6 @@ component VectorCoreDriver {
   consumes Interrupt data_fault;
 
   provides VectorCoreInterface vctop;
+
+  uses VectorCoreReturnInterface vctop_return;
 }

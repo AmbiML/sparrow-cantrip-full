@@ -15,6 +15,7 @@ import <global-connectors.camkes>;
 
 import "interfaces/dataport_io.idl4";
 import "interfaces/VectorCoreInterface.camkes";
+import "interfaces/VectorCoreReturnInterface.camkes";
 import "components/OpenTitanUARTDriver/OpenTitanUARTDriver.camkes";
 import "components/DebugConsole/DebugConsole.camkes";
 import "components/ProcessManager/ProcessManager.camkes";
@@ -73,6 +74,8 @@ assembly {
         connection seL4HardwareMMIO vc_csr(from vc_drv.csr, to vctop.csr);
         connection seL4RPCCall ml_coord_to_driver(from ml_coordinator.vctop,
                                                   to vc_drv.vctop);
+        connection seL4RPCCall vc_driver_to_ml_coord(from vc_drv.vctop_return,
+                                                     to ml_coordinator.vctop_return);
         connection seL4HardwareInterrupt vctop_host_req(from vctop.host_req,
                                                       to vc_drv.host_req);
         connection seL4HardwareInterrupt vctop_finish(from vctop.finish,

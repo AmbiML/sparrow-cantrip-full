@@ -30,7 +30,6 @@ fn vctop_ctrl(freeze: u32, vc_reset: u32, pc_start: u32) -> u32 {
 pub extern "C" fn mlcoord_execute() {
     // TODO: Call into MLCoordinator when available.
     // TODO: Once multiple model support is in start by name.
-    // TODO: Read the fault registers after execution and report any errors found.
     extern "C" {
         fn vctop_set_ctrl(ctrl: u32);
     }
@@ -38,4 +37,11 @@ pub extern "C" fn mlcoord_execute() {
         // Unhalt, start at default PC.
         vctop_set_ctrl(vctop_ctrl(0, 0, 0));
     }
+}
+
+#[no_mangle]
+pub extern "C" fn vctop_return_update_result(return_code: u32, _fault: u32) {
+    // TODO(hcindyl): check the return code and fault registers, move the result
+    // from TCM to SRAM, update the input/model, and call mlcoord_execute again.
+    trace!("vctop execution done with code {}", return_code);
 }

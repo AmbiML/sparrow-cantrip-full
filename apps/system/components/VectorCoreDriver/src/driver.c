@@ -31,6 +31,8 @@ void host_req_handle(void) {
 }
 
 void finish_handle(void) {
+  // TODO(hcindyl): return the real exit code and fault register value.
+  vctop_return_update_result(/*return_code=*/0, /*fault=*/0);
   // Also need to clear the INTR_STATE (write-1-to-clear).
   VCTOP_REG(INTR_STATE) = BIT(VC_TOP_INTR_STATE_FINISH_BIT);
   seL4_Assert(finish_acknowledge() == 0);

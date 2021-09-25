@@ -4,6 +4,7 @@ import <SecurityCoordinatorInterface.camkes>;
 
 component MlCoordinator {
   provides MlCoordinatorInterface mlcoord;
+  provides VectorCoreReturnInterface vctop_return;
 
   uses LoggerInterface logger;
   uses SecurityCoordinatorInterface security;
