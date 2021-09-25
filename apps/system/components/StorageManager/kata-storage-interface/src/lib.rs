@@ -3,7 +3,7 @@
 #![cfg_attr(not(test), no_std)]
 
 use core::str;
-use cstr_core::CString;
+use cstr_core;
 use cantrip_security_interface::SecurityRequestError;
 use postcard;
 
@@ -100,9 +100,13 @@ impl From<Result<(), StorageError>> for StorageManagerError {
     }
 }
 
-impl From<cstr_core::NulError> for StorageManagerError {
-    fn from(_err: cstr_core::NulError) -> StorageManagerError {
-        StorageManagerError::SmeKeyInvalid
+impl From<StorageManagerError> for Result<(), StorageManagerError> {
+    fn from(err: StorageManagerError) -> Result<(), StorageManagerError> {
+        if err == StorageManagerError::SmeSuccess {
+            Ok(())
+        } else {
+            Err(err)
+        }
     }
 }
 
@@ -113,11 +117,7 @@ pub fn cantrip_storage_delete(key: &str) -> Result<(), StorageManagerError> {
     extern "C" {
         pub fn storage_delete(c_key: *const cstr_core::c_char) -> StorageManagerError;
     }
-    let cstr = CString::new(key)?;
-    match unsafe { storage_delete(cstr.as_ptr()) } {
-        StorageManagerError::SmeSuccess => Ok(()),
-        status => Err(status),
-    }
+    unsafe { storage_delete(key.as_ptr()) }.into()
 }
 
 #[inline]
@@ -129,9 +129,8 @@ pub fn cantrip_storage_read(key: &str) -> Result<KeyValueData, StorageManagerErr
             c_raw_value: *mut KeyValueData,
         ) -> StorageManagerError;
     }
-    let cstr = CString::new(key)?;
     let value = &mut [0u8; KEY_VALUE_DATA_SIZE];
-    match unsafe { storage_read(cstr.as_ptr(), value as *mut _) } {
+    match unsafe { storage_read(key.as_ptr(), value as *mut _) } {
         StorageManagerError::SmeSuccess => Ok(*value),
         status => Err(status),
     }
@@ -147,9 +146,5 @@ pub fn cantrip_storage_write(key: &str, value: &[u8]) -> Result<(), StorageManag
             c_raw_value: *const u8,
         ) -> StorageManagerError;
     }
-    let cstr = CString::new(key)?;
-    match unsafe { storage_write(cstr.as_ptr(), value.len(), value.as_ptr()) } {
-        StorageManagerError::SmeSuccess => Ok(()),
-        status => Err(status),
-    }
+    unsafe { storage_write(key.as_ptr(), value.len(), value.as_ptr()) }.into()
 }
