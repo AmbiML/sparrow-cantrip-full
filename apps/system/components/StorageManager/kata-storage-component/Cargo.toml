@@ -11,7 +11,7 @@ cantrip-panic = { path = "../../DebugConsole/cantrip-panic" }
 cantrip-storage-interface = { path = "../cantrip-storage-interface" }
 cantrip-storage-manager = { path = "../cantrip-storage-manager" }
 log = "0.4"
-postcard = "0.7"
+postcard = { version = "0.7", features = ["alloc"], default-features = false }
 
 [lib]
 name = "cantrip_storage_manager"

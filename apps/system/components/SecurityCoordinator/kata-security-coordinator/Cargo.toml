@@ -13,4 +13,4 @@ hashbrown = { version = "0.11", features = ["ahash-compile-time-rng"] }
 cantrip-security-interface = { path = "../cantrip-security-interface" }
 cantrip-storage-interface = { path = "../../StorageManager/cantrip-storage-interface" }
 log = "0.4"
-postcard = "0.7"
+postcard = { version = "0.7", features = ["alloc"], default-features = false }

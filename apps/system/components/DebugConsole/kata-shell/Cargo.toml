@@ -12,4 +12,4 @@ cantrip-proc-common = { path = "../../ProcessManager/cantrip-proc-common" }
 cantrip-security-interface = { path = "../../SecurityCoordinator/cantrip-security-interface" }
 cantrip-storage-interface = { path = "../../StorageManager/cantrip-storage-interface" }
 log = "0.4"
-postcard = { version = "0.7", features = ["alloc"] }
+postcard = { version = "0.7", features = ["alloc"], default-features = false }

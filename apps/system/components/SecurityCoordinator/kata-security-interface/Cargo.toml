@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
-postcard = "0.7"
+postcard = { version = "0.7", features = ["alloc"], default-features = false }
 serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
 serde-big-array = "0.3"

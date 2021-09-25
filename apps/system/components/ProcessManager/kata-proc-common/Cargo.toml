@@ -5,5 +5,5 @@ edition = "2018"
 
 [dependencies]
 cantrip-security-interface = { path = "../../SecurityCoordinator/cantrip-security-interface" }
-postcard = { version = "0.7", features = ["alloc"] }
+postcard = { version = "0.7", features = ["alloc"], default-features = false }
 serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }

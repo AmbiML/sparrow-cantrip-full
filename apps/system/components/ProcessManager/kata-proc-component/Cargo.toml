@@ -11,7 +11,7 @@ cantrip-panic = { path = "../../DebugConsole/cantrip-panic" }
 cantrip-proc-common = { path = "../cantrip-proc-common" }
 cantrip-proc-manager = { path = "../cantrip-proc-manager" }
 log = "0.4"
-postcard = { version = "0.7", features = ["alloc"] }
+postcard = { version = "0.7", features = ["alloc"], default-features = false }
 
 [lib]
 name = "cantrip_process_manager"
