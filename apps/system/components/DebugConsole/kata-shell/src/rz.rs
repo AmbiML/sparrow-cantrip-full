@@ -43,7 +43,7 @@ impl io::Write for Upload {
 }
 
 /// Receives using ZMODEM and wraps the result as an Upload.
-pub fn rz<R: io::Read, W: io::Write>(r: R, w: W) -> Result<Upload, io::Error> {
+pub fn rz<R: io::BufRead, W: io::Write>(r: R, w: W) -> Result<Upload, io::Error> {
     let mut upload = Upload::new();
     zmodem::recv::recv(r, w, &mut upload)?;
     Ok(upload)

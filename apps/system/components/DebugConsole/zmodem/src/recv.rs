@@ -59,7 +59,7 @@ pub fn recv<CI, CO, DO>(
     mut data_out: DO,
 ) -> io::Result<usize>
 where
-    CI: io::Read,
+    CI: io::BufRead,
     CO: io::Write,
     DO: io::Write,
 {

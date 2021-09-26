@@ -116,30 +116,6 @@ impl Read for &[u8] {
     }
 }
 
-/// Forwarding implementation of Read for &mut
-impl<'a, T: ?Sized> Read for &'a mut T
-where
-    T: Read,
-{
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        (**self).read(buf)
-    }
-}
-
-/// Forwarding implementation of Write for &mut
-impl<'a, T: ?Sized> Write for &'a mut T
-where
-    T: Write,
-{
-    fn write(&mut self, buf: &[u8]) -> Result<usize> {
-        (**self).write(buf)
-    }
-
-    fn flush(&mut self) -> Result<()> {
-        (**self).flush()
-    }
-}
-
 pub struct BufReader<R> {
     inner: R,
     buf: Box<[u8]>,
@@ -204,5 +180,43 @@ impl<R: Read> BufRead for BufReader<R> {
     fn consume(&mut self, amt: usize) {
         // Implementation copied from std::io.
         self.pos = cmp::min(self.pos + amt, self.cap);
+    }
+}
+
+/// Forwarding implementation of Read for &mut
+impl<'a, T: ?Sized> Read for &'a mut T
+where
+    T: Read,
+{
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        (**self).read(buf)
+    }
+}
+
+/// Forwarding implementation of BufRead for &mut
+impl<'a, T: ?Sized> BufRead for &'a mut T
+where
+    T: BufRead,
+{
+    fn fill_buf(&mut self) -> Result<&[u8]> {
+        (**self).fill_buf()
+    }
+
+    fn consume(&mut self, amt: usize) {
+        (**self).consume(amt)
+    }
+}
+
+/// Forwarding implementation of Write for &mut
+impl<'a, T: ?Sized> Write for &'a mut T
+where
+    T: Write,
+{
+    fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        (**self).write(buf)
+    }
+
+    fn flush(&mut self) -> Result<()> {
+        (**self).flush()
     }
 }

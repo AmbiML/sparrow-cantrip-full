@@ -66,7 +66,7 @@ impl From<io::Error> for CommandError {
 }
 
 /// Read-eval-print loop for the DebugConsole command line interface.
-pub fn repl(output: &mut dyn io::Write, input: &mut dyn io::Read) -> ! {
+pub fn repl<T: io::BufRead>(output: &mut dyn io::Write, input: &mut T) -> ! {
     let mut line_reader = LineReader::new();
     loop {
         const PROMPT: &str = "CANTRIP> ";
@@ -84,7 +84,7 @@ pub fn repl(output: &mut dyn io::Write, input: &mut dyn io::Read) -> ! {
 ///
 /// The line is split on whitespace. The first token is the command; the
 /// remaining tokens are the arguments.
-fn dispatch_command(cmdline: &str, input: &mut dyn io::Read, output: &mut dyn io::Write) {
+fn dispatch_command(cmdline: &str, input: &mut dyn io::BufRead, output: &mut dyn io::Write) {
     let mut args = cmdline.split_ascii_whitespace();
     match args.nth(0) {
         Some(command) => {
@@ -193,7 +193,7 @@ fn loglevel_command(
 
 /// Implements a command to receive a blob using ZMODEM.
 fn rz_command(
-    input: &mut dyn io::Read,
+    input: &mut dyn io::BufRead,
     mut output: &mut dyn io::Write,
 ) -> Result<(), CommandError> {
     let upload = rz::rz(input, &mut output)?;

@@ -106,37 +106,15 @@ where
     Ok(())
 }
 
-/// Read into buf until and including the byte delim
-///
-/// This is a one-off implementation of a method of io::BufRead that the
-/// original lexxvir/zmodem had used. (So far cantrip_io is deferring implementing
-/// buffering to validate it will become needed in more places.)
-fn read_until<R>(r: &mut R, delim: u8, buf: &mut Vec<u8>) -> io::Result<usize>
-where
-    R: io::Read,
-{
-    let mut n = 0usize;
-    loop {
-        let b = read_byte(r)?;
-        buf.push(b);
-        n += 1;
-        if b == delim {
-            break;
-        }
-    }
-
-    Ok(n)
-}
-
 /// Receives sequence: <escaped data> ZLDE ZCRC* <CRC bytes>
 /// Unescapes sequencies such as 'ZLDE <escaped byte>'
 /// If Ok returns <unescaped data> in buf and ZCRC* byte as return value
 pub fn recv_zlde_frame<R>(header: u8, r: &mut R, buf: &mut Vec<u8>) -> io::Result<Option<u8>>
 where
-    R: io::Read,
+    R: io::BufRead,
 {
     loop {
-        read_until(r, ZLDE, buf)?;
+        r.read_until(ZLDE, buf)?;
         let b = read_byte(r)?;
 
         if !is_escaped(b) {
@@ -173,7 +151,7 @@ pub fn recv_data<CI, CO, DO>(
     data_out: &mut DO,
 ) -> io::Result<bool>
 where
-    CI: io::Read,
+    CI: io::BufRead,
     CO: io::Write,
     DO: io::Write,
 {
