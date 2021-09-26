@@ -1,5 +1,9 @@
 #![no_std]
 
+extern crate alloc;
+
+use alloc::boxed::Box;
+use alloc::vec::Vec;
 use core::cmp;
 
 #[derive(Debug)]
@@ -26,6 +30,38 @@ pub trait Read {
             Err(Error)
         } else {
             Ok(())
+        }
+    }
+}
+
+/// Partial mimic of std::io::BufRead.
+pub trait BufRead: Read {
+    fn fill_buf(&mut self) -> Result<&[u8]>;
+
+    fn consume(&mut self, amt: usize);
+
+    fn read_until(&mut self, delim: u8, buf: &mut Vec<u8>) -> Result<usize> {
+        // Implementation adapted from std::io.
+        let mut read = 0;
+        loop {
+            let (done, used) = {
+                let available = self.fill_buf()?;
+                match memchr::memchr(delim, available) {
+                    Some(i) => {
+                        buf.extend_from_slice(&available[..=i]);
+                        (true, i + 1)
+                    }
+                    None => {
+                        buf.extend_from_slice(available);
+                        (false, available.len())
+                    }
+                }
+            };
+            self.consume(used);
+            read += used;
+            if done || used == 0 {
+                return Ok(read);
+            }
         }
     }
 }
@@ -101,5 +137,72 @@ where
 
     fn flush(&mut self) -> Result<()> {
         (**self).flush()
+    }
+}
+
+pub struct BufReader<R> {
+    inner: R,
+    buf: Box<[u8]>,
+    pos: usize,
+    cap: usize,
+}
+
+impl<R: Read> BufReader<R> {
+    pub fn new(inner: R) -> BufReader<R> {
+        const BUFFER_SIZE : usize = 1024;  // free to be changed
+        BufReader {
+            inner: inner,
+            buf: Box::new([0u8; BUFFER_SIZE]),
+            pos: 0,
+            cap: 0,
+        }
+    }
+
+    fn discard_buffer(&mut self) {
+        // Implementation copied from std::io.
+        self.pos = 0;
+        self.cap = 0;
+    }
+}
+
+impl<R: Read> Read for BufReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        // Implementation copied from std::io.
+
+        // If we don't have any buffered data and we're doing a massive read
+        // (larger than our internal buffer), bypass our internal buffer
+        // entirely.
+        if self.pos == self.cap && buf.len() >= self.buf.len() {
+            self.discard_buffer();
+            return self.inner.read(buf);
+        }
+        let nread = {
+            let mut rem = self.fill_buf()?;
+            rem.read(buf)?
+        };
+        self.consume(nread);
+        Ok(nread)
+    }
+}
+
+impl<R: Read> BufRead for BufReader<R> {
+    fn fill_buf(&mut self) -> Result<&[u8]> {
+        // Implementation copied from std::io.
+
+        // If we've reached the end of our internal buffer then we need to fetch
+        // some more data from the underlying reader.
+        // Branch using `>=` instead of the more correct `==`
+        // to tell the compiler that the pos..cap slice is always valid.
+        if self.pos >= self.cap {
+            debug_assert!(self.pos == self.cap);
+            self.cap = self.inner.read(&mut self.buf)?;
+            self.pos = 0;
+        }
+        Ok(&self.buf[self.pos..self.cap])
+    }
+
+    fn consume(&mut self, amt: usize) {
+        // Implementation copied from std::io.
+        self.pos = cmp::min(self.pos + amt, self.cap);
     }
 }

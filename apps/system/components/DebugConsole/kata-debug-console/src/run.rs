@@ -15,6 +15,7 @@
 extern crate cantrip_panic;
 
 use cantrip_allocator;
+use cantrip_io;
 use cantrip_logger::CantripLogger;
 use cantrip_shell;
 use cantrip_uart_client;
@@ -45,6 +46,6 @@ pub extern "C" fn pre_init() {
 pub extern "C" fn run() -> ! {
     trace!("run");
     let mut tx = cantrip_uart_client::Tx::new();
-    let mut rx = cantrip_uart_client::Rx::new();
+    let mut rx = cantrip_io::BufReader::new(cantrip_uart_client::Rx::new());
     cantrip_shell::repl(&mut tx, &mut rx);
 }
