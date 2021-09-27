@@ -3,6 +3,7 @@ use alloc::vec::Vec;
 
 use crc::crc32;
 use crc::Hasher32;
+use log;
 
 use zmodem;
 
@@ -45,6 +46,14 @@ impl io::Write for Upload {
 /// Receives using ZMODEM and wraps the result as an Upload.
 pub fn rz<R: io::BufRead, W: io::Write>(r: R, w: W) -> Result<Upload, io::Error> {
     let mut upload = Upload::new();
+
+    // Turn off logging, since it goes to the UART and will cause the sender to
+    // abort.
+    let prior_log_level = log::max_level();
+    log::set_max_level(log::LevelFilter::Off);
+
     zmodem::recv::recv(r, w, &mut upload)?;
+
+    log::set_max_level(prior_log_level);
     Ok(upload)
 }
