@@ -145,10 +145,10 @@ assembly {
 
         vctop.csr_paddr = 0x48000000;
         vctop.csr_size = 0x1000;
-        vctop.host_req_irq_number = 34;
-        vctop.finish_irq_number = 35;
-        vctop.instruction_fault_irq_number = 36;
-        vctop.data_fault_irq_number = 37;
+        vctop.host_req_irq_number = 179;
+        vctop.finish_irq_number = 180;
+        vctop.instruction_fault_irq_number = 181;
+        vctop.data_fault_irq_number = 182;
 
         random.ID = 1;
 
