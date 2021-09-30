@@ -1,5 +1,0 @@
-import <SeL4DebugInterface.camkes>;
-
-component SeL4Debug {
-  provides SeL4DebugInterface sel4debug;
-}

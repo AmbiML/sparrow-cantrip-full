@@ -1,4 +1,0 @@
-procedure SeL4DebugInterface {
-  void put_string(in string msg);
-  void dump_scheduler();
-}

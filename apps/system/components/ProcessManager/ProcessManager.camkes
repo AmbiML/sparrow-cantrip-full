@@ -3,7 +3,6 @@
 import <LoggerInterface.camkes>;
 import <PackageManagementInterface.camkes>;
 import <ProcessControlInterface.camkes>;
-import <SeL4DebugInterface.camkes>;
 import <SecurityCoordinatorInterface.camkes>;
 
 component ProcessManager {
@@ -11,6 +10,5 @@ component ProcessManager {
   provides ProcessControlInterface proc_ctrl;
 
   uses LoggerInterface logger;
-  uses SeL4DebugInterface sel4debug;
   uses SecurityCoordinatorInterface security;
 }

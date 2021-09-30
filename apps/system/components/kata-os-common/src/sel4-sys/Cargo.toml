@@ -1,0 +1,53 @@
+# Copyright (c) 2015 The Robigalia Project Developers
+# Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+# http://www.apache.org/licenses/LICENSE-2.0> or the MIT license <LICENSE-MIT
+# or http://opensource.org/licenses/MIT>, at your option. All files in the
+# project carrying such notice may not be copied, modified, or distributed
+# except according to those terms.
+[package]
+name = "sel4-sys"
+version = "0.1.0"
+authors = ["Corey Richardson <corey@octayn.net>"]
+description = "Rust interface to the seL4 kernel"
+documentation = "https://doc.robigalia.org/sel4_sys"
+repository = "https://gitlab.com/robigalia/sel4-sys"
+readme = "README.md"
+license = "MIT/Apache-2.0"
+build = "build.rs"
+
+# NB: used by build.rs
+[env]
+# Pathname to seL4 kernel for xml files and (eventually) tools scripts,
+# defaults to "sel4"
+SEL4_DIR = "sel4"
+# Name of python3 interpreter executable, defaults to "python3"
+PYTHON = "python3"
+
+# Beware CONFIG_KERNEL_MCS must match the kernel config for syscall numbering
+# to line up. Likewise other syscalls are defined only when the associated
+# config knobs are set (e.g. CONFIG_PRINTING).
+[features]
+default = ["CONFIG_PRINTING", "CONFIG_DEBUG_BUILD", "CONFIG_SET_TLS_BASE_SELF"]
+#default = ["CONFIG_KERNEL_MCS", "CONFIG_PRINTING", "CONFIG_DEBUG_BUILD", "CONFIG_SET_TLS_BASE_SELF"]
+# Changes api, blech
+CONFIG_KERNEL_MCS = []
+CONFIG_PRINTING = []
+CONFIG_DEBUG_BUILD = []
+CONFIG_SMP_SUPPORT = []
+CONFIG_DANGEROUS_CODE_INJECTION = []
+CONFIG_ENABLE_BENCHMARKS = []
+CONFIG_BENCHMARK_TRACK_UTILISATION = []
+# TCBSetBreakpoint, TCBUnsetBreakpoint, TCBSetTLSBase
+CONFIG_HARDWARE_DEBUG_API = []
+CONFIG_SET_TLS_BASE_SELF = []
+# note: if you're looking at these, be aware that hypervisor support is not
+# yet available at all. these features shouldn't be enabled.
+CONFIG_VTX = []
+CONFIG_ARM_SMMU = []
+CONFIG_ARM_HYPERVISOR_SUPPORT = []
+unstable = [] # XXX?
+
+[lib]
+path = "lib.rs"
+
+[dependencies]

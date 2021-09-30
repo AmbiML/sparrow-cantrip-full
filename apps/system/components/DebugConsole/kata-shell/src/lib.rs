@@ -15,6 +15,7 @@ use cantrip_proc_interface::cantrip_pkg_mgmt_uninstall;
 use cantrip_proc_interface::cantrip_proc_ctrl_get_running_bundles;
 use cantrip_proc_interface::cantrip_proc_ctrl_start;
 use cantrip_proc_interface::cantrip_proc_ctrl_stop;
+use cantrip_os_common::sel4_sys::seL4_DebugDumpScheduler;
 use cantrip_storage_interface::cantrip_storage_delete;
 use cantrip_storage_interface::cantrip_storage_read;
 use cantrip_storage_interface::cantrip_storage_write;
@@ -207,12 +208,7 @@ fn rz_command(
 
 /// Implements a "ps" command that dumps seL4 scheduler state to the console.
 fn ps_command() -> Result<(), CommandError> {
-    extern "C" {
-        fn sel4debug_dump_scheduler();
-    }
-    unsafe {
-        sel4debug_dump_scheduler();
-    }
+    unsafe { seL4_DebugDumpScheduler(); }
     Ok(())
 }
 

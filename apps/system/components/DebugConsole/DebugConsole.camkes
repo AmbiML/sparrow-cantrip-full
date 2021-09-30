@@ -3,7 +3,6 @@ import <ProcessControlInterface.camkes>;
 import <PackageManagementInterface.camkes>;
 import <MlCoordinatorInterface.camkes>;
 import <SecurityCoordinatorInterface.camkes>;
-import <SeL4DebugInterface.camkes>;
 import <StorageInterface.camkes>;
 
 component DebugConsole {
@@ -22,6 +21,5 @@ component DebugConsole {
   uses SecurityCoordinatorInterface security;
   // TODO(b/200707300): for debugging
   uses StorageInterface storage;
-  uses SeL4DebugInterface sel4debug;
   uses MlCoordinatorInterface mlcoord;
 }

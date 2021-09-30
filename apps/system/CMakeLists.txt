@@ -93,10 +93,6 @@ DeclareCAmkESComponent(OpenTitanUARTDriver
   components/OpenTitanUARTDriver/include
 )
 
-DeclareCAmkESComponent(SeL4Debug
-  SOURCES components/SeL4Debug/src/wrappers.c
-)
-
 DeclareCAmkESComponent(VectorCoreDriver
   SOURCES
   components/VectorCoreDriver/src/driver.c
