@@ -10,12 +10,10 @@ component DebugConsole {
   control;
 
   dataport Buf tx_dataport;
-  uses dataport_io_inf uart_tx;
-  has mutex tx_mutex;
+  uses rust_write_inf uart_write;
 
   dataport Buf rx_dataport;
-  uses dataport_io_inf uart_rx;
-  has mutex rx_mutex;
+  uses rust_read_inf uart_read;
 
   provides LoggerInterface logger;
   uses ProcessControlInterface proc_ctrl;

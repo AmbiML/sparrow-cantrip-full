@@ -4,19 +4,6 @@ use core::fmt::Write;
 use cstr_core::CStr;
 use cantrip_io as io;
 
-// C interface to external UART driver.
-extern "C" {
-    static rx_dataport: *mut cty::c_uchar;
-    fn uart_rx_update(n: cty::size_t);
-    fn rx_mutex_lock();
-    fn rx_mutex_unlock();
-
-    static tx_dataport: *mut cty::c_uchar;
-    fn uart_tx_update(n: cty::size_t);
-    fn tx_mutex_lock();
-    fn tx_mutex_unlock();
-}
-
 // Console logging interface.
 #[no_mangle]
 pub extern "C" fn logger_log(level: u8, msg: *const cstr_core::c_char) {
@@ -30,44 +17,83 @@ pub extern "C" fn logger_log(level: u8, msg: *const cstr_core::c_char) {
     };
     if l <= log::max_level() {
         // TODO(sleffler): is the uart driver ok w/ multiple writers?
-        let output: &mut dyn io::Write = &mut self::Tx {};
+        let output: &mut dyn io::Write = &mut self::Tx::new();
         unsafe {
             let _ = writeln!(output, "{}", CStr::from_ptr(msg).to_str().unwrap());
         }
     }
 }
 
-pub struct Rx {}
+const DATAPORT_SIZE: usize = 4096;
 
-impl io::Read for Rx {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        unsafe {
-            rx_mutex_lock();
-            uart_rx_update(buf.len());
-            let port = core::slice::from_raw_parts(rx_dataport, buf.len());
-            buf.copy_from_slice(&port);
-            rx_mutex_unlock();
+pub struct Rx {
+    dataport: &'static [u8],
+}
+
+impl Rx {
+    pub fn new() -> Rx {
+        extern "C" {
+            static rx_dataport: *mut cty::c_uchar;
         }
-        Ok(buf.len())
+        Rx {
+            dataport: unsafe { core::slice::from_raw_parts(rx_dataport, DATAPORT_SIZE) },
+        }
     }
 }
 
-pub struct Tx {}
+impl io::Read for Rx {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        extern "C" {
+            fn uart_read_read(limit: cty::size_t) -> cty::c_int;
+        }
+        let n = unsafe { uart_read_read(buf.len()) };
+        if n >= 0 {
+            let s = n as usize;
+            buf[..s].copy_from_slice(&self.dataport[..s]);
+            Ok(s)
+        } else {
+            Err(io::Error)
+        }
+    }
+}
+
+pub struct Tx {
+    dataport: &'static mut [u8],
+}
+
+impl Tx {
+    pub fn new() -> Tx {
+        extern "C" {
+            static tx_dataport: *mut cty::c_uchar;
+        }
+        Tx {
+            dataport: unsafe { core::slice::from_raw_parts_mut(tx_dataport, DATAPORT_SIZE) },
+        }
+    }
+}
 
 impl io::Write for Tx {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        unsafe {
-            tx_mutex_lock();
-            let port = core::slice::from_raw_parts_mut(tx_dataport, buf.len());
-            port.copy_from_slice(buf);
-            uart_tx_update(buf.len());
-            tx_mutex_unlock();
+        extern "C" {
+            fn uart_write_write(available: cty::size_t) -> cty::c_int;
         }
-        Ok(buf.len())
+        self.dataport[..buf.len()].copy_from_slice(buf);
+        let n = unsafe { uart_write_write(buf.len()) };
+        if n >= 0 {
+            Ok(n as usize)
+        } else {
+            Err(io::Error)
+        }
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        // Do nothing. This implementation has no internal buffering.
-        Ok(())
+        extern "C" {
+            fn uart_write_flush() -> cty::c_int;
+        }
+        if unsafe { uart_write_flush() } == 0 {
+            Ok(())
+        } else {
+            Err(io::Error)
+        }
     }
 }

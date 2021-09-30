@@ -15,6 +15,7 @@
 
 #include "circular_buffer.h"
 #include "opentitan/uart.h"
+#include "uart_driver_error.h"
 
 // Referenced by macros in the generated file opentitan/uart.h.
 #define UART0_BASE_ADDR (void *)mmio_region
@@ -45,6 +46,13 @@
 #define MASK_AND_SHIFT_UP(value, regname, subfield) \
   ((value & UART_##regname##_##subfield##_MASK)     \
    << UART_##regname##_##subfield##_OFFSET)
+
+#define LOCK(lockname) seL4_Assert(lockname##_lock() == 0);
+#define UNLOCK(lockname) seL4_Assert(lockname##_unlock() == 0);
+#define ASSERT_OR_RETURN(x)            \
+  if (!(bool)(x)) {                    \
+    return UARTDriver_AssertionFailed; \
+  }
 
 // Driver-owned buffer to receive more than the FIFO size before the received
 // data is consumed by rx_update.
@@ -84,7 +92,7 @@ static void uart_putchar(char c) {
 // This stops when the transmit FIFO is full or when tx_buf is empty, whichever
 // comes first.
 static void fill_tx_fifo() {
-  seL4_Assert(tx_mutex_lock() == 0);
+  LOCK(tx_mutex);
   while (tx_fifo_level() < UART_FIFO_CAPACITY) {
     char c;
     if (!circular_buffer_pop_front(&tx_buf, &c)) {
@@ -93,10 +101,7 @@ static void fill_tx_fifo() {
     }
     uart_putchar(c);
   }
-  if (circular_buffer_remaining(&tx_buf) > 0) {
-    seL4_Assert(tx_semaphore_post() == 0);
-  }
-  seL4_Assert(tx_mutex_unlock() == 0);
+  UNLOCK(tx_mutex);
 }
 
 // CAmkES initialization hook.
@@ -157,62 +162,86 @@ void pre_init() {
        BIT(UART_INTR_COMMON_TX_EMPTY));
 }
 
-// Implements the update method of the CAmkES dataport_inf rx.
+// Implements Rust Read::read().
 //
-// Reads a given number of bytes from rx_buf into the CAmkES rx_dataport,
-// blocking the RPC until the entire requested byte count has been read.
-void rx_update(uint32_t num_to_read) {
-  // TODO(mattharvey): Error return value for num_to_read >
-  // TX_RX_DATAPORT_CAPACITY.
-  seL4_Assert(num_to_read <= TX_RX_DATAPORT_CAPACITY);
+// Reads up to a given limit of bytes into the CAmkES rx_dataport, blocking
+// until at least one byte is available.
+int read_read(size_t limit) {
+  if (limit > TX_RX_DATAPORT_CAPACITY) {
+    return UARTDriver_OutOfDataportBounds;
+  }
+  char *cursor = (char *)rx_dataport;
+  char *const cursor_begin = cursor;
+  char *const cursor_limit = cursor_begin + limit;
 
-  char *dataport_cursor = (char *)rx_dataport;
-  char *const dataport_end = dataport_cursor + num_to_read;
-  while (dataport_cursor < dataport_end) {
-    seL4_Assert(rx_mutex_lock() == 0);
+  LOCK(rx_mutex);
+  {
     while (circular_buffer_empty(&rx_buf)) {
-      seL4_Assert(rx_mutex_unlock() == 0);
+      UNLOCK(rx_mutex);
       seL4_Assert(rx_semaphore_wait() == 0);
-      seL4_Assert(rx_mutex_lock() == 0);
+      LOCK(rx_mutex);
     }
-    for (; dataport_cursor < dataport_end; ++dataport_cursor) {
-      if (!circular_buffer_pop_front(&rx_buf, dataport_cursor)) {
+    while (cursor < cursor_limit) {
+      if (!circular_buffer_pop_front(&rx_buf, cursor)) {
         // The buffer is empty.
         break;
       }
+      ++cursor;
     }
-    seL4_Assert(rx_mutex_unlock() == 0);
   }
+  UNLOCK(rx_mutex);
+
+  int num_read = cursor - cursor_begin;
+  ASSERT_OR_RETURN(num_read > 0);
+  return num_read;
 }
 
-// Implements the update method of the CAmkES dataport_inf tx.
+// Implements Rust Write::write().
 //
-// Writes the contents of the CAmkES tx_dataport to the UART, one at a time,
-// blocking the RPC until the entire requested number of bytes has been written.
-void tx_update(uint32_t num_valid_dataport_bytes) {
-  // TODO(mattharvey): Error return value for num_valid_dataport_bytes >
-  // TX_RX_DATAPORT_CAPACITY.
-  seL4_Assert(num_valid_dataport_bytes <= TX_RX_DATAPORT_CAPACITY);
+// Writes as many bytes from tx_dataport as the hardware will accept, but not
+// more than the number available (specified by the argument). Returns the
+// number of bytes written or a negative value if there is any error.
+int write_write(size_t available) {
+  if (available > TX_RX_DATAPORT_CAPACITY) {
+    return UARTDriver_OutOfDataportBounds;
+  }
+  const char *cursor = (const char *)tx_dataport;
+  const char *const cursor_begin = cursor;
+  const char *const cursor_limit = cursor_begin + available;
 
-  const char *dataport_cursor = (const char *)tx_dataport;
-  const char *const dataport_end = dataport_cursor + num_valid_dataport_bytes;
-  while (dataport_cursor < dataport_end) {
-    seL4_Assert(tx_mutex_lock() == 0);
-    while (circular_buffer_remaining(&tx_buf) == 0) {
-      seL4_Assert(tx_mutex_unlock() == 0);
-      seL4_Assert(tx_semaphore_wait() == 0);
-      seL4_Assert(tx_mutex_lock() == 0);
-    }
-    for (; dataport_cursor < dataport_end; ++dataport_cursor) {
-      if (!circular_buffer_push_back(&tx_buf, *dataport_cursor)) {
-        // The buffer is full.
+  while (cursor < cursor_limit) {
+    LOCK(tx_mutex);
+    {
+      if (circular_buffer_remaining(&tx_buf) == 0) {
         break;
       }
+      for (; cursor < cursor_limit; ++cursor) {
+        if (!circular_buffer_push_back(&tx_buf, *cursor)) {
+          // The buffer is full.
+          break;
+        }
+      }
     }
-    seL4_Assert(tx_mutex_unlock() == 0);
+    UNLOCK(tx_mutex);
   }
 
   fill_tx_fifo();
+
+  int num_written = cursor - cursor_begin;
+  ASSERT_OR_RETURN(num_written > 0);
+  return num_written;
+}
+
+// Implements Rust Write::flush().
+//
+// Drains tx_buf and TX_FIFO. Returns a negative value if there is any error.
+int write_flush() {
+  LOCK(tx_mutex);
+  while (circular_buffer_remaining(&tx_buf)) {
+    fill_tx_fifo();
+  }
+  UNLOCK(tx_mutex);
+  return 0;
 }
 
 // Handles a tx_watermark interrupt.
@@ -247,7 +276,7 @@ void rx_watermark_handle(void) {
   }
 
   uint32_t num_read = 0;
-  seL4_Assert(rx_mutex_lock() == 0);
+  LOCK(rx_mutex);
   while (num_read < num_to_read) {
     if (!circular_buffer_push_back(&rx_buf, uart_getchar())) {
       // The buffer is full.
@@ -255,7 +284,7 @@ void rx_watermark_handle(void) {
     }
     ++num_read;
   }
-  seL4_Assert(rx_mutex_unlock() == 0);
+  UNLOCK(rx_mutex);
 
   if (num_read > 0) {
     seL4_Assert(rx_semaphore_post() == 0);
@@ -275,14 +304,16 @@ void rx_watermark_handle(void) {
 void tx_empty_handle(void) {
   fill_tx_fifo();
 
-  seL4_Assert(tx_mutex_lock() == 0);
-  if (circular_buffer_empty(&tx_buf)) {
-    // Clears INTR_STATE for tx_empty. (INTR_STATE is write-1-to-clear.) We only
-    // do this if tx_buf is empty, since the TX FIFO might have become empty in
-    // the time from fill_tx_fifo having sent the last character until here. In
-    // that case, we want the interrupt to reassert.
-    REG(INTR_STATE) = BIT(UART_INTR_STATE_TX_EMPTY);
+  LOCK(tx_mutex);
+  {
+    if (circular_buffer_empty(&tx_buf)) {
+      // Clears INTR_STATE for tx_empty. (INTR_STATE is write-1-to-clear.) We
+      // only do this if tx_buf is empty, since the TX FIFO might have become
+      // empty in the time from fill_tx_fifo having sent the last character
+      // until here. In that case, we want the interrupt to reassert.
+      REG(INTR_STATE) = BIT(UART_INTR_STATE_TX_EMPTY);
+    }
+    seL4_Assert(tx_empty_acknowledge() == 0);
   }
-  seL4_Assert(tx_empty_acknowledge() == 0);
-  seL4_Assert(tx_mutex_unlock() == 0);
+  UNLOCK(tx_mutex);
 }

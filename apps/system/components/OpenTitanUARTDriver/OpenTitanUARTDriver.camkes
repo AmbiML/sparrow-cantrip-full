@@ -1,27 +1,23 @@
 /*
- * Copyright 2017, Data61
- * Commonwealth Scientific and Industrial Research Organisation (CSIRO)
- * ABN 41 687 119 230.
+ * CAmkES component accessing an OpenTitan UART.
  *
- * This software may be distributed and modified according to the terms of
- * the BSD 2-Clause license. Note that NO WARRANTY is provided.
- * See "LICENSE_BSD2.txt" for details.
- *
- * @TAG(DATA61_BSD)
+ * Copyright 2021, Google LLC
+ * Apache License 2.0
  */
+
+import "../../interfaces/RustIO.idl4";
 
 component OpenTitanUARTDriver {
   dataport Buf mmio_region;
 
   dataport Buf tx_dataport;
-  provides dataport_io_inf tx;
+  provides rust_write_inf write;
   consumes Interrupt tx_watermark;
   consumes Interrupt tx_empty;
-  has semaphore tx_semaphore;
   has mutex tx_mutex;
 
   dataport Buf rx_dataport;
-  provides dataport_io_inf rx;
+  provides rust_read_inf read;
   consumes Interrupt rx_watermark;
   has semaphore rx_semaphore;
   has mutex rx_mutex;

@@ -44,7 +44,7 @@ pub extern "C" fn pre_init() {
 #[no_mangle]
 pub extern "C" fn run() -> ! {
     trace!("run");
-    let mut tx = cantrip_uart_client::Tx {};
-    let mut rx = cantrip_uart_client::Rx {};
+    let mut tx = cantrip_uart_client::Tx::new();
+    let mut rx = cantrip_uart_client::Rx::new();
     cantrip_shell::repl(&mut tx, &mut rx);
 }

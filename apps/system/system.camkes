@@ -13,7 +13,6 @@
 import <std_connector.camkes>;
 import <global-connectors.camkes>;
 
-import "interfaces/dataport_io.idl4";
 import "interfaces/VectorCoreInterface.camkes";
 import "interfaces/VectorCoreReturnInterface.camkes";
 import "components/OpenTitanUARTDriver/OpenTitanUARTDriver.camkes";
@@ -108,12 +107,12 @@ assembly {
         // Connect the DebugConsole to the OpenTitanUARTDriver.
         connection seL4SharedData tx_channel(
             from debug_console.tx_dataport, to uart_driver.tx_dataport);
-        connection seL4RPCCall tx_call(
-            from debug_console.uart_tx, to uart_driver.tx);
+        connection seL4RPCCall write_call(
+            from debug_console.uart_write, to uart_driver.write);
         connection seL4SharedData rx_channel(
             from debug_console.rx_dataport, to uart_driver.rx_dataport);
-        connection seL4RPCCall rx_call(
-            from debug_console.uart_rx, to uart_driver.rx);
+        connection seL4RPCCall read_call(
+            from debug_console.uart_read, to uart_driver.read);
 
         // Connect the LoggerInterface to each component that needs to log
         // to the console. Note this allocates a 4KB shared memory region to

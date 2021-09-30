@@ -1,0 +1,38 @@
+/*
+ * CAmkES backing for Rust Read and Write traits.
+ *
+ * Copyright 2021, Google LLC
+ * Apache License 2.0
+ *
+ * These CAmkES interfaces express the standard Rust read() and write()
+ * signatures, assuming two separate, externally defined, and implicitly
+ * associated dataports for each of read and write.
+ *
+ * It is intended that Rust code be able to use extern "C" declarations
+ * referencing the camkes.h that this will generate as the core of
+ * implementations of the Read and Write traits.
+ */
+
+procedure rust_read_inf {
+  // Reads up to limit bytes into the read dataport.
+  //
+  // Returns the number of bytes read or a negative value if there is any
+  // error.
+  int read(in size_t limit);
+};
+
+procedure rust_write_inf {
+  // Writes up to a given number of bytes from the write dataport.
+  //
+  // Returns the number of bytes actually written or a negative value if there
+  // is any error. For non-negative return values < available, the caller is
+  // reponsible for retrying with the remaining bytes at the beginning of the
+  // write dataport.
+  int write(in size_t available);
+
+  // Blocks until all bytes so far written have been pushed to the real sink.
+  //
+  // The semantics are the same as Rust's Write::flush. Returns 0 on success
+  // and a negative value if there is any error.
+  int flush();
+}
