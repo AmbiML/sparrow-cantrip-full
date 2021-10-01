@@ -9,6 +9,7 @@
  */
 #![no_std]
 #![feature(asm)]
+#![feature(thread_local)]
 #![allow(bad_style, unused_parens, unused_assignments)]
 
 // NB: this mimics the logic in build.rs
@@ -151,7 +152,7 @@ pub const seL4_MsgMaxLength: usize = 120;
 pub const seL4_MsgExtraCapBits: usize = 2;
 pub const seL4_MsgMaxExtraCaps: usize = (1usize << seL4_MsgExtraCapBits) - 1;
 
-#[derive(Copy)]
+#[derive(Copy, Debug)]
 /// Buffer used to store received IPC messages
 pub struct seL4_IPCBuffer {
     /// Message tag

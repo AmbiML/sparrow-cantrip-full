@@ -94,9 +94,10 @@ pub enum seL4_ObjectType {
 
 #[inline(always)]
 pub unsafe fn seL4_GetIPCBuffer() -> *mut seL4_IPCBuffer {
-    // Magic external symbol setup by runtime once TLS is primed
+    // Use magic external symbol setup by runtime once TLS is primed
     enum c_void {}
     extern "C" {
+        #[thread_local]
         static __sel4_ipc_buffer: *const c_void;
     }
     __sel4_ipc_buffer as *mut seL4_IPCBuffer
