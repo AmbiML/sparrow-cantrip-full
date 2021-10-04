@@ -6,6 +6,7 @@ extern crate alloc;
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::str;
+use cstr_core::CString;
 use cantrip_security_interface::SecurityRequestError;
 use postcard;
 use serde::{Deserialize, Serialize};
@@ -152,6 +153,12 @@ impl From<SecurityRequestError> for ProcessManagerError {
     }
 }
 
+impl From<cstr_core::NulError> for ProcessManagerError {
+    fn from(_err: cstr_core::NulError) -> ProcessManagerError {
+        ProcessManagerError::BundleIdInvalid
+    }
+}
+
 impl From<ProcessManagerError> for Result<(), ProcessManagerError> {
     fn from(err: ProcessManagerError) -> Result<(), ProcessManagerError> {
         if err == ProcessManagerError::Success {
@@ -204,7 +211,8 @@ pub fn cantrip_pkg_mgmt_uninstall(bundle_id: &str) -> Result<(), ProcessManagerE
     extern "C" {
         fn pkg_mgmt_uninstall(c_bundle_id: *const cstr_core::c_char) -> ProcessManagerError;
     }
-    unsafe { pkg_mgmt_uninstall(bundle_id.as_ptr()) }.into()
+    let cstr = CString::new(bundle_id)?;
+    unsafe { pkg_mgmt_uninstall(cstr.as_ptr()) }.into()
 }
 
 #[inline]
@@ -213,7 +221,8 @@ pub fn cantrip_proc_ctrl_start(bundle_id: &str) -> Result<(), ProcessManagerErro
     extern "C" {
         fn proc_ctrl_start(c_bundle_id: *const cstr_core::c_char) -> ProcessManagerError;
     }
-    unsafe { proc_ctrl_start(bundle_id.as_ptr()) }.into()
+    let cstr = CString::new(bundle_id)?;
+    unsafe { proc_ctrl_start(cstr.as_ptr()) }.into()
 }
 
 #[inline]
@@ -222,7 +231,8 @@ pub fn cantrip_proc_ctrl_stop(bundle_id: &str) -> Result<(), ProcessManagerError
     extern "C" {
         fn proc_ctrl_stop(c_bundle_id: *const cstr_core::c_char) -> ProcessManagerError;
     }
-    unsafe { proc_ctrl_stop(bundle_id.as_ptr()) }.into()
+    let cstr = CString::new(bundle_id)?;
+    unsafe { proc_ctrl_stop(cstr.as_ptr()) }.into()
 }
 
 // TODO(sleffler): move out of interface?
