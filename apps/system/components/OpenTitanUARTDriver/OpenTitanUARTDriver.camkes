@@ -5,7 +5,7 @@
  * Apache License 2.0
  */
 
-import "../../interfaces/RustIO.idl4";
+import <RustIO.idl4>;
 
 component OpenTitanUARTDriver {
   dataport Buf mmio_region;

@@ -47,8 +47,8 @@
   ((value & UART_##regname##_##subfield##_MASK)     \
    << UART_##regname##_##subfield##_OFFSET)
 
-#define LOCK(lockname) seL4_Assert(lockname##_lock() == 0);
-#define UNLOCK(lockname) seL4_Assert(lockname##_unlock() == 0);
+#define LOCK(lockname) seL4_Assert(lockname##_lock() == 0)
+#define UNLOCK(lockname) seL4_Assert(lockname##_unlock() == 0)
 #define ASSERT_OR_RETURN(x)            \
   if (!(bool)(x)) {                    \
     return UARTDriver_AssertionFailed; \
