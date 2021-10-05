@@ -72,6 +72,11 @@ static uint32_t rx_fifo_level() {
   return SHIFT_DOWN_AND_MASK(REG(FIFO_STATUS), FIFO_STATUS, RXLVL);
 }
 
+// Gets whether the receive FIFO empty status bit is set.
+static bool rx_empty() {
+  return REG(STATUS) & (1 << UART_STATUS_RXEMPTY);
+}
+
 // Reads one byte from the hardware read data register.
 //
 // Callers should first ensure the receive FIFO is not empty rather than rely on
@@ -267,33 +272,23 @@ void tx_watermark_handle(void) {
 // early if rx_buf becomes full and then signals any call to rx_update that may
 // be waiting on the condition that rx_buf not be empty.
 void rx_watermark_handle(void) {
-  // Set a constant cap on the number of bytes read to ensure the interrupt
-  // handler returns promptly, even on emulations that report an unusually large
-  // FIFO level.
-  uint32_t num_to_read = rx_fifo_level();
-  if (num_to_read > UART_FIFO_CAPACITY) {
-    num_to_read = UART_FIFO_CAPACITY;
-  }
-
-  uint32_t num_read = 0;
   LOCK(rx_mutex);
-  while (num_read < num_to_read) {
+  while (rx_fifo_level() > 0 || !rx_empty()) {
     if (!circular_buffer_push_back(&rx_buf, uart_getchar())) {
       // The buffer is full.
       break;
     }
-    ++num_read;
+  }
+  if (!circular_buffer_empty(&rx_buf)) {
+    seL4_Assert(rx_semaphore_post() == 0);
   }
   UNLOCK(rx_mutex);
 
-  if (num_read > 0) {
-    seL4_Assert(rx_semaphore_post() == 0);
+  if (rx_fifo_level() == 0 && rx_empty()) {
+    // Clears INTR_STATE for rx_watermark. (INTR_STATE is write-1-to-clear.)
+    REG(INTR_STATE) = BIT(UART_INTR_STATE_RX_WATERMARK);
+    seL4_Assert(rx_watermark_acknowledge() == 0);
   }
-
-  // Clears INTR_STATE for rx_watermark. (INTR_STATE is write-1-to-clear.)
-  REG(INTR_STATE) = BIT(UART_INTR_STATE_RX_WATERMARK);
-
-  seL4_Assert(rx_watermark_acknowledge() == 0);
 }
 
 // Handles a tx_empty interrupt.
