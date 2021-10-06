@@ -67,12 +67,10 @@ static uint32_t tx_fifo_level() {
   return SHIFT_DOWN_AND_MASK(REG(FIFO_STATUS), FIFO_STATUS, TXLVL);
 }
 
-// Gets the number of pending bytes in the RX FIFO from hardware MMIO.
-static uint32_t rx_fifo_level() {
-  return SHIFT_DOWN_AND_MASK(REG(FIFO_STATUS), FIFO_STATUS, RXLVL);
-}
-
 // Gets whether the receive FIFO empty status bit is set.
+//
+// Prefer this to FIFO_STATUS.RXLVL, which the simulation has sometimes reported
+// as zero even when "not STATUS.RXEMPTY."
 static bool rx_empty() {
   return REG(STATUS) & (1 << UART_STATUS_RXEMPTY);
 }
@@ -269,7 +267,7 @@ void tx_watermark_handle(void) {
 // be waiting on the condition that rx_buf not be empty.
 void rx_watermark_handle(void) {
   LOCK(rx_mutex);
-  while (rx_fifo_level() > 0 || !rx_empty()) {
+  while (!rx_empty()) {
     if (!circular_buffer_push_back(&rx_buf, uart_getchar())) {
       // The buffer is full.
       break;
@@ -280,7 +278,7 @@ void rx_watermark_handle(void) {
   }
   UNLOCK(rx_mutex);
 
-  if (rx_fifo_level() == 0 && rx_empty()) {
+  if (rx_empty()) {
     // Clears INTR_STATE for rx_watermark. (INTR_STATE is write-1-to-clear.)
     REG(INTR_STATE) = BIT(UART_INTR_STATE_RX_WATERMARK);
     seL4_Assert(rx_watermark_acknowledge() == 0);
