@@ -180,19 +180,17 @@ int read_read(size_t limit) {
   char *const cursor_limit = cursor_begin + limit;
 
   LOCK(rx_mutex);
-  {
-    while (circular_buffer_empty(&rx_buf)) {
-      UNLOCK(rx_mutex);
-      seL4_Assert(rx_semaphore_wait() == 0);
-      LOCK(rx_mutex);
+  while (circular_buffer_empty(&rx_buf)) {
+    UNLOCK(rx_mutex);
+    seL4_Assert(rx_semaphore_wait() == 0);
+    LOCK(rx_mutex);
+  }
+  while (cursor < cursor_limit) {
+    if (!circular_buffer_pop_front(&rx_buf, cursor)) {
+      // The buffer is empty.
+      break;
     }
-    while (cursor < cursor_limit) {
-      if (!circular_buffer_pop_front(&rx_buf, cursor)) {
-        // The buffer is empty.
-        break;
-      }
-      ++cursor;
-    }
+    ++cursor;
   }
   UNLOCK(rx_mutex);
 
@@ -216,15 +214,13 @@ int write_write(size_t available) {
 
   while (cursor < cursor_limit) {
     LOCK(tx_mutex);
-    {
-      if (circular_buffer_remaining(&tx_buf) == 0) {
+    if (circular_buffer_remaining(&tx_buf) == 0) {
+      break;
+    }
+    for (; cursor < cursor_limit; ++cursor) {
+      if (!circular_buffer_push_back(&tx_buf, *cursor)) {
+        // The buffer is full.
         break;
-      }
-      for (; cursor < cursor_limit; ++cursor) {
-        if (!circular_buffer_push_back(&tx_buf, *cursor)) {
-          // The buffer is full.
-          break;
-        }
       }
     }
     UNLOCK(tx_mutex);
@@ -300,15 +296,13 @@ void tx_empty_handle(void) {
   fill_tx_fifo();
 
   LOCK(tx_mutex);
-  {
-    if (circular_buffer_empty(&tx_buf)) {
-      // Clears INTR_STATE for tx_empty. (INTR_STATE is write-1-to-clear.) We
-      // only do this if tx_buf is empty, since the TX FIFO might have become
-      // empty in the time from fill_tx_fifo having sent the last character
-      // until here. In that case, we want the interrupt to reassert.
-      REG(INTR_STATE) = BIT(UART_INTR_STATE_TX_EMPTY);
-    }
-    seL4_Assert(tx_empty_acknowledge() == 0);
+  if (circular_buffer_empty(&tx_buf)) {
+    // Clears INTR_STATE for tx_empty. (INTR_STATE is write-1-to-clear.) We
+    // only do this if tx_buf is empty, since the TX FIFO might have become
+    // empty in the time from fill_tx_fifo having sent the last character
+    // until here. In that case, we want the interrupt to reassert.
+    REG(INTR_STATE) = BIT(UART_INTR_STATE_TX_EMPTY);
   }
+  seL4_Assert(tx_empty_acknowledge() == 0);
   UNLOCK(tx_mutex);
 }
