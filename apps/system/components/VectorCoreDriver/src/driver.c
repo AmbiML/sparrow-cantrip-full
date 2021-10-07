@@ -8,6 +8,16 @@
 #define VCTOP_REG(name) \
   *((volatile uint32_t *)(CSR_OFFSET + VC_TOP_##name##_REG_OFFSET))
 
+static inline uint32_t get_return_code() {
+  const uint32_t kReturnCodeOffset = 0xfb8;
+  return *((volatile uint32_t *)((void *)mem + kReturnCodeOffset));
+}
+
+static inline uint32_t get_fault_register() {
+  const uint32_t kFaultRegOffset = 0xfbc;
+  return *((volatile uint32_t *)((void *)mem + kFaultRegOffset));
+}
+
 // CAmkES initialization hook.
 //
 // Enables Interrupts.
@@ -31,8 +41,8 @@ void host_req_handle(void) {
 }
 
 void finish_handle(void) {
-  // TODO(hcindyl): return the real exit code and fault register value.
-  vctop_return_update_result(/*return_code=*/0, /*fault=*/0);
+  // Read main() return code and machine exception PC.
+  vctop_return_update_result(get_return_code(), get_fault_register());
   // Also need to clear the INTR_STATE (write-1-to-clear).
   VCTOP_REG(INTR_STATE) = BIT(VC_TOP_INTR_STATE_FINISH_BIT);
   seL4_Assert(finish_acknowledge() == 0);

@@ -40,8 +40,11 @@ pub extern "C" fn mlcoord_execute() {
 }
 
 #[no_mangle]
-pub extern "C" fn vctop_return_update_result(return_code: u32, _fault: u32) {
+pub extern "C" fn vctop_return_update_result(return_code: u32, fault: u32) {
     // TODO(hcindyl): check the return code and fault registers, move the result
     // from TCM to SRAM, update the input/model, and call mlcoord_execute again.
-    trace!("vctop execution done with code {}", return_code);
+    trace!(
+        "vctop execution done with code {}, fault pc: {:#010X}",
+        return_code,
+        fault);
 }
