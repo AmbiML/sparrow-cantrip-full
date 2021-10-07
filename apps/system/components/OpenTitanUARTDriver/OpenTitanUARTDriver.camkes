@@ -19,6 +19,7 @@ component OpenTitanUARTDriver {
   dataport Buf rx_dataport;
   provides rust_read_inf read;
   consumes Interrupt rx_watermark;
-  has semaphore rx_semaphore;
+  has semaphore rx_nonempty_semaphore;
+  has semaphore rx_empty_semaphore;
   has mutex rx_mutex;
 }

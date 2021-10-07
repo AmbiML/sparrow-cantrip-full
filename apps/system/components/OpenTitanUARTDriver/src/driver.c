@@ -71,9 +71,7 @@ static uint32_t tx_fifo_level() {
 //
 // Prefer this to FIFO_STATUS.RXLVL, which the simulation has sometimes reported
 // as zero even when "not STATUS.RXEMPTY."
-static bool rx_empty() {
-  return REG(STATUS) & (1 << UART_STATUS_RXEMPTY);
-}
+static bool rx_empty() { return REG(STATUS) & (1 << UART_STATUS_RXEMPTY); }
 
 // Reads one byte from the hardware read data register.
 //
@@ -180,12 +178,13 @@ int read_read(size_t limit) {
   LOCK(rx_mutex);
   while (circular_buffer_empty(&rx_buf)) {
     UNLOCK(rx_mutex);
-    seL4_Assert(rx_semaphore_wait() == 0);
+    seL4_Assert(rx_nonempty_semaphore_wait() == 0);
     LOCK(rx_mutex);
   }
   while (cursor < cursor_limit) {
     if (!circular_buffer_pop_front(&rx_buf, cursor)) {
       // The buffer is empty.
+      seL4_Assert(rx_empty_semaphore_post() == 0);
       break;
     }
     ++cursor;
@@ -268,21 +267,27 @@ void tx_watermark_handle(void) {
 void rx_watermark_handle(void) {
   LOCK(rx_mutex);
   while (!rx_empty()) {
-    if (!circular_buffer_push_back(&rx_buf, uart_getchar())) {
+    if (circular_buffer_remaining(&rx_buf) == 0) {
       // The buffer is full.
-      break;
+      //
+      // We want to stay in this invocation of the interrupt handler until the
+      // RX FIFO is empty, since the rx_watermark interrupt will not fire again
+      // until the RX FIFO level crosses from 0 to 1. Therefore we unblock any
+      // pending reads and wait for enough reads to consume all of rx_buf.
+      seL4_Assert(rx_nonempty_semaphore_post() == 0);
+      UNLOCK(rx_mutex);
+      seL4_Assert(rx_empty_semaphore_wait() == 0);
+      LOCK(rx_mutex);
+      continue;
     }
+    seL4_Assert(circular_buffer_push_back(&rx_buf, uart_getchar()));
   }
-  if (!circular_buffer_empty(&rx_buf)) {
-    seL4_Assert(rx_semaphore_post() == 0);
-  }
+  seL4_Assert(rx_nonempty_semaphore_post() == 0);
   UNLOCK(rx_mutex);
 
-  if (rx_empty()) {
-    // Clears INTR_STATE for rx_watermark. (INTR_STATE is write-1-to-clear.)
-    REG(INTR_STATE) = BIT(UART_INTR_STATE_RX_WATERMARK);
-    seL4_Assert(rx_watermark_acknowledge() == 0);
-  }
+  // Clears INTR_STATE for rx_watermark. (INTR_STATE is write-1-to-clear.)
+  REG(INTR_STATE) = BIT(UART_INTR_STATE_RX_WATERMARK);
+  seL4_Assert(rx_watermark_acknowledge() == 0);
 }
 
 // Handles a tx_empty interrupt.
@@ -301,6 +306,6 @@ void tx_empty_handle(void) {
     // until here. In that case, we want the interrupt to reassert.
     REG(INTR_STATE) = BIT(UART_INTR_STATE_TX_EMPTY);
   }
-  seL4_Assert(tx_empty_acknowledge() == 0);
   UNLOCK(tx_mutex);
+  seL4_Assert(tx_empty_acknowledge() == 0);
 }
