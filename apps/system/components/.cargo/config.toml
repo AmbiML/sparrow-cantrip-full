@@ -1,0 +1,4 @@
+[env]
+# Pathname to seL4 kernel for xml files and (eventually) tools scripts,
+# defaults to "sel4" if not set
+SEL4_DIR = { value = "../../../../../kernel", relative = true }

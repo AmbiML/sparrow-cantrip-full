@@ -17,9 +17,6 @@ build = "build.rs"
 
 # NB: used by build.rs
 [env]
-# Pathname to seL4 kernel for xml files and (eventually) tools scripts,
-# defaults to "sel4"
-SEL4_DIR = "sel4"
 # Name of python3 interpreter executable, defaults to "python3"
 PYTHON = "python3"
 
