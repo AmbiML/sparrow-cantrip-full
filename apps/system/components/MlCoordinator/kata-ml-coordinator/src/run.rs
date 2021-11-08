@@ -16,6 +16,22 @@ pub struct MLCoordinator {
 
 pub static mut ML_COORD: MLCoordinator = MLCoordinator { is_loaded: false };
 
+impl MLCoordinator {
+    fn handle_return_interrupt(&self) {
+        // TODO(hcindyl): check the return code and fault registers, move the result
+        // from TCM to SRAM, update the input/model, and call mlcoord_execute again.
+        let return_code = mlcore::get_return_code();
+        let fault = mlcore::get_fault_register();
+
+        if return_code != 0 {
+            error!(
+                "vctop execution failed with code {}, fault pc: {:#010X}",
+                return_code, fault
+            );
+        }
+    }
+}
+
 impl MlCoordinatorInterface for MLCoordinator {
     fn execute(&mut self) {
         extern "C" {
@@ -63,16 +79,14 @@ fn vctop_ctrl(freeze: u32, vc_reset: u32, pc_start: u32) -> u32 {
 // TODO: Once multiple model support is in start by name.
 #[no_mangle]
 pub extern "C" fn mlcoord_execute() {
-    unsafe { ML_COORD.execute() };
+    unsafe {
+        ML_COORD.execute();
+    }
 }
 
 #[no_mangle]
-pub extern "C" fn vctop_return_update_result(return_code: u32, fault: u32) {
-    // TODO(hcindyl): check the return code and fault registers, move the result
-    // from TCM to SRAM, update the input/model, and call mlcoord_execute again.
-    trace!(
-        "vctop execution done with code {}, fault pc: {:#010X}",
-        return_code,
-        fault
-    );
+pub extern "C" fn vctop_return_update_result() {
+    unsafe {
+        ML_COORD.handle_return_interrupt();
+    }
 }

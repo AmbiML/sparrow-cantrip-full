@@ -35,9 +35,8 @@ component OpenTitanUART {
 component VectorCoreHw {
     hardware;
     dataport Buf csr;
-    dataport Buf mem;
     dataport Buf(0x40000) itcm;
-    dataport Buf(0xfff000) dtcm;
+    dataport Buf(0x1000000) dtcm;
 
     emits Interrupt host_req;
     emits Interrupt finish;
@@ -77,7 +76,6 @@ assembly {
 
         // VectorCoreDriver
         connection seL4HardwareMMIO vc_csr(from vc_drv.csr, to vctop.csr);
-        connection seL4HardwareMMIO vc_mem(from vc_drv.mem, to vctop.mem);
         connection seL4RPCCall ml_coord_to_driver(from ml_coordinator.vctop,
                                                   to vc_drv.vctop);
         connection seL4RPCCall vc_driver_to_ml_coord(from vc_drv.vctop_return,
@@ -148,13 +146,10 @@ assembly {
 
         vctop.csr_paddr = 0x48000000;
         vctop.csr_size = 0x1000;
-        // TODO(jesionowski): Merge mem and dtcm
-        vctop.mem_paddr = 0x34fff000;
-        vctop.mem_size = 0x1000;
         vctop.itcm_paddr = 0x30000000;
         vctop.itcm_size = 0x40000;
         vctop.dtcm_paddr = 0x34000000;
-        vctop.dtcm_size = 0xfff000;
+        vctop.dtcm_size = 0x1000000;
         vctop.host_req_irq_number = 179;
         vctop.finish_irq_number = 180;
         vctop.instruction_fault_irq_number = 181;

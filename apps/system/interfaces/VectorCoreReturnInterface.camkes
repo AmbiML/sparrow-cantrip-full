@@ -1,3 +1,3 @@
 procedure VectorCoreReturnInterface {
-  void update_result(in uint32_t return_code, in uint32_t fault);
+  void update_result();
 };

@@ -11,19 +11,19 @@ const DTCM_SIZE: usize = 0x1000000;
 const DTCM_PADDR: usize = 0x34000000;
 
 extern "C" {
-    static elf_file: *const u8;
+    static elf_file: *const u32;
 }
 extern "C" {
-    static itcm: *mut u8;
+    static itcm: *mut u32;
 }
 extern "C" {
-    static dtcm: *mut u8;
+    static dtcm: *mut u32;
 }
 
 pub fn loadelf() -> Result<(), &'static str> {
-    let elf_slice = unsafe { slice::from_raw_parts(elf_file, ELF_SIZE) };
-    let itcm_slice = unsafe { slice::from_raw_parts_mut(itcm, ITCM_SIZE) };
-    let dtcm_slice = unsafe { slice::from_raw_parts_mut(dtcm, DTCM_SIZE) };
+    let elf_slice = unsafe { slice::from_raw_parts(elf_file as *const u8, ELF_SIZE) };
+    let itcm_slice = unsafe { slice::from_raw_parts_mut(itcm as *mut u8, ITCM_SIZE) };
+    let dtcm_slice = unsafe { slice::from_raw_parts_mut(dtcm as *mut u8, DTCM_SIZE) };
 
     let elf = ElfFile::new(&elf_slice)?;
 
@@ -47,10 +47,8 @@ pub fn loadelf() -> Result<(), &'static str> {
                     itcm_slice[..fsize].copy_from_slice(&bytes);
                 }
             } else if seg.virtual_addr() as usize == DTCM_PADDR {
-                // TODO(jesionowski): Change to msize. Will currently fail as a portion
-                // of the memory is mapped to the vctop driver for getting return information.
                 assert!(
-                    fsize <= DTCM_SIZE,
+                    msize <= DTCM_SIZE,
                     "Elf's DTCM section is larger than than DTCM_SIZE"
                 );
 
@@ -66,4 +64,19 @@ pub fn loadelf() -> Result<(), &'static str> {
     }
 
     Ok(())
+}
+
+fn get_dtcm_slice() -> &'static mut [u32] {
+    unsafe { slice::from_raw_parts_mut(dtcm, DTCM_SIZE / 4) }
+}
+
+// TODO(jesionowski): Read these from CSRs when available.
+pub fn get_return_code() -> u32 {
+    const RC_OFFSET: usize = 0x3FFFEE;
+    get_dtcm_slice()[RC_OFFSET]
+}
+
+pub fn get_fault_register() -> u32 {
+    const FAULT_OFFSET: usize = 0x3FFFEF;
+    get_dtcm_slice()[FAULT_OFFSET]
 }
