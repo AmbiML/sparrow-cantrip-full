@@ -6,6 +6,10 @@ component MlCoordinator {
   provides MlCoordinatorInterface mlcoord;
   provides VectorCoreReturnInterface vctop_return;
 
+  dataport Buf(0x300000) elf_file;
+  dataport Buf(0x40000) itcm;
+  dataport Buf(0xfff000) dtcm;
+
   uses LoggerInterface logger;
   uses SecurityCoordinatorInterface security;
   uses VectorCoreInterface vctop;

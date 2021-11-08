@@ -7,7 +7,9 @@ edition = "2018"
 [dependencies]
 cantrip-logger = { path = "../../DebugConsole/cantrip-logger" }
 cantrip-panic = { path = "../../DebugConsole/cantrip-panic" }
+cantrip-ml-interface = { path = "../cantrip-ml-interface" }
 log = "0.4"
+xmas-elf = "0.8.0"
 
 [lib]
 name = "cantrip_ml_coordinator"

@@ -36,6 +36,8 @@ component VectorCoreHw {
     hardware;
     dataport Buf csr;
     dataport Buf mem;
+    dataport Buf(0x40000) itcm;
+    dataport Buf(0xfff000) dtcm;
 
     emits Interrupt host_req;
     emits Interrupt finish;
@@ -43,10 +45,16 @@ component VectorCoreHw {
     emits Interrupt data_fault;
 }
 
+component VectorPayload {
+    hardware;
+    dataport Buf(0x300000) elf_file;
+}
+
 assembly {
     composition {
         component VectorCoreHw vctop;
         component VectorCoreDriver vc_drv;
+        component VectorPayload vc_payload;
 
         component OpenTitanUART uart;
         component OpenTitanUARTDriver uart_driver;
@@ -82,6 +90,13 @@ assembly {
                                                       to vc_drv.instruction_fault);
         connection seL4HardwareInterrupt vctop_data_fault(from vctop.data_fault,
                                                       to vc_drv.data_fault);
+        connection seL4HardwareMMIO vc_itcm(from ml_coordinator.itcm,
+                                            to vctop.itcm);
+        connection seL4HardwareMMIO vc_dtcm(from ml_coordinator.dtcm,
+                                            to vctop.dtcm);
+
+        connection seL4HardwareMMIO vc_elf(from ml_coordinator.elf_file,
+                                            to vc_payload.elf_file);
 
         // Hookup ProcessManager to DebugConsole for shell commands.
         connection seL4RPCCall shell_process(from debug_console.proc_ctrl,
@@ -133,12 +148,20 @@ assembly {
 
         vctop.csr_paddr = 0x48000000;
         vctop.csr_size = 0x1000;
+        // TODO(jesionowski): Merge mem and dtcm
         vctop.mem_paddr = 0x34fff000;
         vctop.mem_size = 0x1000;
+        vctop.itcm_paddr = 0x30000000;
+        vctop.itcm_size = 0x40000;
+        vctop.dtcm_paddr = 0x34000000;
+        vctop.dtcm_size = 0xfff000;
         vctop.host_req_irq_number = 179;
         vctop.finish_irq_number = 180;
         vctop.instruction_fault_irq_number = 181;
         vctop.data_fault_irq_number = 182;
+
+        vc_payload.elf_file_paddr = 0x45C00000;
+        vc_payload.elf_file_size = 0x300000;
 
         random.ID = 1;
 
