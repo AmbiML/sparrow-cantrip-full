@@ -82,6 +82,7 @@ macro_rules! error_types {
     };
 }
 
+// NB: potentially arch-dependent
 pub type seL4_Word = usize;
 pub type seL4_CPtr = usize;
 
@@ -184,20 +185,21 @@ impl ::core::clone::Clone for seL4_IPCBuffer {
     }
 }
 
-/* bootinfo */
+// Bootinfo
 
-pub static seL4_CapNull: seL4_Word = 0; /* null cap */
-pub static seL4_CapInitThreadTCB: seL4_Word = 1; /* initial thread's TCB cap */
-pub static seL4_CapInitThreadCNode: seL4_Word = 2; /* initial thread's root CNode cap */
-pub static seL4_CapInitThreadVSpace: seL4_Word = 3; /* initial thread's VSpace cap */
-pub static seL4_CapIRQControl: seL4_Word = 4; /* global IRQ controller cap */
-pub static seL4_CapASIDControl: seL4_Word = 5; /* global ASID controller cap */
-pub static seL4_CapInitThreadASIDPool: seL4_Word = 6; /* initial thread's ASID pool cap */
-pub static seL4_CapIOPort: seL4_Word = 7; /* global IO port cap (null cap if not supported) */
-pub static seL4_CapIOSpace: seL4_Word = 8; /* global IO space cap (null cap if no IOMMU support) */
-pub static seL4_CapBootInfoFrame: seL4_Word = 9; /* bootinfo frame cap */
-pub static seL4_CapInitThreadIPCBuffer: seL4_Word = 10; /* initial thread's IPC buffer frame cap */
-pub static seL4_CapDomain: seL4_Word = 11; /* global domain controller cap */
+// Fixed cap slots for root thread.
+pub const seL4_CapNull: seL4_Word = 0; // null cap
+pub const seL4_CapInitThreadTCB: seL4_Word = 1; // initial thread's TCB
+pub const seL4_CapInitThreadCNode: seL4_Word = 2; // initial thread's root CNode
+pub const seL4_CapInitThreadVSpace: seL4_Word = 3; // initial thread's VSpace
+pub const seL4_CapIRQControl: seL4_Word = 4; // global IRQ controller
+pub const seL4_CapASIDControl: seL4_Word = 5; // global ASID controller
+pub const seL4_CapInitThreadASIDPool: seL4_Word = 6; // initial thread's ASID pool
+pub const seL4_CapIOPort: seL4_Word = 7; // global IO port (null if not supported)
+pub const seL4_CapIOSpace: seL4_Word = 8; // global IO space (null if no IOMMU support)
+pub const seL4_CapBootInfoFrame: seL4_Word = 9; // bootinfo frame
+pub const seL4_CapInitThreadIPCBuffer: seL4_Word = 10; // initial thread's IPC buffer frame
+pub const seL4_CapDomain: seL4_Word = 11; // global domain controller
 
 #[repr(C, packed)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
