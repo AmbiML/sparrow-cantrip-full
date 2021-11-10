@@ -17,8 +17,10 @@ fn main() {
     let out_dir = env::var("OUT_DIR").unwrap();
     let cargo_target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap();
     let cargo_target_pointer_width = env::var("CARGO_CFG_TARGET_POINTER_WIDTH").unwrap();
-    println!("target_arch = {} target_pointer_width = {}",
-             cargo_target_arch, cargo_target_pointer_width);
+    println!(
+        "target_arch = {} target_pointer_width = {}",
+        cargo_target_arch, cargo_target_pointer_width
+    );
 
     // Default to python3 (maybe necessary for code divergence)
     let python_bin = env::var("PYTHON").unwrap_or_else(|_| "python3".to_string());
@@ -31,16 +33,20 @@ fn main() {
     // to select the target architecture;
     // NB: this mimics the logic in lib.rs
     let (arch, archdir) = match cargo_target_arch.as_str() {
-        "x86" =>  ("ia32", "x86"),
-        "x86_64" =>  ("x86_64", "x86"),
+        "x86" => ("ia32", "x86"),
+        "x86_64" => ("x86_64", "x86"),
         "arm" => match cargo_target_pointer_width.as_str() {
             "32" => ("aarch32", "arm"),
             "64" => ("aarch64", "arm"),
-            _ => { panic!("Unsupported arm word size {}", cargo_target_pointer_width); }
-         }
+            _ => {
+                panic!("Unsupported arm word size {}", cargo_target_pointer_width);
+            }
+        },
         "riscv32" => ("riscv32", "riscv"),
         "riscv64" => ("riscv64", "riscv"),
-        _ => { panic!("Unsupported architecture {}", cargo_target_arch); }
+        _ => {
+            panic!("Unsupported architecture {}", cargo_target_arch);
+        }
     };
 
     let xml_interfaces_file = format!("{}/libsel4/include/interfaces/sel4.xml", sel4_dir);
@@ -116,7 +122,11 @@ fn main() {
     ))
     .unwrap();
     println!("{}/types{}.rs", out_dir, cargo_target_pointer_width);
-    let bfout = File::create(&*format!("{}/types{}.rs", out_dir, cargo_target_pointer_width)).unwrap();
+    let bfout = File::create(&*format!(
+        "{}/types{}.rs",
+        out_dir, cargo_target_pointer_width
+    ))
+    .unwrap();
     let mut cmd = Command::new("/usr/bin/env");
     cmd.arg(&python_bin)
         .arg("tools/bitfield_gen.py")

@@ -77,6 +77,11 @@ pub enum seL4_RISCV_VMAttributes {
     ExecuteNever = 0x1,
     Default_VMAttributes = 0,
 }
+impl From<u32> for seL4_RISCV_VMAttributes {
+    fn from(val: u32) -> seL4_RISCV_VMAttributes {
+        unsafe { ::core::mem::transmute(val & 1) }
+    }
+}
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

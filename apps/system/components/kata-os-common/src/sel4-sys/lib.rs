@@ -132,18 +132,17 @@ include!(concat!(env!("OUT_DIR"), "/syscalls.rs"));
 
 // Well-known types from libsel4/include/sel4/types.h
 
+pub type seL4_CNode = seL4_CPtr;
+pub type seL4_Domain = seL4_Word;
+pub type seL4_DomainSet = seL4_CPtr;
+pub type seL4_IRQControl = seL4_CPtr;
+pub type seL4_IRQHandler = seL4_CPtr;
 pub type seL4_NodeId = seL4_Word;
 pub type seL4_PAddr = seL4_Word;
-pub type seL4_Domain = seL4_Word;
-
-pub type seL4_CNode = seL4_CPtr;
-pub type seL4_IRQHandler = seL4_CPtr;
-pub type seL4_IRQControl = seL4_CPtr;
-pub type seL4_TCB = seL4_CPtr;
-pub type seL4_Untyped = seL4_CPtr;
-pub type seL4_DomainSet = seL4_CPtr;
 pub type seL4_SchedContext = seL4_CPtr;
 pub type seL4_SchedControl = seL4_CPtr;
+pub type seL4_TCB = seL4_CPtr;
+pub type seL4_Untyped = seL4_CPtr;
 
 // TODO(sleffler): seL4 uses seL4_Uint64 but it's not defined for us
 pub type seL4_Time = u64;
@@ -154,7 +153,7 @@ pub const seL4_MsgExtraCapBits: usize = 2;
 pub const seL4_MsgMaxExtraCaps: usize = (1usize << seL4_MsgExtraCapBits) - 1;
 
 // Syscall stubs are generated to return seL4_Result unless they return
-// an APi struct with an embedded error code. The latter should be replaced
+// an API struct with an embedded error code. The latter should be replaced
 // too but for now we leave it as-is.
 pub type seL4_Result = Result<(), seL4_Error>;
 
@@ -209,6 +208,19 @@ impl ::core::clone::Clone for seL4_IPCBuffer {
         *self
     }
 }
+
+// From libsel4/include/sel4/shared_types.h; this is defined in C as an enum
+// but we use pub const because the C code intentionally declares overlapping
+// values which Rust rejects. Nothing (atm) uses the actual enum type so this
+// should be compatible.
+pub const seL4_CapFault_IP: seL4_Word = 0;
+pub const seL4_CapFault_Addr: seL4_Word = 1;
+pub const seL4_CapFault_InRecvPhase: seL4_Word = 2;
+pub const seL4_CapFault_LookupFailureType: seL4_Word = 3;
+pub const seL4_CapFault_BitsLeft: seL4_Word = 4;
+pub const seL4_CapFault_DepthMismatch_BitsFound: seL4_Word = 5;
+pub const seL4_CapFault_GuardMismatch_GuardFound: seL4_Word = seL4_CapFault_DepthMismatch_BitsFound;
+pub const seL4_CapFault_GuardMismatch_BitsFound: seL4_Word = 6;
 
 // Bootinfo
 
