@@ -647,13 +647,11 @@ def generate_stub(arch, wordsize, interface_name, method_name, method_id, input_
             standard_params.append(x)
 
     # Determine if we are returning a structure, or just the error code.
-    returning_struct = False
-    results_structure = generate_result_struct(interface_name, method_name, output_params)
-    if results_structure:
+    returning_struct = generate_result_struct(interface_name, method_name, output_params)
+    if returning_struct:
         return_type = "%s_%s" % (interface_name, method_name)
-        returning_struct = True
     else:
-        return_type = "isize"
+        return_type = "seL4_Result"
 
     #
     # Print doxygen comment.
@@ -690,9 +688,9 @@ def generate_stub(arch, wordsize, interface_name, method_name, method_id, input_
     #
     # Setup variables we will need.
     #
-    result.append("\tlet mut result: %s = ::core::mem::zeroed();" % return_type)
+    if returning_struct:
+        result.append("\tlet mut result: %s = ::core::mem::zeroed();" % return_type)
     result.append("\tlet tag = seL4_MessageInfo::new(InvocationLabel::%s as seL4_Word, 0, %d, %d);"  % (method_id, len(cap_expressions), len(input_expressions)))
-    result.append("\tlet output_tag;")
     for i in range(num_mrs):
         result.append("\tlet mut mr%d: seL4_Word = 0;" % i)
     result.append("")
@@ -736,27 +734,31 @@ def generate_stub(arch, wordsize, interface_name, method_name, method_id, input_
     #
     if use_only_ipc_buffer:
         result.append("\t/* Perform the call. */")
-        result.append("\toutput_tag = seL4_Call(%s, tag);" % service_cap)
+        result.append("\tlet output_tag = seL4_Call(%s, tag);" % service_cap)
     else:
         result.append("\t/* Perform the call, passing in-register arguments directly. */")
-        result.append("\toutput_tag = seL4_CallWithMRs(%s, tag," % (service_cap))
+        result.append("\tlet output_tag = seL4_CallWithMRs(%s, tag," % (service_cap))
         result.append("\t\t%s);" % ', '.join(
             ("&mut mr%d" % i) for i in range(num_mrs)))
 
     #
     # Prepare the result.
     #
-    label = "result.error" if returning_struct else "result"
-    result.append("\t%s = output_tag.get_label() as _;" % label);
+    if returning_struct:
+        result.append("\tresult.error = output_tag.get_label() as _;");
+    else:
+        result.append("\tlet error: seL4_Error = output_tag.get_label().into();");
     result.append("")
 
     if not use_only_ipc_buffer:
         result.append("\t/* Unmarshal registers into IPC buffer on error. */")
-        result.append("\tif (%s != seL4_Error::seL4_NoError as u32) {" % label)
+        result.append("\tif error != seL4_Error::seL4_NoError {")
         for i in range(num_mrs):
             result.append("\t\tseL4_SetMR(%d, mr%d);" % (i, i))
         if returning_struct:
             result.append("\t\treturn result;")
+        else:
+            result.append("\t\terror.into()")
         result.append("\t}")
         result.append("")
 
@@ -791,7 +793,10 @@ def generate_stub(arch, wordsize, interface_name, method_name, method_id, input_
     #
     # }
     #
-    result.append("\treturn result;")
+    if returning_struct:
+        result.append("\tresult")
+    else:
+        result.append("\terror.into()")
     result.append("}")
 
     return "\n".join(result) + "\n"

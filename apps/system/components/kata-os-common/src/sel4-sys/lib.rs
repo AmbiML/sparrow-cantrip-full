@@ -49,7 +49,7 @@ macro_rules! error_types {
             seL4_DeleteFirst,
             seL4_RevokeFirst,
             seL4_NotEnoughMemory,
-            // XXX: Code depends on this being the last variant
+            // NB: Code depends on this being the last variant
         }
 
         #[repr($int_width)]
@@ -153,6 +153,31 @@ pub const seL4_MsgMaxLength: usize = 120;
 pub const seL4_MsgExtraCapBits: usize = 2;
 pub const seL4_MsgMaxExtraCaps: usize = (1usize << seL4_MsgExtraCapBits) - 1;
 
+// Syscall stubs are generated to return seL4_Result unless they return
+// an APi struct with an embedded error code. The latter should be replaced
+// too but for now we leave it as-is.
+pub type seL4_Result = Result<(), seL4_Error>;
+
+// NB: these traits are used by syscall stubs.
+impl From<seL4_Error> for seL4_Result {
+    fn from(err: seL4_Error) -> seL4_Result {
+        if err == seL4_NoError {
+            Ok(())
+        } else {
+            Err(err)
+        }
+    }
+}
+// NB: usize works for both 32- and 64-bit architectures
+impl From<usize> for seL4_Error {
+    fn from(val: usize) -> seL4_Error {
+        // TODO(sleffler): 10 is seL4_NotEnoughMemory
+        debug_assert!(val <= 10, "Invalid seL4_Error");
+        unsafe { ::core::mem::transmute(val) }
+    }
+}
+
+#[repr(C)]
 #[derive(Copy, Debug)]
 /// Buffer used to store received IPC messages
 pub struct seL4_IPCBuffer {
