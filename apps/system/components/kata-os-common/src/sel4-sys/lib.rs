@@ -248,12 +248,15 @@ pub struct seL4_UntypedDesc {
     /// Whether the backing memory corresponds to some device memory
     pub isDevice: u8,
 }
+impl seL4_UntypedDesc {
+    pub fn is_device(&self) -> bool { self.isDevice != 0 }
+    pub fn size_bits(&self) -> usize { self.sizeBits as usize }
+}
 
 // explicitly *not* Copy. the array at the end is tricky to handle.
+// #[derive]` can't be used on a `#[repr(packed)]` struct that does not derive Copy (error E0133)
 
 #[repr(C, packed)]
-// #[derive]` can't be used on a `#[repr(packed)]` struct that does not derive Copy (error E0133)
-//#[derive(Debug, PartialEq, Eq)]
 pub struct seL4_BootInfo {
     /// Length of any additional bootinfo information
     pub extraLen: seL4_Word,
