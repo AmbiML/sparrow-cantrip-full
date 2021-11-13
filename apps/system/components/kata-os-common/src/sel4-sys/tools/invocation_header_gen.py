@@ -38,7 +38,7 @@ pub enum InvocationLabel {
     {{if condition}}
     #[cfg({{condition}})]
     {{endif}}
-    {{label}} = {{loop.index+1}},
+    {{label}},
     {{endfor}}
 }
 """

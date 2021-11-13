@@ -20,12 +20,17 @@ build = "build.rs"
 # Name of python3 interpreter executable, defaults to "python3"
 PYTHON = "python3"
 
-# Beware CONFIG_KERNEL_MCS must match the kernel config for syscall numbering
-# to line up. Likewise other syscalls are defined only when the associated
-# config knobs are set (e.g. CONFIG_PRINTING).
+# Beware CONFIG_KERNEL_MCS & CONFIG_SMP_SUPPORT must match the kernel
+# config for syscall numbering (aka invocation labeling) to line up.
+# Other syscalls api's are generated only when the associated config
+# knobs are set but do not affect the syscall ABI (e.g. CONFIG_PRINTING).
 [features]
-default = ["CONFIG_PRINTING", "CONFIG_DEBUG_BUILD", "CONFIG_SET_TLS_BASE_SELF"]
-#default = ["CONFIG_KERNEL_MCS", "CONFIG_PRINTING", "CONFIG_DEBUG_BUILD", "CONFIG_SET_TLS_BASE_SELF"]
+default = [
+#    "CONFIG_KERNEL_MCS",
+    "CONFIG_PRINTING",
+    "CONFIG_DEBUG_BUILD",
+    "CONFIG_SET_TLS_BASE_SELF",
+]
 # Changes api, blech
 CONFIG_KERNEL_MCS = []
 CONFIG_PRINTING = []
