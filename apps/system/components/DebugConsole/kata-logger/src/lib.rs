@@ -1,6 +1,7 @@
 #![cfg_attr(not(test), no_std)]
 
 use cstr_core::CStr;
+use core2::io::{Cursor, Write};
 use log::{Metadata, Record};
 
 // TODO(sleffler): until we can copy directly into shared memory limit
@@ -19,7 +20,6 @@ impl log::Log for CantripLogger {
             extern "C" {
                 fn logger_log(level: u8, msg: *const cstr_core::c_char);
             }
-            use bare_io::{Cursor, Write};
             let mut buf = [0 as u8; MAX_MSG_LEN];
             let mut cur = Cursor::new(&mut buf[..]);
             // Log msgs are of the form: '<target>::<fmt'd-msg>
