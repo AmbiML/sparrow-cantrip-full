@@ -155,7 +155,7 @@ assembly {
         vctop.instruction_fault_irq_number = 181;
         vctop.data_fault_irq_number = 182;
 
-        vc_payload.elf_file_paddr = 0x45C00000;
+        vc_payload.elf_file_paddr = 0x46000000;
         vc_payload.elf_file_size = 0x300000;
 
         random.ID = 1;
