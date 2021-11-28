@@ -167,12 +167,12 @@ class Type(object):
             name = "type_"
         return "%s: %s" % (name, translate_type(self.name))
 
-    def pointer(self):
+    def pointer(self, mutable):
         """
         Return a new Type class representing a pointer to this
         object.
         """
-        return PointerType(self, self.wordsize)
+        return PointerType(self, self.wordsize, mutable)
 
     def c_expression(self, var_name, word_num=0):
         """
@@ -198,14 +198,18 @@ class PointerType(Type):
     A pointer to a standard type.
     """
 
-    def __init__(self, base_type, wordsize):
+    def __init__(self, base_type, wordsize, mutable):
         Type.__init__(self, base_type.name, wordsize, wordsize)
         self.base_type = base_type
+        self.mutable = mutable
 
     def render_parameter_name(self, name):
         if name == "type":
             name = "type_"
-        return "%s: *mut %s" % (name, translate_type(self.name))
+        if self.mutable:
+            return "%s: *mut %s" % (name, translate_type(self.name))
+        else:
+            return "%s: *const %s" % (name, translate_type(self.name))
 
     def c_expression(self, var_name, word_num=0):
         assert word_num == 0
@@ -466,10 +470,10 @@ def generate_param_list(input_params, output_params):
         if not param.type.pass_by_reference():
             params.append(param.type.render_parameter_name(param.name))
         else:
-            params.append(param.type.pointer().render_parameter_name(param.name))
+            params.append(param.type.pointer(False).render_parameter_name(param.name))
     for param in output_params:
         if param.type.pass_by_reference():
-            params.append(param.type.pointer().render_parameter_name(param.name))
+            params.append(param.type.pointer(True).render_parameter_name(param.name))
 
     return ", ".join(params)
 
