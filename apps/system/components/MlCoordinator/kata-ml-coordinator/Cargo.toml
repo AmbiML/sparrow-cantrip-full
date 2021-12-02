@@ -8,6 +8,7 @@ edition = "2018"
 cantrip-logger = { path = "../../DebugConsole/cantrip-logger" }
 cantrip-panic = { path = "../../DebugConsole/cantrip-panic" }
 cantrip-ml-interface = { path = "../cantrip-ml-interface" }
+cantrip-ml-core = { path = "../cantrip-ml-core" }
 log = "0.4"
 xmas-elf = "0.8.0"
 

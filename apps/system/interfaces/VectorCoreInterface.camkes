@@ -1,3 +1,0 @@
-procedure VectorCoreInterface {
-  void set_ctrl(in uint32_t ctrl);
-};

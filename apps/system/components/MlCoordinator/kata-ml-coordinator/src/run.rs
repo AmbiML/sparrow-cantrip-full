@@ -1,27 +1,45 @@
 #![no_std]
 
 // ML Coordinator Design Doc: go/sparrow-ml-doc
-
 extern crate cantrip_panic;
 
+use core::slice;
 use cantrip_logger::CantripLogger;
+use cantrip_ml_core::MlCore;
 use cantrip_ml_interface::MlCoordinatorInterface;
+use cantrip_ml_interface::MlCoreInterface;
 use log::{error, info, trace};
 
-mod mlcore;
-
 pub struct MLCoordinator {
-    pub is_loaded: bool,
+    is_loaded: bool,
+    ml_core: MlCore,
 }
 
-pub static mut ML_COORD: MLCoordinator = MLCoordinator { is_loaded: false };
+extern "C" {
+    static elf_file: *const u8;
+}
+// TODO(jesionowski): Get the size programatically.
+const ELF_SIZE: usize = 0x300000;
+
+pub static mut ML_COORD: MLCoordinator = MLCoordinator {
+    is_loaded: false,
+    ml_core: MlCore {},
+};
 
 impl MLCoordinator {
+    fn init(&mut self) {
+        self.ml_core.enable_interrupts(true);
+    }
+
     fn handle_return_interrupt(&self) {
+        extern "C" {
+            fn finish_acknowledge() -> u32;
+        }
+
         // TODO(hcindyl): check the return code and fault registers, move the result
         // from TCM to SRAM, update the input/model, and call mlcoord_execute again.
-        let return_code = mlcore::get_return_code();
-        let fault = mlcore::get_fault_register();
+        let return_code = MlCore::get_return_code();
+        let fault = MlCore::get_fault_register();
 
         if return_code != 0 {
             error!(
@@ -29,17 +47,18 @@ impl MLCoordinator {
                 return_code, fault
             );
         }
+
+        MlCore::clear_finish();
+        assert!(unsafe { finish_acknowledge() == 0 });
     }
 }
 
 impl MlCoordinatorInterface for MLCoordinator {
     fn execute(&mut self) {
-        extern "C" {
-            fn vctop_set_ctrl(ctrl: u32);
-        }
-
         if !self.is_loaded {
-            let res = mlcore::loadelf();
+            let res = self
+                .ml_core
+                .load_elf(unsafe { slice::from_raw_parts(elf_file, ELF_SIZE) });
             if let Err(e) = res {
                 error!("Load error: {:?}", e);
             } else {
@@ -50,9 +69,7 @@ impl MlCoordinatorInterface for MLCoordinator {
 
         if self.is_loaded {
             // Unhalt, start at default PC.
-            unsafe {
-                vctop_set_ctrl(vctop_ctrl(0, 0, 0));
-            }
+            self.ml_core.run();
         }
     }
 }
@@ -66,14 +83,10 @@ pub extern "C" fn pre_init() {
 
 #[no_mangle]
 pub extern "C" fn mlcoord__init() {
-    // TODO(sleffler): maybe not needed?
     trace!("init");
-}
-
-// TODO: Move out of this file into separate (auto-generated?) file.
-// TODO: Consider the modular_bitfield crate to represent bitfields.
-fn vctop_ctrl(freeze: u32, vc_reset: u32, pc_start: u32) -> u32 {
-    (pc_start << 2) + ((vc_reset & 1) << 1) + (freeze & 1)
+    unsafe {
+        ML_COORD.init();
+    }
 }
 
 // TODO: Once multiple model support is in start by name.
@@ -85,8 +98,37 @@ pub extern "C" fn mlcoord_execute() {
 }
 
 #[no_mangle]
-pub extern "C" fn vctop_return_update_result() {
+pub extern "C" fn host_req_handle() {
+    extern "C" {
+        fn host_req_acknowledge() -> u32;
+    }
+    MlCore::clear_host_req();
+    assert!(unsafe { host_req_acknowledge() == 0 });
+}
+
+#[no_mangle]
+pub extern "C" fn finish_handle() {
     unsafe {
         ML_COORD.handle_return_interrupt();
     }
+}
+
+#[no_mangle]
+pub extern "C" fn instruction_fault_handle() {
+    extern "C" {
+        fn instruction_fault_acknowledge() -> u32;
+    }
+    error!("Instruction fault in Vector Core.");
+    MlCore::clear_instruction_fault();
+    assert!(unsafe { instruction_fault_acknowledge() == 0 });
+}
+
+#[no_mangle]
+pub extern "C" fn data_fault_handle() {
+    extern "C" {
+        fn data_fault_acknowledge() -> u32;
+    }
+    error!("Data fault in Vector Core.");
+    MlCore::clear_data_fault();
+    assert!(unsafe { data_fault_acknowledge() == 0 });
 }

@@ -2,6 +2,8 @@
 
 members = [
     "cantrip-ml-coordinator",
+    "cantrip-ml-interface",
+    "cantrip-ml-core"
 ]
 
 [profile.dev]

@@ -1,3 +1,0 @@
-procedure VectorCoreReturnInterface {
-  void update_result();
-};

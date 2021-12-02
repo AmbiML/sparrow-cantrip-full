@@ -4,13 +4,17 @@ import <SecurityCoordinatorInterface.camkes>;
 
 component MlCoordinator {
   provides MlCoordinatorInterface mlcoord;
-  provides VectorCoreReturnInterface vctop_return;
 
+  consumes Interrupt host_req;
+  consumes Interrupt finish;
+  consumes Interrupt instruction_fault;
+  consumes Interrupt data_fault;
+
+  dataport Buf csr;
   dataport Buf(0x300000) elf_file;
   dataport Buf(0x40000) itcm;
   dataport Buf(0x1000000) dtcm;
 
   uses LoggerInterface logger;
   uses SecurityCoordinatorInterface security;
-  uses VectorCoreInterface vctop;
 }

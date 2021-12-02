@@ -1,0 +1,11 @@
+[package]
+name = "cantrip-ml-core"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+cantrip-logger = { path = "../../DebugConsole/cantrip-logger" }
+cantrip-ml-interface = { path = "../cantrip-ml-interface" }
+modular-bitfield = "0.11.2"
+log = "0.4"
+xmas-elf = "0.8.0"

@@ -13,15 +13,12 @@
 import <std_connector.camkes>;
 import <global-connectors.camkes>;
 
-import "interfaces/VectorCoreInterface.camkes";
-import "interfaces/VectorCoreReturnInterface.camkes";
 import "components/OpenTitanUARTDriver/OpenTitanUARTDriver.camkes";
 import "components/DebugConsole/DebugConsole.camkes";
 import "components/ProcessManager/ProcessManager.camkes";
 import "components/MlCoordinator/MlCoordinator.camkes";
 import "components/StorageManager/StorageManager.camkes";
 import "components/SecurityCoordinator/SecurityCoordinator.camkes";
-import "components/VectorCoreDriver/VectorCoreDriver.camkes";
 
 component OpenTitanUART {
     hardware;
@@ -52,7 +49,6 @@ component VectorPayload {
 assembly {
     composition {
         component VectorCoreHw vctop;
-        component VectorCoreDriver vc_drv;
         component VectorPayload vc_payload;
 
         component OpenTitanUART uart;
@@ -75,19 +71,15 @@ assembly {
                                                        to uart_driver.tx_empty);
 
         // VectorCoreDriver
-        connection seL4HardwareMMIO vc_csr(from vc_drv.csr, to vctop.csr);
-        connection seL4RPCCall ml_coord_to_driver(from ml_coordinator.vctop,
-                                                  to vc_drv.vctop);
-        connection seL4RPCCall vc_driver_to_ml_coord(from vc_drv.vctop_return,
-                                                     to ml_coordinator.vctop_return);
+        connection seL4HardwareMMIO vc_csr(from ml_coordinator.csr, to vctop.csr);
         connection seL4HardwareInterrupt vctop_host_req(from vctop.host_req,
-                                                      to vc_drv.host_req);
+                                                      to ml_coordinator.host_req);
         connection seL4HardwareInterrupt vctop_finish(from vctop.finish,
-                                                      to vc_drv.finish);
+                                                      to ml_coordinator.finish);
         connection seL4HardwareInterrupt vctop_instruction_fault(from vctop.instruction_fault,
-                                                      to vc_drv.instruction_fault);
+                                                      to ml_coordinator.instruction_fault);
         connection seL4HardwareInterrupt vctop_data_fault(from vctop.data_fault,
-                                                      to vc_drv.data_fault);
+                                                      to ml_coordinator.data_fault);
         connection seL4HardwareMMIO vc_itcm(from ml_coordinator.itcm,
                                             to vctop.itcm);
         connection seL4HardwareMMIO vc_dtcm(from ml_coordinator.dtcm,
