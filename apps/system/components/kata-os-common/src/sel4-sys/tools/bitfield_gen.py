@@ -287,13 +287,13 @@ rust_type_template = \
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct %(name)s {
-    words: [%(type)s; %(multiple)d],
+    pub words: [%(type)s; %(multiple)d],
 }"""
 
 rust_generator_template = \
 """impl %(block)s {
     #[inline(always)]
-    pub fn new(%(args)s) -> %(block)s {
+    pub fn new(%(args)s) -> Self {
         let mut %(block)s: %(block)s = unsafe { ::core::mem::zeroed() };
 
 %(word_inits)s
@@ -317,8 +317,7 @@ rust_reader_template = \
 """impl %(block)s {
     #[inline(always)]
     pub fn get_%(field)s(&self) -> %(type)s {
-        let mut ret;
-        ret = (self.words[%(index)d] & 0x%(mask)x%(suf)s) %(r_shift_op)s %(shift)d;
+        let mut ret = (self.words[%(index)d] & 0x%(mask)x%(suf)s) %(r_shift_op)s %(shift)d;
         /* Possibly sign extend */
         if (0 != (ret & (1%(suf)s << (%(extend_bit)d)))) {
             ret |= 0x%(high_bits)x;
