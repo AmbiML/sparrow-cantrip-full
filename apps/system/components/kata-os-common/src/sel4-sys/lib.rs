@@ -152,6 +152,31 @@ pub const seL4_MsgMaxLength: usize = 120;
 pub const seL4_MsgExtraCapBits: usize = 2;
 pub const seL4_MsgMaxExtraCaps: usize = (1usize << seL4_MsgExtraCapBits) - 1;
 
+pub const seL4_InvalidPrio: usize = usize::MAX;
+pub const seL4_MinPrio: usize = 0;
+pub const seL4_MaxPrio: usize = 256 - 1; // TODO(sleffler): CONFIG_NUM_PRIORITIES
+
+// MCS definitions
+pub const seL4_MinSchedContextBits: usize = 8;
+// Size of a scheduling context, excluding extra refills.
+pub const seL4_CoreSchedContextBytes: usize = (10 * size_of::<seL4_Word>() + (6 * 8));
+// Size of a single extra refill.
+pub const seL4_RefillSizeBytes: usize = (2 * 8);
+
+// Calculate the max extra refills a scheduling context can contain for a specific size.
+//
+// @param  size of the schedulding context. Must be >= seL4_MinSchedContextBits
+// @return the max number of extra refills that can be passed to seL4_SchedControl_Configure for
+//         this scheduling context
+#[inline]
+pub fn seL4_MaxExtraRefills(size: seL4_Word) -> seL4_Word {
+    ((1 << size) -  seL4_CoreSchedContextBytes) / seL4_RefillSizeBytes
+}
+
+// Flags to be used with seL4_SchedControl_ConfigureFlags
+pub const seL4_SchedContext_NoFlag: usize = 0x0;
+pub const seL4_SchedContext_Sporadic: usize = 0x1;
+
 // Syscall stubs are generated to return seL4_Result unless they return
 // an API struct with an embedded error code. The latter should be replaced
 // too but for now we leave it as-is.
@@ -299,7 +324,7 @@ pub struct seL4_BootInfo {
     /// Root task's domain ID
     pub initThreadDomain: seL4_Domain,
 
-    #[cfg(feature = "SEL4_CONFIG_KERNEL_MCS")]
+    #[cfg(feature = "CONFIG_KERNEL_MCS")]
     // Caps to sched_control for each node
     pub schedcontrol: seL4_SlotRegion,
 

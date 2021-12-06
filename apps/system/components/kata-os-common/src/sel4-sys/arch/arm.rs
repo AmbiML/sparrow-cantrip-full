@@ -71,13 +71,33 @@ pub enum seL4_ObjectType {
     seL4_EndpointObject,
     seL4_NotificationObject,
     seL4_CapTableObject,
+
+    #[cfg(feature = "CONFIG_KERNEL_MCS")]
+    seL4_SchedContextObject,
+    #[cfg(feature = "CONFIG_KERNEL_MCS")]
+    seL4_ReplyObject,
+
     seL4_ARM_SmallPageObject,
     seL4_ARM_LargePageObject,
-    seL4_ARM_SectionObject,
-    seL4_ARM_SuperSectionObject,
+    seL4_ARM_SectionObject,  // XXX aarch32
+    seL4_ARM_SuperSectionObject,  // XXX aarch32
     seL4_ARM_PageTableObject,
     seL4_ARM_PageDirectoryObject,
+
+    #[cfg(feature = "CONFIG_ARM_HYPERVISOR_SUPPORT")]
+    seL4_ARM_VCPUObject,
+
+    #[cfg(feature = "CONFIG_TK1_SMMU")]
+    seL4_ARM_IOPageTableObject,
 }
+impl From<seL4_ObjectType> for seL4_Word {
+    fn from(type_: seL4_ObjectType) -> seL4_Word {
+        type_ as seL4_Word
+    }
+}
+
+// NB: capDL is defined using this (sigh)
+pub const seL4_ObjectTypeCount: isize = seL4_ObjectType::seL4_LastObjectType as isize;
 
 #[inline(always)]
 pub unsafe fn seL4_GetIPCBuffer() -> *mut seL4_IPCBuffer {

@@ -3,5 +3,33 @@ name = "cantrip-os-common"
 version = "0.1.0"
 edition = "2018"
 
+[features]
+default = [
+    "CONFIG_PRINTING",
+    "CONFIG_DEBUG_BUILD",
+#    "CONFIG_KERNEL_MCS",
+]
+CONFIG_ARM_HYPERVISOR_SUPPORT = [
+    "sel4-sys/CONFIG_ARM_HYPERVISOR_SUPPORT",
+]
+CONFIG_ARM_SMMU = [
+    "sel4-sys/CONFIG_ARM_SMMU",
+]
+CONFIG_DEBUG_BUILD = [
+    "sel4-sys/CONFIG_DEBUG_BUILD",
+]
+CONFIG_KERNEL_MCS = [
+    "sel4-sys/CONFIG_KERNEL_MCS",
+]
+CONFIG_PRINTING = [
+    "sel4-sys/CONFIG_PRINTING",
+]
+CONFIG_SMP_SUPPORT = [
+    "sel4-sys/CONFIG_SMP_SUPPORT",
+]
+CONFIG_VTX = [
+    "sel4-sys/CONFIG_VTX",
+]
+
 [dependencies]
 sel4-sys = { path = "src/sel4-sys" }

@@ -58,20 +58,46 @@ pub enum seL4_ObjectType {
     seL4_EndpointObject,
     seL4_NotificationObject,
     seL4_CapTableObject,
+
+    #[cfg(feature = "CONFIG_KERNEL_MCS")]
+    seL4_SchedContextObject,
+    #[cfg(feature = "CONFIG_KERNEL_MCS")]
+    seL4_ReplyObject,
+
     seL4_X86_PDPTObject,
     seL4_X64_PML4Object,
-    // seL4_X64_HugePageObject,
+    #[cfg(feature = "CONFIG_HUGE_PAGE")]
+    seL4_X64_HugePageObject,
+
     seL4_X86_4K,
     seL4_X86_LargePageObject,
     seL4_X86_PageTableObject,
     seL4_X86_PageDirectoryObject,
+
+    #[cfg(feature = "CONFIG_IOMMU")]
     seL4_X86_IOPageTableObject,
+
+    #[cfg(feature = "CONFIG_VTX")]
     seL4_X86_VCPUObject,
+    #[cfg(feature = "CONFIG_VTX")]
     seL4_X86_EPTPML4Object,
+    #[cfg(feature = "CONFIG_VTX")]
     seL4_X86_EPTPDPTObject,
+    #[cfg(feature = "CONFIG_VTX")]
     seL4_X86_EPTPDObject,
+    #[cfg(feature = "CONFIG_VTX")]
     seL4_X86_EPTPTObject,
+
+    seL4_LastObjectType,
 }
+impl From<seL4_ObjectType> for seL4_Word {
+    fn from(type_: seL4_ObjectType) -> seL4_Word {
+        type_ as seL4_Word
+    }
+}
+
+// NB: capDL is defined using this (sigh)
+pub const seL4_ObjectTypeCount: isize = seL4_ObjectType::seL4_LastObjectType as isize;
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
