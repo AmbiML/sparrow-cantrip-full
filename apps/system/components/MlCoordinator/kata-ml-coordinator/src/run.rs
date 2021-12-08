@@ -5,7 +5,7 @@ extern crate cantrip_panic;
 
 use core::slice;
 use cantrip_logger::CantripLogger;
-use cantrip_ml_core::MlCore;
+use cantrip_vec_core::MlCore;
 use cantrip_ml_interface::MlCoordinatorInterface;
 use cantrip_ml_interface::MlCoreInterface;
 use log::{error, info, trace};

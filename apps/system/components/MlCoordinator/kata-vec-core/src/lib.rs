@@ -1,6 +1,6 @@
 #![no_std]
 
-// cantrip-ml-core is the vector core driver. It is responsible for providing
+// cantrip-vec-core is the vector core driver. It is responsible for providing
 // convenient methods for interacting with the hardware.
 
 mod vc_top;
