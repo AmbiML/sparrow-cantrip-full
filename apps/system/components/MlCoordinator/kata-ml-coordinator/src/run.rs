@@ -12,6 +12,8 @@ use log::{error, info, trace};
 
 pub struct MLCoordinator {
     is_loaded: bool,
+    is_running: bool,
+    continous_mode: bool,
     ml_core: MlCore,
 }
 
@@ -23,6 +25,8 @@ const ELF_SIZE: usize = 0x300000;
 
 pub static mut ML_COORD: MLCoordinator = MLCoordinator {
     is_loaded: false,
+    is_running: false,
+    continous_mode: false,
     ml_core: MlCore {},
 };
 
@@ -31,13 +35,13 @@ impl MLCoordinator {
         self.ml_core.enable_interrupts(true);
     }
 
-    fn handle_return_interrupt(&self) {
+    fn handle_return_interrupt(&mut self) {
         extern "C" {
             fn finish_acknowledge() -> u32;
         }
 
-        // TODO(hcindyl): check the return code and fault registers, move the result
-        // from TCM to SRAM, update the input/model, and call mlcoord_execute again.
+        // TODO(jesionowski): Move the result from TCM to SRAM,
+        // update the input/model.
         let return_code = MlCore::get_return_code();
         let fault = MlCore::get_fault_register();
 
@@ -46,6 +50,12 @@ impl MLCoordinator {
                 "vctop execution failed with code {}, fault pc: {:#010X}",
                 return_code, fault
             );
+            self.continous_mode = false;
+        }
+
+        self.is_running = false;
+        if self.continous_mode {
+            self.execute();
         }
 
         MlCore::clear_finish();
@@ -55,6 +65,8 @@ impl MLCoordinator {
 
 impl MlCoordinatorInterface for MLCoordinator {
     fn execute(&mut self) {
+        if self.is_running { return; }
+
         if !self.is_loaded {
             let res = self
                 .ml_core
@@ -68,9 +80,13 @@ impl MlCoordinatorInterface for MLCoordinator {
         }
 
         if self.is_loaded {
-            // Unhalt, start at default PC.
-            self.ml_core.run();
+            self.is_running = true;
+            self.ml_core.run();      // Unhalt, start at default PC.
         }
+    }
+
+    fn set_continuous_mode(&mut self, continous: bool) {
+        self.continous_mode = continous;
     }
 }
 
@@ -94,6 +110,13 @@ pub extern "C" fn mlcoord__init() {
 pub extern "C" fn mlcoord_execute() {
     unsafe {
         ML_COORD.execute();
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn mlcoord_set_continuous_mode(mode: bool) {
+    unsafe {
+        ML_COORD.set_continuous_mode(mode);
     }
 }
 

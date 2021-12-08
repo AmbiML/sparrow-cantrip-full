@@ -1,3 +1,4 @@
 procedure MlCoordinatorInterface {
   void execute();
+  void set_continuous_mode(bool mode);
 };

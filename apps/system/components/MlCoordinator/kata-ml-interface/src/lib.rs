@@ -2,6 +2,7 @@
 
 pub trait MlCoordinatorInterface {
     fn execute(&mut self);
+    fn set_continuous_mode(&mut self, mode: bool);
 }
 
 pub trait MlCoreInterface {

@@ -10,12 +10,12 @@ use log;
 
 use cantrip_io as io;
 use cantrip_line_reader::LineReader;
+use cantrip_os_common::sel4_sys::seL4_DebugDumpScheduler;
 use cantrip_proc_interface::cantrip_pkg_mgmt_install;
 use cantrip_proc_interface::cantrip_pkg_mgmt_uninstall;
 use cantrip_proc_interface::cantrip_proc_ctrl_get_running_bundles;
 use cantrip_proc_interface::cantrip_proc_ctrl_start;
 use cantrip_proc_interface::cantrip_proc_ctrl_stop;
-use cantrip_os_common::sel4_sys::seL4_DebugDumpScheduler;
 use cantrip_storage_interface::cantrip_storage_delete;
 use cantrip_storage_interface::cantrip_storage_read;
 use cantrip_storage_interface::cantrip_storage_write;
@@ -49,6 +49,12 @@ impl From<core::num::ParseIntError> for CommandError {
 
 impl From<core::num::ParseFloatError> for CommandError {
     fn from(_err: core::num::ParseFloatError) -> CommandError {
+        CommandError::BadArgs
+    }
+}
+
+impl From<core::str::ParseBoolError> for CommandError {
+    fn from(_err: core::str::ParseBoolError) -> CommandError {
         CommandError::BadArgs
     }
 }
@@ -114,6 +120,7 @@ fn dispatch_command(cmdline: &str, input: &mut dyn io::BufRead, output: &mut dyn
                 "test_alloc_error" => test_alloc_error_command(output),
                 "test_panic" => test_panic_command(),
                 "test_mlexecute" => test_mlexecute_command(),
+                "test_mlcontinuous" => test_mlcontinuous_command(&mut args),
 
                 _ => Err(CommandError::UnknownCommand),
             };
@@ -208,7 +215,9 @@ fn rz_command(
 
 /// Implements a "ps" command that dumps seL4 scheduler state to the console.
 fn ps_command() -> Result<(), CommandError> {
-    unsafe { seL4_DebugDumpScheduler(); }
+    unsafe {
+        seL4_DebugDumpScheduler();
+    }
     Ok(())
 }
 
@@ -443,4 +452,19 @@ fn test_mlexecute_command() -> Result<(), CommandError> {
         mlcoord_execute();
     }
     Ok(())
+}
+
+/// Implements a command that sets whether the ml execution is continuous.
+fn test_mlcontinuous_command(args: &mut dyn Iterator<Item = &str>) -> Result<(), CommandError> {
+    extern "C" {
+        fn mlcoord_set_continuous_mode(mode: bool);
+    }
+    if let Some(mode_str) = args.nth(0) {
+        let mode = mode_str.parse::<bool>()?;
+        unsafe {
+            mlcoord_set_continuous_mode(mode);
+        }
+        return Ok(());
+    }
+    Err(CommandError::BadArgs)
 }
