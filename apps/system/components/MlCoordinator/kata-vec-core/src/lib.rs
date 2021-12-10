@@ -31,6 +31,24 @@ fn get_dtcm_slice() -> &'static mut [u32] {
 
 pub struct MlCore {}
 
+fn clear_section(start: u32, end: u32, is_itcm: bool) {
+    let init_start = vc_top::InitStart::new()
+        .with_address(start)
+        .with_imem_dmem_sel(is_itcm);
+    vc_top::set_init_start(init_start);
+
+    let init_end = vc_top::InitEnd::new().with_address(end).with_valid(true);
+    vc_top::set_init_end(init_end);
+
+    while !vc_top::get_init_status().init_done() {}
+}
+
+fn clear_tcm() {
+    clear_section(0, ITCM_SIZE as u32, true);
+    // TODO(jesionowski): Enable when DTCM_SIZE fits into INIT_END.
+    // clear_section(0, DTCM_SIZE as u32, false);
+}
+
 impl MlCoreInterface for MlCore {
     fn enable_interrupts(&mut self, enable: bool) {
         let intr_enable = vc_top::IntrEnable::new()
@@ -40,9 +58,6 @@ impl MlCoreInterface for MlCore {
             .with_data_fault(enable);
         vc_top::set_intr_enable(intr_enable);
     }
-
-    // TODO(jesionowski): Implement using hardware clear CSRs.
-    fn clear_tcm(&mut self, _start: *const u32, _len: usize) {}
 
     fn run(&mut self) {
         let ctrl = vc_top::Ctrl::new()
@@ -57,6 +72,8 @@ impl MlCoreInterface for MlCore {
         let dtcm_slice = unsafe { slice::from_raw_parts_mut(dtcm as *mut u8, DTCM_SIZE) };
 
         let elf = ElfFile::new(elf_slice)?;
+
+        clear_tcm();
 
         for seg in elf.program_iter() {
             if seg.get_type()? == Type::Load {
@@ -83,7 +100,7 @@ impl MlCoreInterface for MlCore {
                     if let SegmentData::Undefined(bytes) = seg.get_data(&elf)? {
                         dtcm_slice[..fsize].copy_from_slice(&bytes);
                     }
-                    // TODO(jesionowski): Use clear_tcm instead.
+                    // TODO(jesionowski): Remove when clear_tcm is fully implemented.
                     // Clear NOBITS sections.
                     dtcm_slice[fsize..msize].fill(0x00);
                 } else {

@@ -7,7 +7,6 @@ pub trait MlCoordinatorInterface {
 
 pub trait MlCoreInterface {
     fn enable_interrupts(&mut self, enabled: bool);
-    fn clear_tcm(&mut self, start: *const u32, len: usize);
     fn run(&mut self);
     fn load_elf(&mut self, elf_slice: &[u8]) -> Result<(), &'static str>;
     fn get_return_code() -> u32;

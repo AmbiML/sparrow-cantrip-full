@@ -5,9 +5,9 @@ extern crate cantrip_panic;
 
 use core::slice;
 use cantrip_logger::CantripLogger;
-use cantrip_vec_core::MlCore;
 use cantrip_ml_interface::MlCoordinatorInterface;
 use cantrip_ml_interface::MlCoreInterface;
+use cantrip_vec_core::MlCore;
 use log::{error, info, trace};
 
 pub struct MLCoordinator {
@@ -65,7 +65,9 @@ impl MLCoordinator {
 
 impl MlCoordinatorInterface for MLCoordinator {
     fn execute(&mut self) {
-        if self.is_running { return; }
+        if self.is_running {
+            return;
+        }
 
         if !self.is_loaded {
             let res = self
@@ -81,7 +83,7 @@ impl MlCoordinatorInterface for MLCoordinator {
 
         if self.is_loaded {
             self.is_running = true;
-            self.ml_core.run();      // Unhalt, start at default PC.
+            self.ml_core.run(); // Unhalt, start at default PC.
         }
     }
 
