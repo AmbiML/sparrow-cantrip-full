@@ -1,0 +1,11 @@
+[package]
+name = "sel4-config"
+version = "0.1.0"
+edition = "2018"
+description = "build glue for seL4 kernel configuration"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+cargo_toml = "0.10.2"

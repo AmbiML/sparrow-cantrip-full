@@ -5,6 +5,7 @@ members = [
     "cantrip-security-coordinator",
     "cantrip-security-interface",
 ]
+resolver = "2"
 
 [profile.dev]
 opt-level = 0

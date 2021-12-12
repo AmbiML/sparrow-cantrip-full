@@ -5,6 +5,7 @@ members = [
     "cantrip-ml-interface",
     "cantrip-vec-core"
 ]
+resolver = "2"
 
 [profile.dev]
 opt-level = 0

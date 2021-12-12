@@ -5,6 +5,7 @@ members = [
     "cantrip-storage-interface",
     "cantrip-storage-manager",
 ]
+resolver = "2"
 
 [profile.dev]
 opt-level = 0

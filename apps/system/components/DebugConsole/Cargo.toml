@@ -9,6 +9,7 @@ members = [
     "cantrip-uart-client",
     "zmodem",
 ]
+resolver = "2"
 
 [profile.dev]
 opt-level = 0

@@ -17,23 +17,28 @@ readme = "README.md"
 license = "MIT/Apache-2.0"
 build = "build.rs"
 
+# NB: the sel4-config crate tries to sync features to a kernel build by
+#   parsing build artifacts (see the crate).
+[build-dependencies]
+sel4-config = { path = "../sel4-config" }
+
 # NB: used by build.rs
-[env]
+[build-env]
 # Name of python3 interpreter executable, defaults to "python3"
 PYTHON = "python3"
+
+# Pathname to seL4 kernel source
+SEL4_DIR = "${ROOTDIR}cantrip/kernel"
+
+# Pathname to seL4 kernel build artifacts (used by sel4-config)
+SEL4_OUT_DIR = "${ROOTDIR}out/cantrip/kernel"
 
 # Beware CONFIG_KERNEL_MCS & CONFIG_SMP_SUPPORT must match the kernel
 # config for syscall numbering (aka invocation labeling) to line up.
 # Other syscalls api's are generated only when the associated config
 # knobs are set but do not affect the syscall ABI (e.g. CONFIG_PRINTING).
 [features]
-default = [
-#    "CONFIG_KERNEL_MCS",
-    "CONFIG_PRINTING",
-    "CONFIG_DEBUG_BUILD",
-    "CONFIG_SET_TLS_BASE_SELF",
-]
-# Changes api, blech
+default = []
 CONFIG_KERNEL_MCS = []
 CONFIG_PRINTING = []
 CONFIG_DEBUG_BUILD = []
@@ -44,12 +49,9 @@ CONFIG_BENCHMARK_TRACK_UTILISATION = []
 # TCBSetBreakpoint, TCBUnsetBreakpoint, TCBSetTLSBase
 CONFIG_HARDWARE_DEBUG_API = []
 CONFIG_SET_TLS_BASE_SELF = []
-# note: if you're looking at these, be aware that hypervisor support is not
-# yet available at all. these features shouldn't be enabled.
 CONFIG_VTX = []
 CONFIG_ARM_SMMU = []
 CONFIG_ARM_HYPERVISOR_SUPPORT = []
-unstable = [] # XXX?
 
 [lib]
 path = "lib.rs"
