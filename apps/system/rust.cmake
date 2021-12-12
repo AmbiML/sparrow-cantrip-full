@@ -7,6 +7,10 @@
 cmake_minimum_required(VERSION 3.8.2)
 include_guard(GLOBAL)
 
+# Force TLS-model to be compatible with CAmkES usage.
+# NB: we cannot use CARGO_OPTIONS, cargo will strip it out
+set(RUSTFLAGS "-Z tls-model=local-exec" CACHE INTERNAL "rustc env flags")
+
 list(APPEND CARGO_OPTIONS
   --target riscv32imac-unknown-none-elf
   -Z unstable-options
@@ -15,7 +19,6 @@ list(APPEND CARGO_OPTIONS
 if("${RELEASE}")
     list(APPEND CARGO_OPTIONS "--release")
 endif()
-
 
 # add_library but for rust libraries. Invokes cargo in the SOURCE_DIR that is provided,
 # all build output is placed in BUILD_DIR or CMAKE_CURRENT_BINARY_DIR if BUILD_DIR isn't provided.
@@ -48,7 +51,8 @@ function(RustAddLibrary lib_name)
         DEPENDS ${RUST_DEPENDS}
         WORKING_DIRECTORY ${RUST_SOURCE_DIR}
         COMMAND
-            ${CMAKE_COMMAND} -E env cargo +nightly-2021-08-05 build
+            ${CMAKE_COMMAND} -E env RUSTFLAGS=${RUSTFLAGS}
+            cargo +nightly-2021-08-05 build
             ${CARGO_OPTIONS}
             --target-dir ${RUST_BUILD_DIR}
             --out-dir ${RUST_BUILD_DIR}
