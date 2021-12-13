@@ -7,6 +7,7 @@
 [package]
 name = "sel4-sys"
 version = "0.1.0"
+edition = "2018"
 authors = ["Corey Richardson <corey@octayn.net>"]
 description = "Rust interface to the seL4 kernel"
 documentation = "https://doc.robigalia.org/sel4_sys"
@@ -53,3 +54,4 @@ unstable = [] # XXX?
 path = "lib.rs"
 
 [dependencies]
+static_assertions = "1.1"

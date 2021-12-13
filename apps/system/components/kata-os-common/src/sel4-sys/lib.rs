@@ -12,22 +12,22 @@
 #![feature(thread_local)]
 #![allow(bad_style, unused_parens, unused_assignments)]
 
+use core::mem::size_of;
+use static_assertions::*;
+
 // NB: this mimics the logic in build.rs
-#[cfg(not(any(
+assert_cfg!(any(
     all(target_arch = "arm", target_pointer_width = "32"),
     all(target_arch = "riscv32"),
     all(target_arch = "x86"),
     all(target_arch = "x86_64"),
-)))]
-use architecture_not_supported_sorry;
+));
 
 pub use seL4_BreakpointAccess::*;
 pub use seL4_BreakpointType::*;
 pub use seL4_Error::*;
 pub use seL4_LookupFailureType::*;
 pub use seL4_ObjectType::*;
-
-use core::mem::size_of;
 
 // XXX: These can't be repr(C), but it needs to "match an int" according to the comments on
 // SEL4_FORCE_LONG_ENUM. There's no single type that matches in Rust, so it needs to be
