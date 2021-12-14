@@ -11,10 +11,10 @@ include_guard(GLOBAL)
 # NB: we cannot use CARGO_OPTIONS, cargo will strip it out
 set(RUSTFLAGS "-Z tls-model=local-exec" CACHE INTERNAL "rustc env flags")
 
-list(APPEND CARGO_OPTIONS
-  --target riscv32imac-unknown-none-elf
+set(CARGO_OPTIONS
   -Z unstable-options
-  -Z avoid-dev-deps)
+  -Z avoid-dev-deps
+  CACHE INTERNAL "cargo cmd line arguments")
 
 if("${RELEASE}")
     list(APPEND CARGO_OPTIONS "--release")
@@ -42,6 +42,9 @@ function(RustAddLibrary lib_name)
     if("${RUST_BUILD_DIR}" STREQUAL "")
         set(RUST_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR})
     endif()
+    if("${RUST_TARGET}" STREQUAL "")
+        set(RUST_TARGET "riscv32imac-unknown-none-elf")
+    endif()
 
     add_custom_target(
         ${lib_name}_custom
@@ -53,6 +56,7 @@ function(RustAddLibrary lib_name)
         COMMAND
             ${CMAKE_COMMAND} -E env RUSTFLAGS=${RUSTFLAGS}
             cargo +nightly-2021-08-05 build
+            --target ${RUST_TARGET}
             ${CARGO_OPTIONS}
             --target-dir ${RUST_BUILD_DIR}
             --out-dir ${RUST_BUILD_DIR}

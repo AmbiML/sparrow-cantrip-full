@@ -22,7 +22,6 @@ include(${CMAKE_CURRENT_LIST_DIR}/rust.cmake)
 RustAddLibrary(
   cantrip_debug_console
   SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/components/DebugConsole
-  TARGET "riscv32imc-unknown-none-elf"
   LIB_FILENAME libcantrip_debug_console.a
 )
 
@@ -34,7 +33,6 @@ DeclareCAmkESComponent(DebugConsole
 RustAddLibrary(
   cantrip_process_manager
   SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/components/ProcessManager
-  TARGET "riscv32imc-unknown-none-elf"
   LIB_FILENAME libcantrip_process_manager.a
 )
 
@@ -46,7 +44,6 @@ DeclareCAmkESComponent(ProcessManager
 RustAddLibrary(
   cantrip_ml_coordinator
   SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/components/MlCoordinator
-  TARGET "riscv32imc-unknown-none-elf"
   LIB_FILENAME libcantrip_ml_coordinator.a
 )
 
@@ -58,7 +55,6 @@ DeclareCAmkESComponent(MlCoordinator
 RustAddLibrary(
   cantrip_security_coordinator
   SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/components/SecurityCoordinator
-  TARGET "riscv32imc-unknown-none-elf"
   LIB_FILENAME libcantrip_security_coordinator.a
 )
 
@@ -70,7 +66,6 @@ DeclareCAmkESComponent(SecurityCoordinator
 RustAddLibrary(
   cantrip_storage_manager
   SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/components/StorageManager
-  TARGET "riscv32imc-unknown-none-elf"
   LIB_FILENAME libcantrip_storage_manager.a
 )
 
