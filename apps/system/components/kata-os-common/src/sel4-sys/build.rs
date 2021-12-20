@@ -64,6 +64,7 @@ fn main() {
                 panic!("Unsupported arm word size {}", cargo_target_pointer_width);
             }
         },
+        "aarch64" => ("aarch64", "arm"),
         "riscv32" => ("riscv32", "riscv"),
         "riscv64" => ("riscv64", "riscv"),
         _ => {

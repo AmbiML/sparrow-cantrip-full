@@ -18,6 +18,7 @@ use static_assertions::*;
 // NB: this mimics the logic in build.rs
 assert_cfg!(any(
     all(target_arch = "arm", target_pointer_width = "32"),
+    all(target_arch = "aarch64"),
     all(target_arch = "riscv32"),
     all(target_arch = "x86"),
     all(target_arch = "x86_64"),
@@ -93,7 +94,10 @@ include!("arch/x86.rs");
 include!("arch/x86_64.rs");
 
 #[cfg(all(target_arch = "arm", target_pointer_width = "32"))]
-include!("arch/arm.rs");
+include!("arch/aarch32.rs");
+
+#[cfg(target_arch = "aarch64")]
+include!("arch/aarch64.rs");
 
 #[cfg(target_arch = "riscv32")]
 include!("arch/riscv.rs");
@@ -107,6 +111,9 @@ include!(concat!(env!("OUT_DIR"), "/x86_64_invocation.rs"));
 #[cfg(all(target_arch = "arm", target_pointer_width = "32"))]
 include!(concat!(env!("OUT_DIR"), "/aarch32_invocation.rs"));
 
+#[cfg(target_arch = "aarch64")]
+include!(concat!(env!("OUT_DIR"), "/aarch64_invocation.rs"));
+
 #[cfg(target_arch = "riscv32")]
 include!(concat!(env!("OUT_DIR"), "/riscv32_invocation.rs"));
 
@@ -118,6 +125,9 @@ include!(concat!(env!("OUT_DIR"), "/x86_64_syscall_stub.rs"));
 
 #[cfg(all(target_arch = "arm", target_pointer_width = "32"))]
 include!(concat!(env!("OUT_DIR"), "/aarch32_syscall_stub.rs"));
+
+#[cfg(target_arch = "aarch64")]
+include!(concat!(env!("OUT_DIR"), "/aarch64_syscall_stub.rs"));
 
 #[cfg(target_arch = "riscv32")]
 include!(concat!(env!("OUT_DIR"), "/riscv32_syscall_stub.rs"));
