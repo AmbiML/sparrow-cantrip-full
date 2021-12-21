@@ -119,8 +119,8 @@ fn main() {
            "--dest",
            &*format!("{}/{}_invocation.rs", out_dir, arch),
            &*xml_interfaces_file,
-           &*xml_arch_file,
            &*xml_sel4_arch_file,
+           &*xml_arch_file,
        ]);
     println!("Running {:?}", cmd);
     assert!(cmd.status().unwrap().success());
