@@ -12,7 +12,8 @@ use xmas_elf::program::{SegmentData, Type};
 use xmas_elf::ElfFile;
 
 // TODO(jesionowski): Move these constants to an auto-generated file.
-const ITCM_SIZE: usize = 0x40000;
+// TODO(b/214092253): ITCM size blow-up needs to be addressed.
+const ITCM_SIZE: usize = 0x100000;
 const ITCM_PADDR: usize = 0x30000000;
 const DTCM_SIZE: usize = 0x1000000;
 const DTCM_PADDR: usize = 0x34000000;
