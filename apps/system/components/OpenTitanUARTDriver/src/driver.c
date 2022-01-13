@@ -45,7 +45,8 @@
 // Read/write access to a 32-bit register of UART0, using substrings of the
 // #define names in opentitan/uart.h. (The literal 0 is the value of ##id##
 // substitutions in uart.h.)
-#define REG(name) *((volatile uint32_t *)(UART_##name(0)))
+#define REG(name) *((volatile uint32_t *)(UART0_BASE_ADDR + UART_##name##_REG_OFFSET))
+
 
 #define SHIFT_DOWN_AND_MASK(regval, regname, subfield) \
   ((regval >> UART_##regname##_##subfield##_OFFSET) &  \
@@ -79,7 +80,7 @@ static uint32_t tx_fifo_level() {
 //
 // Prefer this to FIFO_STATUS.RXLVL, which the simulation has sometimes reported
 // as zero even when "not STATUS.RXEMPTY."
-static bool rx_empty() { return REG(STATUS) & (1 << UART_STATUS_RXEMPTY); }
+static bool rx_empty() { return REG(STATUS) & BIT(UART_STATUS_RXEMPTY_BIT); }
 
 // Reads one byte from the hardware read data register.
 //
@@ -131,13 +132,13 @@ void pre_init() {
   assert(ctrl_nco < 0xffff);
 
   // Sets baud rate and enables TX and RX.
-  REG(CTRL) = MASK_AND_SHIFT_UP(ctrl_nco, CTRL, NCO) | BIT(UART_CTRL_TX) |
-              BIT(UART_CTRL_RX);
+  REG(CTRL) = MASK_AND_SHIFT_UP(ctrl_nco, CTRL, NCO) | BIT(UART_CTRL_TX_BIT) |
+              BIT(UART_CTRL_RX_BIT);
 
   // Resets TX and RX FIFOs.
   uint32_t fifo_ctrl = REG(FIFO_CTRL);
   REG(FIFO_CTRL) =
-      fifo_ctrl | BIT(UART_FIFO_CTRL_RXRST) | BIT(UART_FIFO_CTRL_TXRST);
+      fifo_ctrl | BIT(UART_FIFO_CTRL_RXRST_BIT) | BIT(UART_FIFO_CTRL_TXRST_BIT);
 
   // Sets FIFO watermarks.
   fifo_ctrl = REG(FIFO_CTRL);
@@ -167,8 +168,8 @@ void pre_init() {
 
   // Enables interrupts.
   REG(INTR_ENABLE) =
-      (BIT(UART_INTR_COMMON_TX_WATERMARK) | BIT(UART_INTR_COMMON_RX_WATERMARK) |
-       BIT(UART_INTR_COMMON_TX_EMPTY));
+      (BIT(UART_INTR_COMMON_TX_WATERMARK_BIT) | BIT(UART_INTR_COMMON_RX_WATERMARK_BIT) |
+       BIT(UART_INTR_COMMON_TX_EMPTY_BIT));
 }
 
 // Implements Rust Read::read().
@@ -262,7 +263,7 @@ void tx_watermark_handle(void) {
   // similar check to the one in tx_empty_handle is necessary here, since
   // tx_empty will eventually assert and cause anything left in tx_buf to be
   // flushed out.
-  REG(INTR_STATE) = BIT(UART_INTR_STATE_TX_WATERMARK);
+  REG(INTR_STATE) = BIT(UART_INTR_STATE_TX_WATERMARK_BIT);
 
   CANTRIP_ASSERT(tx_watermark_acknowledge() == 0);
 }
@@ -294,7 +295,7 @@ void rx_watermark_handle(void) {
   UNLOCK(rx_mutex);
 
   // Clears INTR_STATE for rx_watermark. (INTR_STATE is write-1-to-clear.)
-  REG(INTR_STATE) = BIT(UART_INTR_STATE_RX_WATERMARK);
+  REG(INTR_STATE) = BIT(UART_INTR_STATE_RX_WATERMARK_BIT);
   CANTRIP_ASSERT(rx_watermark_acknowledge() == 0);
 }
 
@@ -312,7 +313,7 @@ void tx_empty_handle(void) {
     // only do this if tx_buf is empty, since the TX FIFO might have become
     // empty in the time from fill_tx_fifo having sent the last character
     // until here. In that case, we want the interrupt to reassert.
-    REG(INTR_STATE) = BIT(UART_INTR_STATE_TX_EMPTY);
+    REG(INTR_STATE) = BIT(UART_INTR_STATE_TX_EMPTY_BIT);
   }
   UNLOCK(tx_mutex);
   CANTRIP_ASSERT(tx_empty_acknowledge() == 0);
