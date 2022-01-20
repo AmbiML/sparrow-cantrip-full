@@ -130,11 +130,11 @@ assembly {
     }
 
     configuration {
-        uart.mmio_region_paddr = 0x40010000;
+        uart.mmio_region_paddr = 0x50000000;
         uart.mmio_region_size = 0x1000;
-        uart.tx_watermark_irq_number = 9;
-        uart.rx_watermark_irq_number = 10;
-        uart.tx_empty_irq_number = 11;
+        uart.tx_watermark_irq_number = 1;
+        uart.rx_watermark_irq_number = 2;
+        uart.tx_empty_irq_number = 3;
 
         vctop.csr_paddr = 0x48000000;
         vctop.csr_size = 0x1000;
@@ -142,10 +142,10 @@ assembly {
         vctop.itcm_size = 0x40000;
         vctop.dtcm_paddr = 0x34000000;
         vctop.dtcm_size = 0x1000000;
-        vctop.host_req_irq_number = 179;
-        vctop.finish_irq_number = 180;
-        vctop.instruction_fault_irq_number = 181;
-        vctop.data_fault_irq_number = 182;
+        vctop.host_req_irq_number = 11;
+        vctop.finish_irq_number = 12;
+        vctop.instruction_fault_irq_number = 13;
+        vctop.data_fault_irq_number = 14;
 
         vc_payload.elf_file_paddr = 0x46000000;
         vc_payload.elf_file_size = 0x300000;
