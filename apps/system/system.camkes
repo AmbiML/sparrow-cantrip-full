@@ -136,7 +136,7 @@ assembly {
         uart.rx_watermark_irq_number = 2;
         uart.tx_empty_irq_number = 3;
 
-        vctop.csr_paddr = 0x48000000;
+        vctop.csr_paddr = 0x47000000;
         vctop.csr_size = 0x1000;
         vctop.itcm_paddr = 0x30000000;
         vctop.itcm_size = 0x40000;
