@@ -76,6 +76,11 @@ static uint32_t tx_fifo_level() {
   return SHIFT_DOWN_AND_MASK(REG(FIFO_STATUS), FIFO_STATUS, TXLVL);
 }
 
+// Gets the number of unread bytes in the RX FIFO from hardware MMIO.
+static uint32_t rx_fifo_level() {
+  return SHIFT_DOWN_AND_MASK(REG(FIFO_STATUS), FIFO_STATUS, RXLVL);
+}
+
 // Gets whether the receive FIFO empty status bit is set.
 //
 // Prefer this to FIFO_STATUS.RXLVL, which the simulation has sometimes reported
@@ -276,7 +281,8 @@ void tx_watermark_handle(void) {
 void rx_watermark_handle(void) {
   LOCK(rx_mutex);
   while (!rx_empty()) {
-    if (circular_buffer_remaining(&rx_buf) == 0) {
+    size_t buffer_remaining = circular_buffer_remaining(&rx_buf);
+    if (buffer_remaining == 0) {
       // The buffer is full.
       //
       // We want to stay in this invocation of the interrupt handler until the
@@ -289,7 +295,11 @@ void rx_watermark_handle(void) {
       LOCK(rx_mutex);
       continue;
     }
-    CANTRIP_ASSERT(circular_buffer_push_back(&rx_buf, uart_getchar()));
+    size_t to_read = rx_fifo_level();
+    to_read = to_read > buffer_remaining ? buffer_remaining : to_read;
+    while(to_read--) {
+      CANTRIP_ASSERT(circular_buffer_push_back(&rx_buf, uart_getchar()));
+    }
   }
   CANTRIP_ASSERT(rx_nonempty_semaphore_post() == 0);
   UNLOCK(rx_mutex);
