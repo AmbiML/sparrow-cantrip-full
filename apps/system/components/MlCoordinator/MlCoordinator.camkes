@@ -12,7 +12,7 @@ component MlCoordinator {
 
   dataport Buf csr;
   dataport Buf(0x300000) elf_file;
-  dataport Buf(0x40000) itcm;
+  dataport Buf(0x100000) itcm;
   dataport Buf(0x1000000) dtcm;
 
   uses LoggerInterface logger;
