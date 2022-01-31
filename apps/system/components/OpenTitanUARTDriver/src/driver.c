@@ -7,6 +7,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <assert.h>
 #include <camkes.h>
 #include <sel4/syscalls.h>
 #include <stdbool.h>
@@ -16,6 +17,13 @@
 #include "circular_buffer.h"
 #include "opentitan/uart.h"
 #include "uart_driver_error.h"
+
+// NB: CANTRIP_ASSERTs preserve expr when not checking
+#ifdef CONFIG_DEBUG_BUILD
+#define CANTRIP_ASSERT(expr) assert(expr)
+#else
+#define CANTRIP_ASSERT(expr) ((void)(expr))
+#endif
 
 // Referenced by macros in the generated file opentitan/uart.h.
 #define UART0_BASE_ADDR (void *)mmio_region
@@ -47,8 +55,8 @@
   ((value & UART_##regname##_##subfield##_MASK)     \
    << UART_##regname##_##subfield##_OFFSET)
 
-#define LOCK(lockname) seL4_Assert(lockname##_lock() == 0)
-#define UNLOCK(lockname) seL4_Assert(lockname##_unlock() == 0)
+#define LOCK(lockname) CANTRIP_ASSERT(lockname##_lock() == 0)
+#define UNLOCK(lockname) CANTRIP_ASSERT(lockname##_unlock() == 0)
 #define ASSERT_OR_RETURN(x)            \
   if (!(bool)(x)) {                    \
     return UARTDriver_AssertionFailed; \
@@ -117,10 +125,10 @@ void pre_init() {
 
   // Computes NCO value corresponding to baud rate.
   // nco = 2^20 * baud / fclk  (assuming NCO width is 16-bit)
-  seL4_CompileTimeAssert(UART_CTRL_NCO_MASK == 0xffff);
+  compile_time_assert(NCO, UART_CTRL_NCO_MASK == 0xffff);
   uint64_t baud = 115200ull;
   uint64_t ctrl_nco = ((uint64_t)baud << 20) / CLK_FIXED_FREQ_HZ;
-  seL4_Assert(ctrl_nco < 0xffff);
+  assert(ctrl_nco < 0xffff);
 
   // Sets baud rate and enables TX and RX.
   REG(CTRL) = MASK_AND_SHIFT_UP(ctrl_nco, CTRL, NCO) | BIT(UART_CTRL_TX) |
@@ -178,13 +186,13 @@ int read_read(size_t limit) {
   LOCK(rx_mutex);
   while (circular_buffer_empty(&rx_buf)) {
     UNLOCK(rx_mutex);
-    seL4_Assert(rx_nonempty_semaphore_wait() == 0);
+    CANTRIP_ASSERT(rx_nonempty_semaphore_wait() == 0);
     LOCK(rx_mutex);
   }
   while (cursor < cursor_limit) {
     if (!circular_buffer_pop_front(&rx_buf, cursor)) {
       // The buffer is empty.
-      seL4_Assert(rx_empty_semaphore_post() == 0);
+      CANTRIP_ASSERT(rx_empty_semaphore_post() == 0);
       break;
     }
     ++cursor;
@@ -256,7 +264,7 @@ void tx_watermark_handle(void) {
   // flushed out.
   REG(INTR_STATE) = BIT(UART_INTR_STATE_TX_WATERMARK);
 
-  seL4_Assert(tx_watermark_acknowledge() == 0);
+  CANTRIP_ASSERT(tx_watermark_acknowledge() == 0);
 }
 
 // Handles an rx_watermark interrupt.
@@ -274,20 +282,20 @@ void rx_watermark_handle(void) {
       // RX FIFO is empty, since the rx_watermark interrupt will not fire again
       // until the RX FIFO level crosses from 0 to 1. Therefore we unblock any
       // pending reads and wait for enough reads to consume all of rx_buf.
-      seL4_Assert(rx_nonempty_semaphore_post() == 0);
+      CANTRIP_ASSERT(rx_nonempty_semaphore_post() == 0);
       UNLOCK(rx_mutex);
-      seL4_Assert(rx_empty_semaphore_wait() == 0);
+      CANTRIP_ASSERT(rx_empty_semaphore_wait() == 0);
       LOCK(rx_mutex);
       continue;
     }
-    seL4_Assert(circular_buffer_push_back(&rx_buf, uart_getchar()));
+    CANTRIP_ASSERT(circular_buffer_push_back(&rx_buf, uart_getchar()));
   }
-  seL4_Assert(rx_nonempty_semaphore_post() == 0);
+  CANTRIP_ASSERT(rx_nonempty_semaphore_post() == 0);
   UNLOCK(rx_mutex);
 
   // Clears INTR_STATE for rx_watermark. (INTR_STATE is write-1-to-clear.)
   REG(INTR_STATE) = BIT(UART_INTR_STATE_RX_WATERMARK);
-  seL4_Assert(rx_watermark_acknowledge() == 0);
+  CANTRIP_ASSERT(rx_watermark_acknowledge() == 0);
 }
 
 // Handles a tx_empty interrupt.
@@ -307,5 +315,5 @@ void tx_empty_handle(void) {
     REG(INTR_STATE) = BIT(UART_INTR_STATE_TX_EMPTY);
   }
   UNLOCK(tx_mutex);
-  seL4_Assert(tx_empty_acknowledge() == 0);
+  CANTRIP_ASSERT(tx_empty_acknowledge() == 0);
 }

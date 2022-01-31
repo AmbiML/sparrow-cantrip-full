@@ -10,7 +10,6 @@ use log;
 
 use cantrip_io as io;
 use cantrip_line_reader::LineReader;
-use cantrip_os_common::sel4_sys::seL4_DebugDumpScheduler;
 use cantrip_proc_interface::cantrip_pkg_mgmt_install;
 use cantrip_proc_interface::cantrip_pkg_mgmt_uninstall;
 use cantrip_proc_interface::cantrip_proc_ctrl_get_running_bundles;
@@ -110,7 +109,7 @@ fn dispatch_command(cmdline: &str, input: &mut dyn io::BufRead, output: &mut dyn
                 "install" => install_command(&mut args, output),
                 "loglevel" => loglevel_command(&mut args, output),
                 "rz" => rz_command(input, output),
-                "ps" => ps_command(),
+                "ps" => ps_command(output),
                 "scecho" => scecho_command(cmdline, output),
                 "start" => start_command(&mut args, output),
                 "stop" => stop_command(&mut args, output),
@@ -214,11 +213,17 @@ fn rz_command(
 }
 
 /// Implements a "ps" command that dumps seL4 scheduler state to the console.
-fn ps_command() -> Result<(), CommandError> {
+#[cfg(feature = "CONFIG_DEBUG_BUILD")]
+fn ps_command(_output: &mut dyn io::Write) -> Result<(), CommandError> {
     unsafe {
-        seL4_DebugDumpScheduler();
+        cantrip_os_common::sel4_sys::seL4_DebugDumpScheduler();
     }
     Ok(())
+}
+
+#[cfg(not(feature = "CONFIG_DEBUG_BUILD"))]
+fn ps_command(output: &mut dyn io::Write) -> Result<(), CommandError> {
+    Ok(writeln!(output, "Kernel support not configured!")?)
 }
 
 /// Implements a binary float addition command.
