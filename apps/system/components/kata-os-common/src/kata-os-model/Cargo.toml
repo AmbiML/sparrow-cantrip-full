@@ -1,0 +1,39 @@
+[package]
+name = "cantrip-os-model"
+version = "0.1.0"
+edition = "2018"
+build = "build.rs"
+
+[build-dependencies]
+sel4-config = { path = "../sel4-config" }
+
+[build-env]
+SEL4_OUT_DIR = "${ROOTDIR}out/cantrip/kernel"
+
+[features]
+default = [
+    "CONFIG_CAPDL_SHARED_FRAMES",  # NB: required for CAmkES
+]
+CONFIG_ARM_HYPERVISOR_SUPPORT = []
+CONFIG_ARM_SMMU = []
+CONFIG_CAPDL_LOADER_CC_REGISTERS = []
+CONFIG_CAPDL_LOADER_STATIC_ALLOC = []
+CONFIG_CAPDL_LOADER_WRITEABLE_PAGES = []
+CONFIG_CAPDL_SHARED_FRAMES = []
+CONFIG_DEBUG_BUILD = []
+CONFIG_KERNEL_MCS = []
+CONFIG_PRINTING = []
+CONFIG_SMP_SUPPORT = []
+CONFIG_VTX = []
+
+[lib]
+path = "mod.rs"
+
+[dependencies]
+capdl = { path = "../capdl" }
+cpio = { git = "https://github.com/rcore-os/cpio" }
+cstr_core = "0.2.3"
+log = "0.4"
+sel4-sys = { path = "../sel4-sys" }
+smallvec = "1.2"
+static_assertions = "1.1"

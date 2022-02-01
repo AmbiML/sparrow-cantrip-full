@@ -1,0 +1,4 @@
+max_width = 100
+fn_call_width = 78
+fn_single_line = true
+force_multiline_blocks = true

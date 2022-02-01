@@ -14,6 +14,7 @@ pub const seL4_WordSizeBits: usize = 2;
 pub const seL4_PageBits: usize = 12;
 pub const seL4_SlotBits: usize = 4;
 pub const seL4_TCBBits: usize = 9;
+pub const seL4_ReplyBits: usize = 4;
 pub const seL4_EndpointBits: usize = 4;
 pub const seL4_PageTableEntryBits: usize = 2;
 pub const seL4_PageTableIndexBits: usize = 10;
@@ -23,6 +24,11 @@ pub const seL4_VSpaceBits: usize = seL4_PageTableBits;
 pub const seL4_NumASIDPoolBits: usize = 5;
 pub const seL4_ASIDPoolIndexBits: usize = 4;
 pub const seL4_ASIDPoolBits: usize = 12;
+
+#[cfg(feature = "CONFIG_KERNEL_MCS")]
+pub const seL4_NotificationBits: usize = 5;
+#[cfg(not(feature = "CONFIG_KERNEL_MCS"))]
+pub const seL4_NotificationBits: usize = 4;
 
 pub type seL4_RISCV_Page = seL4_CPtr;
 pub type seL4_RISCV_PageTable = seL4_CPtr;

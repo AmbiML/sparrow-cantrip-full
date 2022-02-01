@@ -1,0 +1,24 @@
+[package]
+name = "capdl"
+version = "0.1.0"
+edition = "2018"
+build = "build.rs"
+
+[build-dependencies]
+sel4-config = { path = "../sel4-config" }
+
+[build-env]
+SEL4_OUT_DIR = "${ROOTDIR}out/cantrip/kernel"
+
+[features]
+default = []
+CONFIG_DEBUG_BUILD = []
+CONFIG_KERNEL_MCS = []
+
+[lib]
+path = "mod.rs"
+
+[dependencies]
+cstr_core = { version = "0.2.3", default-features = false }
+sel4-sys = { path = "../sel4-sys" }
+log = "0.4"
