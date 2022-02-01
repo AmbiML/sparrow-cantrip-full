@@ -11,7 +11,7 @@ component MlCoordinator {
   consumes Interrupt data_fault;
 
   dataport Buf csr;
-  dataport Buf(0x300000) elf_file;
+  dataport Buf(0x1000000) elf_file;
   dataport Buf(0x100000) itcm;
   dataport Buf(0x1000000) dtcm;
 
