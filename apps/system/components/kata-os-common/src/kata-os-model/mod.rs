@@ -19,7 +19,6 @@ use core::mem::size_of;
 use core::ptr;
 use cpio::CpioNewcReader;
 use cstr_core::CStr;
-use cstr_core::CString;
 use log::{debug, error, trace};
 use smallvec::SmallVec;
 use static_assertions::*;
@@ -40,7 +39,6 @@ use sel4_sys::seL4_CNode_Mint;
 use sel4_sys::seL4_CNode_Move;
 use sel4_sys::seL4_CNode_Mutate;
 use sel4_sys::seL4_CPtr;
-use sel4_sys::seL4_DebugNameThread;
 use sel4_sys::seL4_DomainSet_Set;
 use sel4_sys::seL4_Error::*;
 use sel4_sys::seL4_Error;
@@ -129,7 +127,7 @@ const_assert!(seL4_WordBits == 32 || seL4_WordBits == 64);
 
 const CONFIG_CAPDL_LOADER_FILLS_PER_FRAME: usize = 1;
 
-fn BIT(bit_num: usize) -> usize { 1 << bit_num }
+fn _BIT(bit_num: usize) -> usize { 1 << bit_num }
 fn ROUND_UP(a: usize, b: usize) -> usize {
     if (a % b) == 0 {
         a
@@ -762,8 +760,6 @@ impl<'a> CantripOsModel<'a> {
             }
         };
 
-        let cstr_opt = CString::new(cdl_tcb.name());
-
         // XXX will panic if missing any of CSpace, VSpace, IPCBuffer
         let cdl_cspace_root = cdl_tcb.get_cap_at(CDL_TCB_CTable_Slot).unwrap();
         let cdl_vspace_root = cdl_tcb.get_cap_at(CDL_TCB_VTable_Slot).unwrap();
@@ -826,7 +822,8 @@ impl<'a> CantripOsModel<'a> {
 
         #[cfg(feature = "CONFIG_DEBUG_BUILD")]
         // Name the thread after its TCB name if possible.
-        if let Ok(cstr) = cstr_opt {
+        if let Ok(cstr) = cstr_core::CString::new(cdl_tcb.name()) {
+            use sel4_sys::seL4_DebugNameThread;
             unsafe { seL4_DebugNameThread(sel4_tcb, cstr.to_bytes_with_nul()) };
         }
         Ok(())
