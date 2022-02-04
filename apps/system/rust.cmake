@@ -16,10 +16,6 @@ set(CARGO_OPTIONS
   -Z avoid-dev-deps
   CACHE INTERNAL "cargo cmd line arguments")
 
-if("${RELEASE}")
-    list(APPEND CARGO_OPTIONS "--release")
-endif()
-
 # add_library but for rust libraries. Invokes cargo in the SOURCE_DIR that is provided,
 # all build output is placed in BUILD_DIR or CMAKE_CURRENT_BINARY_DIR if BUILD_DIR isn't provided.
 # lib_name: Name of library that is created
@@ -46,6 +42,10 @@ function(RustAddLibrary lib_name)
         set(RUST_TARGET "riscv32imac-unknown-none-elf")
     endif()
 
+    if("${RELEASE}")
+        set(CARGO_RELEASE "--release")
+    endif()
+
     add_custom_target(
         ${lib_name}_custom
         BYPRODUCTS
@@ -57,7 +57,7 @@ function(RustAddLibrary lib_name)
             ${CMAKE_COMMAND} -E env RUSTFLAGS=${RUSTFLAGS}
             cargo +nightly-2021-08-05 build
             --target ${RUST_TARGET}
-            ${CARGO_OPTIONS}
+            ${CARGO_OPTIONS} ${CARGO_RELEASE}
             --target-dir ${RUST_BUILD_DIR}
             --out-dir ${RUST_BUILD_DIR}
     )
