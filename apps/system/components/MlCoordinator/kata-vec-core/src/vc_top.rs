@@ -2,6 +2,7 @@
 
 #![allow(unused)]
 use modular_bitfield::prelude::*;
+use core::ptr;
 
 #[bitfield]
 pub struct IntrState {
@@ -89,7 +90,7 @@ extern "C" {
 }
 
 pub fn get_intr_state() -> IntrState {
-    unsafe { IntrState::from_bytes((*csr)[0].to_ne_bytes()) }
+    unsafe { IntrState::from_bytes(ptr::read_volatile(csr)[0].to_ne_bytes()) }
 }
 
 pub fn set_intr_state(intr_state: IntrState) {
@@ -99,7 +100,7 @@ pub fn set_intr_state(intr_state: IntrState) {
 }
 
 pub fn get_intr_enable() -> IntrEnable {
-    unsafe { IntrEnable::from_bytes((*csr)[1].to_ne_bytes()) }
+    unsafe { IntrEnable::from_bytes(ptr::read_volatile(csr)[1].to_ne_bytes()) }
 }
 
 pub fn set_intr_enable(intr_enable: IntrEnable) {
@@ -109,7 +110,7 @@ pub fn set_intr_enable(intr_enable: IntrEnable) {
 }
 
 pub fn get_intr_test() -> IntrTest {
-    unsafe { IntrTest::from_bytes((*csr)[2].to_ne_bytes()) }
+    unsafe { IntrTest::from_bytes(ptr::read_volatile(csr)[2].to_ne_bytes()) }
 }
 
 pub fn set_intr_test(intr_test: IntrTest) {
@@ -119,7 +120,7 @@ pub fn set_intr_test(intr_test: IntrTest) {
 }
 
 pub fn get_ctrl() -> Ctrl {
-    unsafe { Ctrl::from_bytes((*csr)[3].to_ne_bytes()) }
+    unsafe { Ctrl::from_bytes(ptr::read_volatile(csr)[3].to_ne_bytes()) }
 }
 
 pub fn set_ctrl(ctrl: Ctrl) {
@@ -129,7 +130,7 @@ pub fn set_ctrl(ctrl: Ctrl) {
 }
 
 pub fn get_memory_bank_ctrl() -> MemoryBankCtrl {
-    unsafe { MemoryBankCtrl::from_bytes((*csr)[4].to_ne_bytes()) }
+    unsafe { MemoryBankCtrl::from_bytes(ptr::read_volatile(csr)[4].to_ne_bytes()) }
 }
 
 pub fn set_memory_bank_ctrl(memory_bank_ctrl: MemoryBankCtrl) {
@@ -139,7 +140,7 @@ pub fn set_memory_bank_ctrl(memory_bank_ctrl: MemoryBankCtrl) {
 }
 
 pub fn get_error_status() -> ErrorStatus {
-    unsafe { ErrorStatus::from_bytes((*csr)[5].to_ne_bytes()) }
+    unsafe { ErrorStatus::from_bytes(ptr::read_volatile(csr)[5].to_ne_bytes()) }
 }
 
 pub fn set_error_status(error_status: ErrorStatus) {
@@ -149,7 +150,7 @@ pub fn set_error_status(error_status: ErrorStatus) {
 }
 
 pub fn get_init_start() -> InitStart {
-    unsafe { InitStart::from_bytes((*csr)[6].to_ne_bytes()) }
+    unsafe { InitStart::from_bytes(ptr::read_volatile(csr)[6].to_ne_bytes()) }
 }
 
 pub fn set_init_start(init_start: InitStart) {
@@ -159,7 +160,7 @@ pub fn set_init_start(init_start: InitStart) {
 }
 
 pub fn get_init_end() -> InitEnd {
-    unsafe { InitEnd::from_bytes((*csr)[7].to_ne_bytes()) }
+    unsafe { InitEnd::from_bytes(ptr::read_volatile(csr)[7].to_ne_bytes()) }
 }
 
 pub fn set_init_end(init_end: InitEnd) {
@@ -169,7 +170,7 @@ pub fn set_init_end(init_end: InitEnd) {
 }
 
 pub fn get_init_status() -> InitStatus {
-    unsafe { InitStatus::from_bytes((*csr)[8].to_ne_bytes()) }
+    unsafe { InitStatus::from_bytes(ptr::read_volatile(csr)[8].to_ne_bytes()) }
 }
 
 pub fn set_init_status(init_status: InitStatus) {
