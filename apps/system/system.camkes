@@ -138,7 +138,7 @@ assembly {
 
         vctop.csr_paddr = 0x47000000;
         vctop.csr_size = 0x1000;
-        vctop.itcm_paddr = 0x30000000;
+        vctop.itcm_paddr = 0x32000000;
         vctop.itcm_size = 0x100000;
         vctop.dtcm_paddr = 0x34000000;
         vctop.dtcm_size = 0x1000000;
@@ -148,8 +148,8 @@ assembly {
         vctop.data_fault_irq_number = 14;
 
         vc_payload.elf_file_paddr = 0x46000000;
-        vc_payload.elf_file_size = 0x1000000;        
-        
+        vc_payload.elf_file_size = 0x1000000;
+
 
         random.ID = 1;
 
