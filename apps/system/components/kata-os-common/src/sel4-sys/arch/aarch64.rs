@@ -9,23 +9,48 @@
  * @TAG(NICTA_BSD)
  */
 
-pub const seL4_WordBits: usize = 32;
+use static_assertions::assert_cfg;
+assert_cfg!(target_arch = "aarch64");
+
+use cfg_if::cfg_if;
+
+pub const seL4_WordBits: usize = 64;
 pub const seL4_PageBits: usize = 12;
 pub const seL4_SlotBits: usize = 5;
 
-pub const seL4_TCBBits: usize = 11;
-#[cfg(feature = "CONFIG_KERNEL_MCS")]
-pub const seL4_NotificationBits: usize = 6;
-#[cfg(feature = "CONFIG_KERNEL_MCS")]
-pub const seL4_ReplyBits: usize = 5;
-
-#[cfg(not(feature = "CONFIG_KERNEL_MCS"))]
-pub const seL4_NotificationBits: usize = 5;
-
-pub const seL4_EndpointBits: usize = 4;
-pub const seL4_PageTableBits: usize = 12;
-pub const seL4_PageDirBits: usize = 12;
 pub const seL4_ASIDPoolBits: usize = 12;
+pub const seL4_EndpointBits: usize = 4;
+pub const seL4_IOPageTableBits: usize = 12;
+pub const seL4_HugePageBits: usize = 30;
+pub const seL4_LargePageBits: usize = 21;
+pub const seL4_PageDirBits: usize = 12;
+pub const seL4_PageDirIndexBits: usize = 9;
+pub const seL4_PageTableBits: usize = 12;
+pub const seL4_PageTableIndexBits: usize = 9;
+pub const seL4_ReplyBits: usize = 5;
+pub const seL4_TCBBits: usize = 11;
+
+cfg_if! {
+    if #[cfg(feature = "CONFIG_KERNEL_MCS")] {
+        pub const seL4_NotificationBits: usize = 6;
+    } else {
+        pub const seL4_NotificationBits: usize = 5;
+    }
+}
+
+cfg_if! {
+    if #[cfg(all(feature = "CONFIG_ARM_HYPERVISOR_SUPPORT", feature = "CONFIG_ARM_PA_SIZE_BITS_40"))] {
+        pub const seL4_PUDIndexBits: usize = 10;
+        pub const seL4_PUDBits: usize = 13;
+        pub const seL4_PGDIndexBits: usize = 0;
+        pub const seL4_PGDBits: usize = 0;
+    } else {
+        pub const seL4_PUDIndexBits: usize = 9;
+        pub const seL4_PUDBits: usize = 12;
+        pub const seL4_PGDIndexBits: usize = 9;
+        pub const seL4_PGDBits: usize = 13;
+    }
+}
 
 pub const seL4_Frame_Args: usize = 4;
 pub const seL4_Frame_MRs: usize = 7;
@@ -41,6 +66,9 @@ pub type seL4_ARM_VSpace = seL4_CPtr;
 
 #[cfg(feature = "arch_generic")]
 include!("arm_generic.rs");
+
+pub use seL4_ARM_PageUpperDirectoryObject as seL4_PageUpperDirectoryObject;
+pub use seL4_ARM_PageGlobalDirectoryObject as seL4_PageGlobalDirectoryObject;
 
 error_types!(u64);
 
@@ -94,7 +122,7 @@ pub enum seL4_ARM_VMAttributes {
     ExecuteNever = 4,
 }
 impl From<u32> for seL4_ARM_VMAttributes {
-    fn from(val: u32) -> seL4_RISCV_VMAttributes {
+    fn from(val: u32) -> seL4_ARM_VMAttributes {
         unsafe { ::core::mem::transmute(val & 7) }
     }
 }
@@ -102,7 +130,7 @@ pub const seL4_ARM_Default_VMAttributes: seL4_ARM_VMAttributes =
     seL4_ARM_VMAttributes::Default;
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum seL4_ObjectType {
     seL4_UntypedObject = 0,
     seL4_TCBObject,
@@ -115,6 +143,10 @@ pub enum seL4_ObjectType {
     #[cfg(feature = "CONFIG_KERNEL_MCS")]
     seL4_ReplyObject,
 
+    seL4_ARM_HugePageObject,
+    seL4_ARM_PageUpperDirectoryObject,
+    seL4_ARM_PageGlobalDirectoryObject,
+
     seL4_ARM_SmallPageObject,
     seL4_ARM_LargePageObject,
     seL4_ARM_PageTableObject,
@@ -125,15 +157,46 @@ pub enum seL4_ObjectType {
 
     #[cfg(feature = "CONFIG_TK1_SMMU")]
     seL4_ARM_IOPageTableObject,
+
+    seL4_LastObjectType,
+}
+impl seL4_ObjectType {
+    // Returns the log2 size of fixed-size objects; typically for use
+    // with seL4_Retype_Untyped. seL4_UntypedObject has no fixed-size,
+    // callers must specify a size. seL4_CapTableObject has a per-slot
+    // fixed-size that callers must scale by the #slots.
+    // seL4_SchedContextObject size must be in the range
+    // [seL4_MinSchedContextBits..seL4_MaxSchedContextBits].
+    pub fn size_bits(&self) -> Option<usize> {
+        match self {
+            seL4_TCBObject => Some(seL4_TCBBits),
+            seL4_EndpointObject => Some(seL4_EndpointBits),
+            seL4_NotificationObject =>  Some(seL4_EndpointBits),
+            #[cfg(feature = "CONFIG_KERNEL_MCS")]
+            seL4_ReplyObject => Some(seL4_ReplyBits),
+            #[cfg(feature = "CONFIG_KERNEL_MCS")]
+            seL4_SchedContextObject => Some(seL4_MinSchedContextBits), // XXX maybe None?
+            // NB: caller must scale by #slots
+            seL4_CapTableObject => Some(seL4_SlotBits),
+
+            seL4_ARM_HugePageObject => Some(seL4_HugePageBits),
+            seL4_ARM_PageUpperDirectoryObject => Some(seL4_PUDBits),
+            seL4_ARM_PageGlobalDirectoryObject => Some(seL4_PGDBits),
+
+            seL4_ARM_SmallPageObject => Some(seL4_PageBits),
+            seL4_ARM_LargePageObject => Some(seL4_LargePageBits),
+            seL4_ARM_PageTableObject => Some(seL4_PageTableBits),
+            seL4_ARM_PageDirectoryObject => Some(seL4_PageDirBits),
+
+            _ => None,
+        }
+    }
 }
 impl From<seL4_ObjectType> for seL4_Word {
     fn from(type_: seL4_ObjectType) -> seL4_Word {
         type_ as seL4_Word
     }
 }
-
-// NB: capDL is defined using this (sigh)
-// pub const seL4_ObjectTypeCount: isize = seL4_ObjectType::seL4_LastObjectType as isize;
 
 #[inline(always)]
 pub unsafe fn seL4_GetIPCBuffer() -> *mut seL4_IPCBuffer {

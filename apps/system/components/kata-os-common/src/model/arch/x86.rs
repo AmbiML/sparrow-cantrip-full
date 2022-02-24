@@ -4,6 +4,7 @@ use static_assertions::assert_cfg;
 assert_cfg!(target_arch = "x86");
 
 use log::{debug, error, info, trace, warn};
+use sel4_sys::seL4_Result;
 
 pub const PAGE_SIZE: usize = 4096;
 pub const STACK_ALIGNMENT_BYTES: usize = 16;
@@ -23,6 +24,21 @@ pub fn is_irq(type_: CDL_ObjectType) -> bool {
 
 // Identifies objects that need to be instantiated.
 pub fn requires_creation(type_: CDL_ObjectType) -> bool { !is_irq(type_) }
+
+pub unsafe fn seL4_Page_Map_Flush(
+    _sel4_page: seL4_Page,
+    _page_type: seL4_ObjectType,
+    _rights: seL4_CapRights,
+    _vm_attribs: seL4_VMAttributes,
+) -> seL4_Result { Ok(()) }
+
+pub fn get_frame_type(object_size: seL4_Word) -> seL4_ObjectType {
+    match object_size {
+        seL4_PageBits => seL4_X86_4K,
+        seL4_LargePageBits => seL4_X86_LargePageObject,
+        _ => panic!("Unexpected frame size {}", object_size),
+    }
+}
 
 pub fn create_irq_cap(irq: CDL_IRQ, obj: &CDL_Object, free_slot: seL4_CPtr) -> seL4_Error {
     let root = seL4_CapInitThreadCNode;

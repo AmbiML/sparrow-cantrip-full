@@ -1,14 +1,14 @@
 // Static Object Allocation.
 // Expect a statically-allocated capDL spec.
 
-use crate::CantripOsModel;
-use capdl::CDL_ObjectType::*;
 use capdl::*;
+use capdl::CDL_ObjectType::*;
+use crate::arch;
+use crate::CantripOsModel;
 use log::debug;
 use smallvec::SmallVec;
 
-use crate::arch::seL4_ASIDControl_MakePool;
-
+use sel4_sys::seL4_ASIDControl_MakePool;
 use sel4_sys::seL4_CapASIDControl;
 use sel4_sys::seL4_CapInitThreadCNode;
 use sel4_sys::seL4_CPtr;
@@ -94,7 +94,7 @@ impl<'a> CantripOsModel<'a> {
                 let untyped_cptr = self.state.get_untyped_cptr(ut_index);
 
                 assert!(
-                    !capdl_obj_type.requires_creation(),
+                    !arch::requires_creation(capdl_obj_type),
                     "Object {} requires dynamic allocation",
                     obj.name()
                 );

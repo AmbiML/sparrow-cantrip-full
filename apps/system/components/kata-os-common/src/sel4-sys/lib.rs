@@ -161,6 +161,9 @@ pub type seL4_Untyped = seL4_CPtr;
 // TODO(sleffler): seL4 uses seL4_Uint64 but it's not defined for us
 pub type seL4_Time = u64;
 
+// NB: capDL CDL_ObjectType is defined using this (sigh)
+pub const seL4_ObjectTypeCount: isize = seL4_ObjectType::seL4_LastObjectType as isize;
+
 pub const seL4_MsgLengthBits: usize = 7;
 pub const seL4_MsgMaxLength: usize = 120;
 pub const seL4_MsgExtraCapBits: usize = 2;

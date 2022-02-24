@@ -9,9 +9,14 @@ assert_cfg!(any(target_arch = "riscv32", target_arch = "riscv64"));
 use capdl::CDL_ObjectType::*;
 use capdl::*;
 
+use sel4_sys::seL4_CapRights;
+use sel4_sys::seL4_ObjectType;
+use sel4_sys::seL4_Page;
 use sel4_sys::seL4_PageBits;
 use sel4_sys::seL4_PageDirIndexBits;
 use sel4_sys::seL4_PageTableIndexBits;
+use sel4_sys::seL4_Result;
+use sel4_sys::seL4_VMAttributes;
 use sel4_sys::seL4_Word;
 
 pub const PAGE_SIZE: usize = 4096; // Base page size
@@ -34,3 +39,10 @@ pub fn is_irq(type_: CDL_ObjectType) -> bool { type_ == CDL_Interrupt }
 // by architectures that have device objects that are not backed by
 // untyped memory (i.e. that need creation).
 pub fn requires_creation(type_: CDL_ObjectType) -> bool { !is_irq(type_) }
+
+pub unsafe fn seL4_Page_Map_Flush(
+    _sel4_page: seL4_Page,
+    _page_type: seL4_ObjectType,
+    _rights: seL4_CapRights,
+    _vm_attribs: seL4_VMAttributes,
+) -> seL4_Result { Ok(()) }
