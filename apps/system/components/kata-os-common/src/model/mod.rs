@@ -7,7 +7,6 @@
 #![allow(non_upper_case_globals)]
 #![allow(non_snake_case)]
 
-use capdl::kobject_t::*;
 use capdl::CDL_CapType::*;
 use capdl::CDL_FrameFillType_t::*;
 use capdl::CDL_FrameFill_BootInfoEnum_t::*;
@@ -31,7 +30,7 @@ use static_assertions::*;
 #[cfg_attr(target_arch = "aarch64", path = "arch/aarch64.rs")]
 #[cfg_attr(
     all(target_arch = "arm", target_pointer_width = "32"),
-    path = "arch/arm.rs"
+    path = "arch/aarch32.rs"
 )]
 #[cfg_attr(target_arch = "riscv32", path = "arch/riscv32.rs")]
 #[cfg_attr(target_arch = "x86", path = "arch/x86.rs")]
@@ -40,6 +39,7 @@ mod arch;
 
 use arch::is_irq;
 use arch::PAGE_SIZE; // Base  page size, typically 4KB
+use arch::seL4_Page_Map_Flush; // XXX temp until moved to sel4_sys
 
 // Allocation-specific support
 #[cfg_attr(
@@ -361,14 +361,14 @@ impl<'a> CantripOsModel<'a> {
         let arch_type: seL4_ObjectType = match obj.r#type() {
             CDL_Frame => {
                 // Calculate the frame-size-specific cap.
-                arch::kobject_get_type(KOBJECT_FRAME, obj_size)
+                arch::get_frame_type(obj_size)
             }
             CDL_ASIDPool => {
                 obj_size = seL4_ASIDPoolBits;
                 seL4_UntypedObject
             }
             CDL_SchedContext => {
-                obj_size = arch::kobject_get_size(KOBJECT_SCHED_CONTEXT, obj_size);
+                obj_size = core::cmp::max(obj_size, seL4_MinSchedContextBits);
                 CDL_SchedContext.into()
             }
             obj_type => obj_type.into(),
@@ -736,9 +736,13 @@ impl<'a> CantripOsModel<'a> {
             page_cap.vm_attribs());
 
         // FIXME: Add support for super-pages.
-        // NB: arch::seL4_Page_Map handles arch-specific work like
-        //     marking the NX bit and invalidating/flushing caches.
-        let mut result = unsafe { seL4_Page_Map(sel4_page, sel4_pd, vaddr, rights, vm_attribs) };
+        // NB: seL4_Page_Map handles marking the NX bit, we explicitly
+        //   call seL4_Page_Map_Flush to invalidate and/or flush caches.
+        let mut result = unsafe {
+            seL4_Page_Map(sel4_page, sel4_pd, vaddr, rights, vm_attribs).and_then(|_|
+                seL4_Page_Map_Flush(self.get_object(page).r#type().into(), sel4_page, rights, vm_attribs)
+            )
+        };
         #[cfg(feature = "CONFIG_CAPDL_SHARED_FRAMES")]
         if result == Err(seL4_InvalidCapability) {
             // Page is shared (and already mapped); clone a copy of the page
@@ -963,7 +967,8 @@ impl<'a> CantripOsModel<'a> {
         let target_cap_rights = target_cap.cap_rights();
 
         // For endpoint this is the badge, for cnodes, this is the (encoded) guard.
-        let target_cap_data = target_cap.cap_data();
+        #[allow(unused_mut)]
+        let mut target_cap_data = target_cap.cap_data();
 
         /* To support moving original caps, we need a spec with a CDT (most don't).
          * This shoud probably become a separate configuration option for when to
@@ -986,13 +991,13 @@ impl<'a> CantripOsModel<'a> {
         // Use an original cap to reference the object to copy.
         let src_root = seL4_CapInitThreadCNode;
         let (move_cap, src_index) = match target_cap_type {
-            #[cfg(target_arch = "x86")]
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             CDL_IOSpaceCap => (false, seL4_CapIOSpace),
 
-            #[cfg(target_arch = "arm")]
+            #[cfg(any(target_arch = "arm", target_arch = "aarch64"))]
             CDL_ARMIOSpaceCap => {
                 target_cap_data = 0;
-                (false, first_arm_iospace + target_cap_data)
+                (false, self.first_arm_iospace + target_cap_data)
             }
 
             CDL_IRQHandlerCap => (false, self.get_irq_cap(target_cap_irq)),

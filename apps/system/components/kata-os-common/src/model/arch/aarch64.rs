@@ -8,30 +8,32 @@ assert_cfg!(target_arch = "aarch64");
 mod arm;
 pub use arm::*;
 
-use crate::CantripOsModel;
-use capdl::kobject_t::*;
+use capdl::*;
 use capdl::CDL_CapType::*;
 use capdl::CDL_ObjectType::*;
-use capdl::*;
-use log::{error, trace};
+use crate::CantripOsModel;
 
+use sel4_sys::seL4_ARM_PageDirectory_Map;
+use sel4_sys::seL4_ARM_PageUpperDirectory_Map;
 use sel4_sys::seL4_CapInitThreadCNode;
 use sel4_sys::seL4_CapIRQControl;
 use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_Error;
-use sel4_sys::seL4_IRQControl_Get;
+use sel4_sys::seL4_HugePageBits;
+use sel4_sys::seL4_IRQControl_GetTrigger;
+use sel4_sys::seL4_LargePageBits;
 use sel4_sys::seL4_ObjectType::*;
+use sel4_sys::seL4_ObjectType;
 use sel4_sys::seL4_PageBits;
 use sel4_sys::seL4_PageDirIndexBits;
 use sel4_sys::seL4_PageTableIndexBits;
+use sel4_sys::seL4_PGDIndexBits;
 use sel4_sys::seL4_PUDIndexBits;
 use sel4_sys::seL4_Result;
 use sel4_sys::seL4_UserContext;
+use sel4_sys::seL4_VMAttributes;
 use sel4_sys::seL4_Word;
-
-pub use arm::PAGE_SIZE;
-pub const STACK_ALIGNMENT_BYTES: usize = 16;
-pub const REG_ARGS: seL4_Word = 4; // Number of regs for passing thread args
+use sel4_sys::seL4_WordBits;
 
 pub const CDL_PT_LEVEL_1_IndexBits: usize = seL4_PUDIndexBits;
 pub const CDL_PT_LEVEL_2_IndexBits: usize = seL4_PageDirIndexBits;
@@ -39,17 +41,21 @@ pub const CDL_PT_LEVEL_3_IndexBits: usize = seL4_PageTableIndexBits;
 
 fn MASK(pow2_bits: usize) -> usize { (1 << pow2_bits) - 1 }
 
-pub fn PD_SLOT(vaddr: usize) -> usize {
-    (vaddr >> (seL4_PageTableIndexBits + seL4_PageBits)) & MASK(seL4_PageDirIndexBits)
+pub fn PGD_SLOT(vaddr: usize) -> usize {
+    (vaddr >> (seL4_PUDIndexBits + seL4_PageDirIndexBits + seL4_PageTableIndexBits + seL4_PageBits)) & MASK(seL4_PGDIndexBits)
 }
-// NB: used for tcb_args::maybe_spill_tcb_args
-pub fn PT_SLOT(vaddr: usize) -> usize { (vaddr >> seL4_PageBits) & MASK(seL4_PageTableIndexBits) }
+pub fn PUD_SLOT(vaddr: usize) -> usize {
+    (vaddr >> (seL4_PageDirIndexBits + seL4_PageTableIndexBits + seL4_PageBits)) & MASK(seL4_PUDIndexBits)
+}
 
-// Identifies IRQ objects that potentially need special processing.
-pub fn is_irq(type_: CDL_ObjectType) -> bool { type_ == CDL_ARMInterrupt || type_ == CDL_Interrupt }
-
-// Identifies objects that need to be instantiated.
-pub fn requires_creation(type_: CDL_ObjectType) -> bool { !is_irq(type_) }
+pub fn get_frame_type(object_size: seL4_Word) -> seL4_ObjectType {
+    match object_size {
+        seL4_PageBits => seL4_ARM_SmallPageObject,
+        seL4_LargePageBits => seL4_ARM_LargePageObject,
+        seL4_HugePageBits => seL4_ARM_HugePageObject,
+        _ => panic!("Unexpected frame size {}", object_size),
+    }
+}
 
 pub fn create_irq_cap(irq: CDL_IRQ, obj: &CDL_Object, free_slot: seL4_CPtr) -> seL4_Result {
     assert_eq!(obj.r#type(), CDL_ARMInterrupt);
@@ -94,40 +100,6 @@ pub fn get_user_context(cdl_tcb: &CDL_Object, sp: seL4_Word) -> *const seL4_User
 
         &regs as *const seL4_UserContext
     }
-}
-
-pub fn kobject_get_size(t: kobject_t, object_size: seL4_Word) -> seL4_Word {
-    if t == KOBJECT_FRAME && object_size == seL4_HugePageBits {
-        return object_size;
-    }
-    if t == KOBJECT_PAGE_UPPER_DIRECTORY {
-        return seL4_PUDBits;
-    }
-    #[cfg(feature = "CONFIG_KERNEL_MCS")]
-    if t == KOBJECT_SCHED_CONTEXT {
-        return core::cmp::max(object_size, sel4_sys::seL4_MinSchedContextBits);
-    }
-    error!("Unexpected object: type {:?} size {}", t, object_size);
-    0
-}
-pub fn kobject_get_type(t: kobject_t, object_size: seL4_Word) -> seL4_ObjectType {
-    match t {
-        KOBJECT_PAGE_GLOBAL_DIRECTORY => {
-            return seL4_ARM_PageGlobalDirectoryObject;
-        }
-        KOBJECT_PAGE_UPPER_DIRECTORY => {
-            return seL4_ARM_PageUpperDirectoryObject;
-        }
-        KOBJECT_FRAME => {
-            if object_size == seL4_HugePageBits {
-                return seL4_ARM_HugePageObject;
-            }
-            error!("Unexpected frame size {}", object_size);
-        }
-        _ => {}
-    }
-    error!("Unexpected object: type {:?} size {}", t, object_size);
-    seL4_InvalidObjectType
 }
 
 impl<'a> CantripOsModel<'a> {
@@ -214,11 +186,11 @@ impl<'a> CantripOsModel<'a> {
                     base,
                 )?;
             } else {
-                let level_3_obj = level_3_cap.obj_id;
                 self.map_page_dir(level_2_cap, level_0_obj, base)?;
-                self.init_level_2(level_0_obj, base, level_2_obj.obj_id)?;
+                self.init_level_2(level_0_obj, base, level_2_cap.obj_id)?;
             }
         }
+        Ok(())
     }
 
     fn map_page_dir(&self, page_cap: &CDL_Cap, pd_id: CDL_ObjID, vaddr: seL4_Word) -> seL4_Result {
@@ -240,19 +212,19 @@ impl<'a> CantripOsModel<'a> {
         &mut self,
         level_0_obj: CDL_ObjID,
         level_0_base: usize,
-        level_0_obj: CDL_ObjID,
-    ) -> Result<(), seL4_Error> {
+        _level_0_obj: CDL_ObjID,
+    ) -> seL4_Result {
         for slot in self.get_object(level_0_obj).slots_slice() {
-            let base = level_0_base
-                + (slot.slot
+            let base = (level_0_base + slot.slot)
                     << (CDL_PT_LEVEL_1_IndexBits
                         + CDL_PT_LEVEL_2_IndexBits
                         + CDL_PT_LEVEL_3_IndexBits
-                        + seL4_PageBits));
+                        + seL4_PageBits);
             let level_1_cap = &slot.cap;
             self.map_page_upper_dir(level_1_cap, level_0_obj, base)?;
             self.init_level_1(level_0_obj, base, level_1_cap.obj_id)?;
         }
+        Ok(())
     }
 
     fn map_page_upper_dir(
@@ -277,7 +249,7 @@ impl<'a> CantripOsModel<'a> {
 
     pub fn get_cdl_frame_pt(&self, pd: CDL_ObjID, vaddr: usize) -> Option<&'a CDL_Cap> {
         let pd_cap = self.get_cdl_frame_pd(pd, vaddr)?;
-        self.get_spec_object(pd_cap.obj_id)
+        self.get_object(pd_cap.obj_id)
             .get_cap_at(PD_SLOT(vaddr))
     }
 
@@ -286,15 +258,15 @@ impl<'a> CantripOsModel<'a> {
             feature = "CONFIG_ARM_HYPERVISOR_SUPPORT",
             feature = "CONFIG_ARM_PA_SIZE_BITS_40"
         )) {
-            self.get_spec_object(root).get_cap_at(PUD_SLOT(vaddr))
+            self.get_object(root).get_cap_at(PUD_SLOT(vaddr))
         } else {
             let pud_cap = self.get_cdl_frame_pud(root, vaddr)?;
-            self.get_spec_object(pud_cap.obj_id)
+            self.get_object(pud_cap.obj_id)
                 .get_cap_at(PUD_SLOT(vaddr))
         }
     }
 
     fn get_cdl_frame_pud(&self, root: CDL_ObjID, vaddr: usize) -> Option<&'a CDL_Cap> {
-        self.get_spec_object(root).get_cap_at(PGD_SLOT(vaddr))
+        self.get_object(root).get_cap_at(PGD_SLOT(vaddr))
     }
 }

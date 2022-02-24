@@ -1,5 +1,18 @@
 extern crate sel4_config;
 use std::env;
+use std::fs;
+use std::io::Write;
+
+#[derive(serde::Deserialize)]
+struct PlatformInfo {
+    memory: Vec<MemoryRange>,
+}
+
+#[derive(serde::Deserialize)]
+struct MemoryRange {
+    start: u64,
+    end: u64,
+}
 
 fn main() {
     // If SEL4_OUT_DIR is not set we expect the kernel build at a fixed
@@ -17,5 +30,25 @@ fn main() {
     println!("features={:?}", features);
     for feature in features {
         println!("cargo:rustc-cfg=feature=\"{}\"", feature);
+    }
+
+    // Some architectures need informations from platform_yaml.
+    let platform_yaml_path = format!("{}/gen_headers/plat/machine/platform_gen.yaml", sel4_out_dir);
+    if let Ok(platform_yaml) = fs::File::open(&platform_yaml_path) {
+        let platform_info: PlatformInfo = serde_yaml::from_reader(platform_yaml).expect("invalid yaml file");
+        let out_dir = env::var("OUT_DIR").unwrap();
+        let out_path = std::path::Path::new(&out_dir).join("platform_gen.rs");
+        let mut out_file = fs::File::create(&out_path).unwrap();
+
+        writeln!(&mut out_file,
+            "struct MemoryRegion {{
+                 start: usize,
+                 end: usize,
+            }}").unwrap();
+        writeln!(&mut out_file, "const MEMORY_REGIONS: [MemoryRegion; {}] = [", platform_info.memory.len()).unwrap();
+        for range in platform_info.memory {
+            writeln!(&mut out_file, "    MemoryRegion {{ start: 0x{:X}, end: 0x{:X} }},", range.start, range.end).ok();
+        }
+        writeln!(&mut out_file, "];").ok();
     }
 }

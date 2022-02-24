@@ -1,11 +1,10 @@
 // Dynamic Object Allocation.
 
-use crate::CantripOsModel;
-use capdl::kobject_t::KOBJECT_FRAME;
-use capdl::CDL_FrameFillType_t::*;
-use capdl::CDL_FrameFill_BootInfoEnum_t::*;
-use capdl::CDL_ObjectType::*;
 use capdl::*;
+use capdl::CDL_FrameFill_BootInfoEnum_t::*;
+use capdl::CDL_FrameFillType_t::*;
+use capdl::CDL_ObjectType::*;
+use crate::CantripOsModel;
 use log::{debug, info, trace};
 use smallvec::SmallVec;
 
@@ -29,8 +28,7 @@ use sel4_sys::seL4_Untyped_Retype;
 use sel4_sys::seL4_Word;
 use sel4_sys::seL4_WordBits;
 
-use crate::arch::kobject_get_type;
-use crate::arch::requires_creation;
+use crate::arch;
 
 use static_assertions::assert_cfg;
 assert_cfg!(not(feature = "CONFIG_CAPDL_LOADER_STATIC_ALLOC"));
@@ -70,7 +68,7 @@ impl<'a> CantripOsModel<'a> {
         let mut free_slot_index = 0;
         for (obj_id, obj) in self.spec.obj_slice().iter()
             .enumerate()
-            .filter(|(_, obj)| requires_creation(obj.r#type()))
+            .filter(|(_, obj)| arch::requires_creation(obj.r#type()))
         {
             let free_slot = self.free_slot_start + free_slot_index;
 
@@ -304,7 +302,7 @@ impl<'a> CantripOsModel<'a> {
                 unsafe {
                     seL4_Untyped_Retype(
                         ut_slot,
-                        kobject_get_type(KOBJECT_FRAME, seL4_PageBits).into(),
+                        arch::get_frame_type(seL4_PageBits).into(),
                         seL4_PageBits,
                         seL4_CapInitThreadCNode,
                         0,

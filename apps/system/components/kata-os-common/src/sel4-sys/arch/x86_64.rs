@@ -53,7 +53,7 @@ include!("x86_generic.rs");
 error_types!(u64);
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum seL4_ObjectType {
     seL4_UntypedObject = 0,
     seL4_TCBObject,
@@ -97,9 +97,6 @@ impl From<seL4_ObjectType> for seL4_Word {
         type_ as seL4_Word
     }
 }
-
-// NB: capDL is defined using this (sigh)
-pub const seL4_ObjectTypeCount: isize = seL4_ObjectType::seL4_LastObjectType as isize;
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
