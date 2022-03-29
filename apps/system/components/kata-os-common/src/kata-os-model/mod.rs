@@ -19,7 +19,7 @@ use core::mem::size_of;
 use core::ptr;
 use cpio::CpioNewcReader;
 use cstr_core::CStr;
-use log::{debug, error, trace};
+use log::{debug, info, error, trace};
 use smallvec::SmallVec;
 use static_assertions::*;
 
@@ -127,7 +127,7 @@ const_assert!(seL4_WordBits == 32 || seL4_WordBits == 64);
 
 const CONFIG_CAPDL_LOADER_FILLS_PER_FRAME: usize = 1;
 
-fn _BIT(bit_num: usize) -> usize { 1 << bit_num }
+fn BIT(bit_num: usize) -> usize { 1 << bit_num }
 fn ROUND_UP(a: usize, b: usize) -> usize {
     if (a % b) == 0 {
         a
@@ -193,6 +193,8 @@ pub struct CantripOsModel<'a> {
     #[cfg(feature = "CONFIG_ARM_SMMU")]
     sid_number: usize,
 
+    untyped_cnode: CDL_ObjID,
+
     extended_bootinfo_table: [*const seL4_BootInfoHeader; SEL4_BOOTINFO_HEADER_NUM],
 
     vspace_roots: SmallVec<[CDL_ObjID; 32]>, // NB: essentially #components
@@ -218,6 +220,8 @@ impl<'a> CantripOsModel<'a> {
 
             #[cfg(feature = "CONFIG_ARM_SMMU")]
             sid_number: 0,
+
+            untyped_cnode: CDL_ObjID::MAX,
 
             extended_bootinfo_table: [ptr::null(); SEL4_BOOTINFO_HEADER_NUM],
 
@@ -252,6 +256,19 @@ impl<'a> CantripOsModel<'a> {
         trace!("Initialize CSpaces...");
         self.init_cspaces()?;
 
+        Ok(())
+    }
+
+    pub fn handoff_capabilities(&mut self) -> seL4_Result {
+        // Hand-off capabilities needed to dynamically create seL4 objects.
+        // The MemoryManager needs the UntypedMemory slabs to instantiate
+        // objects. The ProcessManager needs various other object(s) to
+        // configure TCB's but those are expressed with capDL and moved
+        // as part of the work done by init_cspsace.
+
+        if is_objid_valid(self.untyped_cnode) {
+            self.handoff_untypeds(self.untyped_cnode)?;
+        }
         Ok(())
     }
 
@@ -468,6 +485,7 @@ impl<'a> CantripOsModel<'a> {
             let endpoint_obj = endpoint_cap.obj_id;
             let badge = endpoint_cap.cap_data();
             let endpoint_cptr = if badge != 0 {
+                // Endpoint needs badging, mint a new cap
                 self.mint_cap(endpoint_obj, badge)?
             } else {
                 self.get_orig_cap(endpoint_obj)
@@ -554,7 +572,8 @@ impl<'a> CantripOsModel<'a> {
         match bi.type_ {
             CDL_FrameFill_BootInfo_X86_VBE
             | CDL_FrameFill_BootInfo_X86_TSC_Freq
-            | CDL_FrameFill_BootInfo_FDT => {}
+            | CDL_FrameFill_BootInfo_FDT
+            | CDL_FrameFill_BootInfo_BootInfo => {}
             _ => {
                 panic!("Unsupported bootinfo frame fill type {:?}", bi.type_)
             }
@@ -566,8 +585,10 @@ impl<'a> CantripOsModel<'a> {
         let header: *const seL4_BootInfoHeader =
             self.extended_bootinfo_table[usize::from(bi.type_)];
 
-        /* Check if the bootinfo has been found */
-        if header.is_null() {
+        // Check if the bootinfo has been found.
+        if bi.type_ == CDL_FrameFill_BootInfo_BootInfo {
+            self.fill_with_bootinfo(dest, max_len);
+        } else if header.is_null() {
             /* No bootinfo.
              * If we're at the start of a block, copy an empty header across, otherwise skip the copy */
             if block_offset == 0 {
@@ -593,6 +614,35 @@ impl<'a> CantripOsModel<'a> {
             let copy_start = (header as usize) + block_offset;
             unsafe { ptr::copy_nonoverlapping(copy_start as _, dest, copy_len) }
         }
+    }
+
+    // Fill with our BootInfo patched per the destination cnode.
+    fn fill_with_bootinfo(&self, dest: *mut u8, max_len: usize) {
+        unsafe {
+            ptr::copy_nonoverlapping(
+                ptr::addr_of!(self.bootinfo.extraLen) as *const u8, dest as _, max_len)
+        }
+
+        assert!(is_objid_valid(self.untyped_cnode));
+        let cnode = &self.spec.obj_slice()[self.untyped_cnode];
+        assert_eq!(cnode.r#type(), CDL_CNode);
+
+        // NB: page-aligned so safe to deref.
+        let bootinfo = unsafe { &mut *(dest as *mut seL4_BootInfo) };
+
+        // UntypedMemory caps are appended to the specified slots.
+        bootinfo.untyped = sel4_sys::seL4_SlotRegion {
+            start: cnode.num_slots() + 1,
+            end: cnode.num_slots() + 1 +
+                 (self.bootinfo.untyped.end - self.bootinfo.untyped.start),
+        };
+        // Update the empty region to support dynamic cap allocation.
+        bootinfo.empty = sel4_sys::seL4_SlotRegion {
+            start: bootinfo.untyped.end + 1,
+            end: BIT(cnode.size_bits()),
+        };
+        // NB: we could adjust the UntypedDesc's but they will not
+        //   reflect rootserver resources that are released at exit
     }
 
     // Fill a frame's contents from a file in the cpio archive;
@@ -878,6 +928,53 @@ impl<'a> CantripOsModel<'a> {
             self.init_cnode_slot(mode, cnode, &cdl_cnode.slot(slot_index))?;
         }
         Ok(())
+    }
+
+    fn handoff_untypeds(&mut self, cnode_obj_id: CDL_ObjID) -> seL4_Result {
+        let num_untypeds = self.bootinfo.untyped.end - self.bootinfo.untyped.start;
+
+        // NB: UntypedMemory caps are appended to the CAmkES-generated slots
+        let dest_start = self.spec.obj_slice()[cnode_obj_id].num_slots() + 1;
+
+        info!("Hand-off {} untypeds from {} to {}",
+              num_untypeds,
+              self.bootinfo.untyped.start,
+              dest_start);
+        // NB: we let kernel tell us if the CNode is too small.
+        for ut in 0..num_untypeds {
+            self.handoff_cap(cnode_obj_id,
+                             /*src_index=*/ self.bootinfo.untyped.start + ut,
+                             /*dest_index=*/ dest_start + ut)?;
+        }
+        Ok(())
+    }
+
+    fn handoff_cap(
+        &mut self,
+        cnode_obj_id: CDL_ObjID,
+        src_index: seL4_CPtr,
+        dest_index: seL4_CPtr
+    ) -> seL4_Result {
+        let cnode = &self.spec.obj_slice()[cnode_obj_id];
+        assert_eq!(cnode.r#type(), CDL_CNode);
+
+        let src_root = seL4_CapInitThreadCNode;
+        let src_depth = seL4_WordBits as u8;
+
+        // Blindly use the dup'd cap a la init_cnode_slot.
+        let dest_root = self.get_dup_cap(cnode_obj_id);
+        let dest_depth: u8 = cnode.size_bits.try_into().unwrap();
+
+        unsafe {
+            seL4_CNode_Move(
+                dest_root,
+                dest_index,
+                dest_depth,
+                src_root,
+                src_index,
+                src_depth,
+            )
+        }
     }
 
     fn init_cnode_slot(

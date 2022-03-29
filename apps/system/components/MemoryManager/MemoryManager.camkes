@@ -1,0 +1,18 @@
+// Cantrip OS MemoryManager service.
+
+import <LoggerInterface.camkes>;
+import <MemoryInterface.camkes>;
+
+component MemoryManager {
+  provides MemoryInterface memory;
+
+  uses LoggerInterface logger;
+
+  // Mark the component that should receive the unallocated UntypedMemory
+  // passed to the rootserver from the kernel. In addition to the
+  // capabilities the component also gets a page with Bootinfo data that
+  // includes updated UntypedMemory descriptors. In order to pass the
+  // capabilitiies the component's cnode is up-sized to be large enough
+  // to hold the extra capabilties.
+  attribute int untyped_memory = true;
+}

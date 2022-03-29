@@ -2,9 +2,11 @@
 
 use crate::CantripOsModel;
 use capdl::kobject_t::KOBJECT_FRAME;
+use capdl::CDL_FrameFillType_t::*;
+use capdl::CDL_FrameFill_BootInfoEnum_t::*;
 use capdl::CDL_ObjectType::*;
 use capdl::*;
-use log::{debug, trace};
+use log::{debug, info, trace};
 use smallvec::SmallVec;
 
 use sel4_sys::seL4_BootInfo;
@@ -58,6 +60,10 @@ impl<'a> CantripOsModel<'a> {
         // possibility of vpsace_roots spilling to the heap.
         let mut roots = SmallVec::new();
 
+        // Record objects that receive special treatment later on.
+        let mut bootinfo_frame: CDL_ObjID = CDL_ObjID::MAX;
+        let mut untyped_cnode: CDL_ObjID = CDL_ObjID::MAX;
+
         // First, allocate most objects and record the cslot locations.
         // The exception is ASIDPools, where create_object only allocates
         // the backing untypeds.
@@ -90,11 +96,40 @@ impl<'a> CantripOsModel<'a> {
                 }
             }
 
-            // Capture VSpace roots for later use.
-            if obj.r#type() == CDL_TCB {
-                if let Some(root_cap) = obj.get_cap_at(CDL_TCB_VTable_Slot) {
-                    roots.push(root_cap.obj_id);
+            match obj.r#type() {
+                // Capture VSpace roots & TCBs for later use.
+                CDL_TCB => {
+                    if let Some(root_cap) = obj.get_cap_at(CDL_TCB_VTable_Slot) {
+                        roots.push(root_cap.obj_id);
+                    }
                 }
+                // Capture one bootinfo frame for processing below.
+                CDL_Frame => {
+                    fn is_bootinfo_frame(obj: &CDL_Object) -> bool {
+                        let frame_fill = &obj.frame_fill(0).unwrap();
+                        frame_fill.type_ == CDL_FrameFill_BootInfo &&
+                            frame_fill.get_bootinfo().type_ == CDL_FrameFill_BootInfo_BootInfo
+                    }
+                    if is_bootinfo_frame(obj) {
+                        // NB: can instantiate multiple frames but only one
+                        // CNode can receive the untypeds since we must move
+                        // 'em from the rootserver (since they are "derived").
+                        // XXX maybe just complain & ignore
+                        info!("Found bootinfo Frame at {}", obj_id);
+                        assert!(!is_objid_valid(bootinfo_frame));
+                        bootinfo_frame = obj_id;
+                    }
+                }
+                // Look for a CNode associated with any bootinfo frame.
+                CDL_CNode => {
+                    if obj.cnode_has_untyped_memory() {
+                        if is_objid_valid(untyped_cnode) {
+                            info!("Duplicate bootinfo cnode at {}, prev {}", obj_id, untyped_cnode);
+                        }
+                        untyped_cnode = obj_id;
+                    }
+                }
+                _ => {}
             }
             // Record the cslot assigned to the object.
             self.set_orig_cap(obj_id, free_slot);
@@ -139,6 +174,15 @@ impl<'a> CantripOsModel<'a> {
         roots.sort();
         roots.dedup();
         self.vspace_roots = roots;
+
+        // Record any CNode designated to receive the UntypedMemory caps when
+        // constructing their CSpace.
+        // NB: we conditionally assign based on there being a BootInfo frame
+        //   because the UntypedMemory caps are not useful w/o the descriptors.
+        if is_objid_valid(bootinfo_frame) {
+            assert!(is_objid_valid(untyped_cnode));
+            self.untyped_cnode = untyped_cnode;
+        }
 
         Ok(())
     }

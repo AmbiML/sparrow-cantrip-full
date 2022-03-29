@@ -12,6 +12,7 @@
 
 use core::mem::size_of;
 use cstr_core;
+use sel4_sys::SEL4_BOOTINFO_HEADER_BOOTINFO;
 use sel4_sys::SEL4_BOOTINFO_HEADER_FDT;
 use sel4_sys::SEL4_BOOTINFO_HEADER_PADDING;
 use sel4_sys::SEL4_BOOTINFO_HEADER_X86_ACPI_RSDP;
@@ -463,6 +464,12 @@ impl From<CDL_ObjectType> for seL4_ObjectType {
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
+pub struct CDL_CNodeExtraInfo {
+    pub has_untyped_memory: bool,
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
 pub struct CDL_TCBExtraInfo {
     pub priority: u8,
     pub max_priority: u8,
@@ -536,6 +543,7 @@ pub enum CDL_FrameFill_BootInfoEnum_t {
     CDL_FrameFill_BootInfo_X86_Framebuffer = SEL4_BOOTINFO_HEADER_X86_FRAMEBUFFER as isize,
     CDL_FrameFill_BootInfo_X86_TSC_Freq = SEL4_BOOTINFO_HEADER_X86_TSC_FREQ as isize,
     CDL_FrameFill_BootInfo_FDT = SEL4_BOOTINFO_HEADER_FDT as isize,
+    CDL_FrameFill_BootInfo_BootInfo = SEL4_BOOTINFO_HEADER_BOOTINFO as isize,
 }
 impl From<CDL_FrameFill_BootInfoEnum_t> for usize {
     fn from(bi_type: CDL_FrameFill_BootInfoEnum_t) -> usize {
@@ -664,6 +672,11 @@ impl<'a> CDL_Object {
     pub fn is_device(&self) -> bool {
         // NB: must have a non-zero physical address
         self.paddr().map_or(false, |v| v != 0)
+    }
+
+    #[inline]
+    pub fn cnode_has_untyped_memory(&self) -> bool {
+        unsafe { self.extra.cnode_extra.has_untyped_memory }
     }
 
     // TODO(sleffler): maybe assert type_ before referencing union members
@@ -804,6 +817,7 @@ pub union CDL_ObjectExtra {
     pub msiirq_extra: CDL_MSIIRQExtraInfo,
     pub armirq_extra: CDL_ARMIRQExtraInfo,
     pub frame_extra: CDL_FrameExtraInfo,
+    pub cnode_extra: CDL_CNodeExtraInfo,
 
     // Physical address; only defined for untyped objects.
     pub paddr: seL4_Word,

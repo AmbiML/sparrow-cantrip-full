@@ -8,18 +8,17 @@ build = "build.rs"
 [build-dependencies]
 sel4-config = { path = "../../cantrip-os-common/src/sel4-config" }
 
-[build-env]
-SEL4_OUT_DIR = "${ROOTDIR}out/cantrip/kernel"
-
 [features]
 default = []
 CONFIG_DEBUG_BUILD = []
+CONFIG_KERNEL_MCS = []
 
 [dependencies]
 crc = { version = "1.4.0", default_features = false }
 hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
 cantrip-io = { path = "../cantrip-io" }
 cantrip-line-reader = { path = "../cantrip-line-reader" }
+cantrip-memory-interface = { path = "../../MemoryManager/cantrip-memory-interface" }
 cantrip-proc-interface = { path = "../../ProcessManager/cantrip-proc-interface" }
 cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-security-interface = { path = "../../SecurityCoordinator/cantrip-security-interface" }

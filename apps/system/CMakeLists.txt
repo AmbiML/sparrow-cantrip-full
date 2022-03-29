@@ -31,13 +31,13 @@ DeclareCAmkESComponent(DebugConsole
 )
 
 RustAddLibrary(
-  cantrip_process_manager
-  SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/components/ProcessManager
-  LIB_FILENAME libcantrip_process_manager.a
+  cantrip_memory_manager
+  SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/components/MemoryManager
+  LIB_FILENAME libcantrip_memory_manager.a
 )
 
-DeclareCAmkESComponent(ProcessManager
-  LIBS cantrip_process_manager
+DeclareCAmkESComponent(MemoryManager
+  LIBS cantrip_memory_manager
   INCLUDES interfaces
 )
 
@@ -49,6 +49,17 @@ RustAddLibrary(
 
 DeclareCAmkESComponent(MlCoordinator
   LIBS cantrip_ml_coordinator
+  INCLUDES interfaces
+)
+
+RustAddLibrary(
+  cantrip_process_manager
+  SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/components/ProcessManager
+  LIB_FILENAME libcantrip_process_manager.a
+)
+
+DeclareCAmkESComponent(ProcessManager
+  LIBS cantrip_process_manager
   INCLUDES interfaces
 )
 

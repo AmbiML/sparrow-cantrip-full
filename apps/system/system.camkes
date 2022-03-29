@@ -17,6 +17,7 @@ import "components/OpenTitanUARTDriver/OpenTitanUARTDriver.camkes";
 import "components/DebugConsole/DebugConsole.camkes";
 import "components/ProcessManager/ProcessManager.camkes";
 import "components/MlCoordinator/MlCoordinator.camkes";
+import "components/MemoryManager/MemoryManager.camkes";
 import "components/StorageManager/StorageManager.camkes";
 import "components/SecurityCoordinator/SecurityCoordinator.camkes";
 
@@ -54,6 +55,7 @@ assembly {
         component OpenTitanUART uart;
         component OpenTitanUARTDriver uart_driver;
 
+        component MemoryManager memory_manager;
         component ProcessManager process_manager;
         component MlCoordinator ml_coordinator;
         component DebugConsole debug_console;
@@ -98,6 +100,15 @@ assembly {
         connection seL4RPCCall shell_storage(from debug_console.storage,
                                              to storage_manager.storage);
 
+        // Connect the MemoryInterface to each component that needs to allocate
+        // global memory. Note this allocates a 4KB shared memory region to each
+        // component and copies data between components.
+        connection seL4RPCOverMultiSharedData multi_memory(
+            from debug_console.memory,
+            // TODO(sleffler): from process_manager.memory,
+            // TOOD(sleffler): from ml_coordinator.memory,
+            to memory_manager.memory);
+
         // Connect the SecurityCoordinatorInterface to each component that needs
         // access to the Security Core. Note this allocates a 4KB shared memory
         // region to each component and copies data between components.
@@ -124,6 +135,7 @@ assembly {
         connection seL4RPCOverMultiSharedData multi_logger(
             from process_manager.logger,
             from ml_coordinator.logger,
+            from memory_manager.logger,
             from security_coordinator.logger,
             from storage_manager.logger,
             to debug_console.logger);

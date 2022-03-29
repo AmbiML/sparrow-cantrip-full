@@ -2,6 +2,7 @@
 
 extern crate alloc;
 use alloc::string::String;
+use alloc::vec;
 use alloc::vec::Vec;
 use core::fmt;
 use core::fmt::Write;
@@ -10,6 +11,8 @@ use log;
 
 use cantrip_io as io;
 use cantrip_line_reader::LineReader;
+use cantrip_os_common::sel4_sys;
+use cantrip_memory_interface::*;
 use cantrip_proc_interface::cantrip_pkg_mgmt_install;
 use cantrip_proc_interface::cantrip_pkg_mgmt_uninstall;
 use cantrip_proc_interface::cantrip_proc_ctrl_get_running_bundles;
@@ -18,6 +21,11 @@ use cantrip_proc_interface::cantrip_proc_ctrl_stop;
 use cantrip_storage_interface::cantrip_storage_delete;
 use cantrip_storage_interface::cantrip_storage_read;
 use cantrip_storage_interface::cantrip_storage_write;
+
+use sel4_sys::seL4_CPtr;
+use sel4_sys::seL4_MinSchedContextBits;
+use sel4_sys::seL4_ObjectType::*;
+use sel4_sys::seL4_WordBits;
 
 mod rz;
 
@@ -108,6 +116,9 @@ fn dispatch_command(cmdline: &str, input: &mut dyn io::BufRead, output: &mut dyn
                 "kvwrite" => kvwrite_command(&mut args, output),
                 "install" => install_command(&mut args, output),
                 "loglevel" => loglevel_command(&mut args, output),
+                "malloc" => malloc_command(&mut args, output),
+                "mfree" => mfree_command(&mut args, output),
+                "mstats" => mstats_command(&mut args, output),
                 "rz" => rz_command(input, output),
                 "ps" => ps_command(output),
                 "scecho" => scecho_command(cmdline, output),
@@ -117,9 +128,11 @@ fn dispatch_command(cmdline: &str, input: &mut dyn io::BufRead, output: &mut dyn
 
                 "test_alloc" => test_alloc_command(output),
                 "test_alloc_error" => test_alloc_error_command(output),
-                "test_panic" => test_panic_command(),
+                "test_bootinfo" => test_bootinfo_command(output),
                 "test_mlexecute" => test_mlexecute_command(),
                 "test_mlcontinuous" => test_mlcontinuous_command(&mut args),
+                "test_obj_alloc" => test_obj_alloc_command(output),
+                "test_panic" => test_panic_command(),
 
                 _ => Err(CommandError::UnknownCommand),
             };
@@ -237,14 +250,11 @@ fn add_command(
     args: &mut dyn Iterator<Item = &str>,
     output: &mut dyn io::Write,
 ) -> Result<(), CommandError> {
-    if let Some(x_str) = args.nth(0) {
-        if let Some(y_str) = args.nth(0) {
-            let x = x_str.parse::<f32>()?;
-            let y = y_str.parse::<f32>()?;
-            return Ok(writeln!(output, "{}", x + y)?);
-        }
-    }
-    Err(CommandError::BadArgs)
+    let x_str = args.next().ok_or(CommandError::BadArgs)?;
+    let x = x_str.parse::<f32>()?;
+    let y_str = args.next().ok_or(CommandError::BadArgs)?;
+    let y = y_str.parse::<f32>()?;
+    return Ok(writeln!(output, "{}", x + y)?);
 }
 
 /// Implements a command that outputs the ANSI "clear console" sequence.
@@ -285,122 +295,175 @@ fn uninstall_command(
     args: &mut dyn Iterator<Item = &str>,
     output: &mut dyn io::Write,
 ) -> Result<(), CommandError> {
-    if let Some(bundle_id) = args.nth(0) {
-        match cantrip_pkg_mgmt_uninstall(bundle_id) {
-            Ok(_) => {
-                writeln!(output, "Bundle \"{}\" uninstalled.", bundle_id)?;
-            }
-            Err(status) => {
-                writeln!(output, "uninstall failed: {:?}", status)?;
-            }
+    let bundle_id = args.next().ok_or(CommandError::BadArgs)?;
+    match cantrip_pkg_mgmt_uninstall(bundle_id) {
+        Ok(_) => {
+            writeln!(output, "Bundle \"{}\" uninstalled.", bundle_id)?;
         }
-        Ok(())
-    } else {
-        Err(CommandError::BadArgs)
+        Err(status) => {
+            writeln!(output, "uninstall failed: {:?}", status)?;
+        }
     }
+    Ok(())
 }
 
 fn start_command(
     args: &mut dyn Iterator<Item = &str>,
     output: &mut dyn io::Write,
 ) -> Result<(), CommandError> {
-    if let Some(bundle_id) = args.nth(0) {
-        match cantrip_proc_ctrl_start(bundle_id) {
-            Ok(_) => {
-                writeln!(output, "Bundle \"{}\" started.", bundle_id)?;
-            }
-            Err(status) => {
-                writeln!(output, "start failed: {:?}", status)?;
-            }
+    let bundle_id = args.next().ok_or(CommandError::BadArgs)?;
+    match cantrip_proc_ctrl_start(bundle_id) {
+        Ok(_) => {
+            writeln!(output, "Bundle \"{}\" started.", bundle_id)?;
         }
-        Ok(())
-    } else {
-        Err(CommandError::BadArgs)
+        Err(status) => {
+            writeln!(output, "start failed: {:?}", status)?;
+        }
     }
+    Ok(())
 }
 
 fn stop_command(
     args: &mut dyn Iterator<Item = &str>,
     output: &mut dyn io::Write,
 ) -> Result<(), CommandError> {
-    if let Some(bundle_id) = args.nth(0) {
-        match cantrip_proc_ctrl_stop(bundle_id) {
-            Ok(_) => {
-                writeln!(output, "Bundle \"{}\" stopped.", bundle_id)?;
-            }
-            Err(status) => {
-                writeln!(output, "stop failed: {:?}", status)?;
-            }
+    let bundle_id = args.next().ok_or(CommandError::BadArgs)?;
+    match cantrip_proc_ctrl_stop(bundle_id) {
+        Ok(_) => {
+            writeln!(output, "Bundle \"{}\" stopped.", bundle_id)?;
         }
-        Ok(())
-    } else {
-        Err(CommandError::BadArgs)
+        Err(status) => {
+            writeln!(output, "stop failed: {:?}", status)?;
+        }
     }
+    Ok(())
 }
 
 fn kvdelete_command(
     args: &mut dyn Iterator<Item = &str>,
     output: &mut dyn io::Write,
 ) -> Result<(), CommandError> {
-    if let Some(key) = args.nth(0) {
-        match cantrip_storage_delete(key) {
-            Ok(_) => {
-                writeln!(output, "Delete key \"{}\".", key)?;
-            }
-            Err(status) => {
-                writeln!(output, "Delete key \"{}\" failed: {:?}", key, status)?;
-            }
+    let key = args.next().ok_or(CommandError::BadArgs)?;
+    match cantrip_storage_delete(key) {
+        Ok(_) => {
+            writeln!(output, "Delete key \"{}\".", key)?;
         }
-        Ok(())
-    } else {
-        Err(CommandError::BadArgs)
+        Err(status) => {
+            writeln!(output, "Delete key \"{}\" failed: {:?}", key, status)?;
+        }
     }
+    Ok(())
 }
 
 fn kvread_command(
     args: &mut dyn Iterator<Item = &str>,
     output: &mut dyn io::Write,
 ) -> Result<(), CommandError> {
-    if let Some(key) = args.nth(0) {
-        match cantrip_storage_read(key) {
-            Ok(value) => {
-                writeln!(output, "Read key \"{}\" = {:?}.", key, value)?;
-            }
-            Err(status) => {
-                writeln!(output, "Read key \"{}\" failed: {:?}", key, status)?;
-            }
+    let key = args.next().ok_or(CommandError::BadArgs)?;
+    match cantrip_storage_read(key) {
+        Ok(value) => {
+            writeln!(output, "Read key \"{}\" = {:?}.", key, value)?;
         }
-        Ok(())
-    } else {
-        Err(CommandError::BadArgs)
+        Err(status) => {
+            writeln!(output, "Read key \"{}\" failed: {:?}", key, status)?;
+        }
     }
+    Ok(())
 }
 
 fn kvwrite_command(
     args: &mut dyn Iterator<Item = &str>,
     output: &mut dyn io::Write,
 ) -> Result<(), CommandError> {
-    if let Some(key) = args.nth(0) {
-        let value = args.collect::<Vec<&str>>().join(" ");
-        match cantrip_storage_write(key, value.as_bytes()) {
-            Ok(_) => {
-                writeln!(output, "Write key \"{}\" = {:?}.", key, value)?;
-            }
-            Err(status) => {
-                writeln!(output, "Write key \"{}\" failed: {:?}", key, status)?;
-            }
+    let key = args.next().ok_or(CommandError::BadArgs)?;
+    let value = args.collect::<Vec<&str>>().join(" ");
+    match cantrip_storage_write(key, value.as_bytes()) {
+        Ok(_) => {
+            writeln!(output, "Write key \"{}\" = {:?}.", key, value)?;
         }
-        Ok(())
-    } else {
-        Err(CommandError::BadArgs)
+        Err(status) => {
+            writeln!(output, "Write key \"{}\" failed: {:?}", key, status)?;
+        }
     }
+    Ok(())
+}
+
+fn malloc_command(
+    args: &mut dyn Iterator<Item = &str>,
+    output: &mut dyn io::Write,
+) -> Result<(), CommandError> {
+    let space_str = args.next().ok_or(CommandError::BadArgs)?;
+    let space_bytes = space_str.parse::<usize>()?;
+    match cantrip_frame_alloc(space_bytes) {
+        Ok(frames) => {
+            writeln!(output, "Allocated {:?}", frames)?;
+        }
+        Err(status) => {
+            writeln!(output, "malloc failed: {:?}", status)?;
+        }
+    }
+    Ok(())
+}
+
+fn mfree_command(
+    args: &mut dyn Iterator<Item = &str>,
+    output: &mut dyn io::Write,
+) -> Result<(), CommandError> {
+    extern "C" { static SELF_CNODE: seL4_CPtr; }
+    let cptr_str = args.next().ok_or(CommandError::BadArgs)?;
+    let count_str = args.next().ok_or(CommandError::BadArgs)?;
+    let frames = ObjDescBundle::new(
+        unsafe { SELF_CNODE },
+        seL4_WordBits as u8,
+        vec![
+            ObjDesc::new(
+                sel4_sys::seL4_RISCV_4K_Page,
+                count_str.parse::<usize>()?,
+                cptr_str.parse::<usize>()? as seL4_CPtr,
+            ),
+        ],
+    );
+    match cantrip_object_free_toplevel(&frames) {
+        Ok(_) => {
+            writeln!(output, "Free'd {:?}", frames)?;
+        }
+        Err(status) => {
+            writeln!(output, "mfree failed: {:?}", status)?;
+        }
+    }
+    Ok(())
+}
+
+fn mstats(output: &mut dyn io::Write, stats: &MemoryManagerStats)
+          -> Result<(), CommandError>
+{
+    writeln!(output, "{} bytes in-use, {} bytes free, {} bytes requested, {} overhead",
+             stats.allocated_bytes,
+             stats.free_bytes,
+             stats.total_requested_bytes,
+             stats.overhead_bytes)?;
+    writeln!(output, "{} objs in-use, {} objs requested",
+             stats.allocated_objs,
+             stats.total_requested_objs)?;
+    Ok(())
+}
+
+fn mstats_command(
+    _args: &mut dyn Iterator<Item = &str>,
+    output: &mut dyn io::Write,
+) -> Result<(), CommandError> {
+    match cantrip_memory_stats() {
+        Ok(stats) => { mstats(output, &stats)?; }
+        Err(status) => { writeln!(output, "stats failed: {:?}", status)?; }
+    }
+    Ok(())
 }
 
 /// Implements a command that tests facilities that use the global allocator.
 /// Shamelessly cribbed from https://os.phil-opp.com/heap-allocation/
 fn test_alloc_command(output: &mut dyn io::Write) -> Result<(), CommandError> {
     extern crate alloc;
-    use alloc::{boxed::Box, rc::Rc, vec};
+    use alloc::{boxed::Box, rc::Rc};
 
     // allocate a number on the heap
     let heap_value = Box::new(41);
@@ -443,6 +506,26 @@ fn test_alloc_error_command(output: &mut dyn io::Write) -> Result<(), CommandErr
     Ok(writeln!(output, "vec at {:p}", vec.as_slice())?)
 }
 
+fn test_bootinfo_command(output: &mut dyn io::Write) -> Result<(), CommandError> {
+    use cantrip_os_common::sel4_sys::seL4_BootInfo;
+    extern "C" {
+        fn sel4runtime_bootinfo() -> *const seL4_BootInfo;
+    }
+    let bootinfo_ref = unsafe { &*sel4runtime_bootinfo() };
+    writeln!(output, "{}:{} empty slots {}:{} untyped",
+        bootinfo_ref.empty.start, bootinfo_ref.empty.end,
+        bootinfo_ref.untyped.start, bootinfo_ref.untyped.end)?;
+
+    // NB: seL4_DebugCapIdentify is only available in debug builds
+    #[cfg(feature = "CONFIG_DEBUG_BUILD")]
+    for ut in bootinfo_ref.untyped.start..bootinfo_ref.untyped.end {
+        let cap_tag = unsafe { cantrip_os_common::sel4_sys::seL4_DebugCapIdentify(ut) };
+        assert_eq!(cap_tag, 2,
+            "expected untyped (2), got {} for cap at {}", cap_tag, ut);
+    }
+    Ok(())
+}
+
 /// Implements a command that tests panic handling.
 fn test_panic_command() -> Result<(), CommandError> {
     panic!("testing");
@@ -472,4 +555,78 @@ fn test_mlcontinuous_command(args: &mut dyn Iterator<Item = &str>) -> Result<(),
         return Ok(());
     }
     Err(CommandError::BadArgs)
+}
+
+fn test_obj_alloc_command(output: &mut dyn io::Write) -> Result<(), CommandError> {
+    let before_stats = cantrip_memory_stats().expect("before stats");
+    mstats(output, &before_stats)?;
+
+    fn check_alloc(output: &mut dyn io::Write,
+                   name: &str,
+                   res: Result<ObjDescBundle, MemoryManagerError>) {
+        match res {
+            Ok(obj) => {
+                if let Err(e) = cantrip_object_free_toplevel(&obj) {
+                    let _ = writeln!(output, "free {} {:?} failed: {:?}", name, obj, e);
+                }
+            }
+            Err(e) => {
+                let _ = writeln!(output, "alloc {} failed: {:?}", name, e);
+            }
+        }
+    }
+
+    // NB: alloc+free immediately so we don't run out of top-level CNode slots
+    check_alloc(output, "untyped", cantrip_untyped_alloc(12));  // NB: 4KB
+    check_alloc(output, "tcb", cantrip_tcb_alloc());
+    check_alloc(output, "endpoint", cantrip_endpoint_alloc());
+    check_alloc(output, "notification", cantrip_notification_alloc());
+    check_alloc(output, "cnode", cantrip_cnode_alloc(5));  // NB: 32 slots
+    check_alloc(output, "frame", cantrip_frame_alloc(4096));
+//    check_alloc(output, "large frame",  cantrip_frame_alloc(1024*1024));
+    check_alloc(output, "page table", cantrip_page_table_alloc());
+
+    #[cfg(feature = "CONFIG_KERNEL_MCS")]
+    check_alloc(output, "sched context",
+                cantrip_sched_context_alloc(seL4_MinSchedContextBits));
+
+    #[cfg(feature = "CONFIG_KERNEL_MCS")]
+    check_alloc(output, "reply", cantrip_reply_alloc());
+
+    let after_stats = cantrip_memory_stats().expect("after stats");
+    mstats(output, &after_stats)?;
+    assert_eq!(before_stats.allocated_bytes, after_stats.allocated_bytes);
+    assert_eq!(before_stats.free_bytes, after_stats.free_bytes);
+
+    // Batch allocate into a private CNode as we might to build a process.
+    const CNODE_DEPTH: usize = 7; // 128 slots
+    let cnode = cantrip_cnode_alloc(CNODE_DEPTH).unwrap(); // XXX handle error
+    let objs = ObjDescBundle::new(
+        cnode.objs[0].cptr,
+        CNODE_DEPTH as u8,
+        vec![
+            ObjDesc::new(seL4_TCBObject, 1, 0),        // 1 tcb
+            ObjDesc::new(seL4_EndpointObject, 2, 1),   // 2 endpoiints
+            ObjDesc::new(seL4_ReplyObject, 2, 3),      // 2 replys
+            ObjDesc::new(seL4_SchedContextObject,                   // 1 sched context
+                         seL4_MinSchedContextBits, 5),
+            ObjDesc::new(seL4_RISCV_4K_Page, 10, 6),   // 10 4K pages
+        ],
+    );
+    match cantrip_object_alloc(&objs) {
+        Ok(_) => {
+            writeln!(output, "Batch alloc ok: {:?}", objs)?;
+            if let Err(e) = cantrip_object_free(&objs) {
+                writeln!(output, "Batch free err: {:?}", e)?;
+            }
+        }
+        Err(e) => {
+            writeln!(output, "Batch alloc err: {:?} {:?}", objs, e)?;
+        }
+    }
+    if let Err(e) = cantrip_object_free_toplevel(&cnode) {
+        writeln!(output, "Cnode free err: {:?} {:?}", cnode, e)?;
+    }
+
+    Ok(writeln!(output, "All tests passed!")?)
 }

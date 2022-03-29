@@ -2,6 +2,7 @@ import <LoggerInterface.camkes>;
 import <ProcessControlInterface.camkes>;
 import <PackageManagementInterface.camkes>;
 import <MlCoordinatorInterface.camkes>;
+import <MemoryInterface.camkes>;
 import <SecurityCoordinatorInterface.camkes>;
 import <StorageInterface.camkes>;
 
@@ -15,11 +16,12 @@ component DebugConsole {
   uses rust_read_inf uart_read;
 
   provides LoggerInterface logger;
-  uses ProcessControlInterface proc_ctrl;
+  uses MemoryInterface memory;
+  uses MlCoordinatorInterface mlcoord;
   uses PackageManagementInterface pkg_mgmt;
+  uses ProcessControlInterface proc_ctrl;
   // TODO(b/200707300): for debugging
   uses SecurityCoordinatorInterface security;
   // TODO(b/200707300): for debugging
   uses StorageInterface storage;
-  uses MlCoordinatorInterface mlcoord;
 }
