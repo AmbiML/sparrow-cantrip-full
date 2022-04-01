@@ -101,7 +101,7 @@ include!("arch/aarch32.rs");
 include!("arch/aarch64.rs");
 
 #[cfg(target_arch = "riscv32")]
-include!("arch/riscv.rs");
+include!("arch/riscv32.rs");
 
 #[cfg(all(target_arch = "x86"))]
 include!(concat!(env!("OUT_DIR"), "/ia32_invocation.rs"));
