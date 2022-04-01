@@ -172,23 +172,11 @@ pub unsafe fn seL4_SetCap(index: usize, cptr: seL4_CPtr) {
 }
 
 #[inline(always)]
-pub unsafe fn seL4_GetCapReceivePath(
-    receiveCNode: *mut seL4_CPtr,
-    receiveIndex: *mut seL4_CPtr,
-    receiveDepth: *mut seL4_Word,
-) {
+pub unsafe fn seL4_GetCapReceivePath() -> (seL4_CPtr, seL4_CPtr, seL4_CPtr) {
     let ipcbuffer = seL4_GetIPCBuffer();
-    if !receiveCNode.is_null() {
-        *receiveCNode = (*ipcbuffer).receiveCNode;
-    }
-
-    if !receiveIndex.is_null() {
-        *receiveIndex = (*ipcbuffer).receiveIndex;
-    }
-
-    if !receiveDepth.is_null() {
-        *receiveDepth = (*ipcbuffer).receiveDepth;
-    }
+    ((*ipcbuffer).receiveCNode,
+     (*ipcbuffer).receiveIndex,
+     (*ipcbuffer).receiveDepth)
 }
 
 #[inline(always)]
