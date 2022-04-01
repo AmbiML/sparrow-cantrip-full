@@ -30,6 +30,9 @@ pub const seL4_NotificationBits: usize = 5;
 #[cfg(not(feature = "CONFIG_KERNEL_MCS"))]
 pub const seL4_NotificationBits: usize = 4;
 
+pub const seL4_MinUntypedBits: usize = 4;
+pub const seL4_MaxUntypedBits: usize = 29;
+
 pub type seL4_RISCV_Page = seL4_CPtr;
 pub type seL4_RISCV_PageTable = seL4_CPtr;
 pub type seL4_RISCV_ASIDControl = seL4_CPtr;
@@ -108,6 +111,34 @@ pub enum seL4_ObjectType {
     seL4_RISCV_PageTableObject,
 
     seL4_LastObjectType,
+}
+impl seL4_ObjectType {
+    // Returns the log2 size of fixed-size objects; typically for use
+    // with seL4_Retype_Untyped. seL4_UntypedObject has no fixed-size,
+    // callers must specify a size. seL4_CapTableObject has a per-slot
+    // fixed-size that callers must scale by the #slots.
+    // seL4_SchedContextObject size must be in the range
+    // [seL4_MinSchedContextBits..seL4_MaxSchedContextBits].
+    pub fn size_bits(&self) -> Option<usize> {
+        match self {
+            seL4_TCBObject => Some(seL4_TCBBits),
+            seL4_EndpointObject => Some(seL4_EndpointBits),
+            seL4_NotificationObject =>  Some(seL4_EndpointBits),
+            seL4_ReplyObject => Some(seL4_ReplyBits),
+            seL4_SchedContextObject => Some(seL4_MinSchedContextBits), // XXX maybe None?
+            // NB: caller must scale by #slots
+            seL4_CapTableObject => Some(seL4_SlotBits),
+
+            seL4_RISCV_4K_Page => Some(seL4_PageBits),
+            // NB: Arch_get_ObjectSize uses seL4_PageBits which is the
+            //   same for both 32- and 64-bit systems
+            seL4_RISCV_PageTableObject => Some(seL4_PageTableBits),
+            seL4_RISCV_Mega_Page => Some(seL4_LargePageBits),
+//            seL4_RISCV_Giga_Page => Some(seL4_HugePageBits),
+//            seL4_RISCV_Tera_Page => Some(seL4_TeraPageBits),
+            _ => None,
+        }
+    }
 }
 impl From<seL4_ObjectType> for seL4_Word {
     fn from(type_: seL4_ObjectType) -> seL4_Word {
