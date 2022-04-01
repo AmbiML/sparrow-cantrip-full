@@ -93,7 +93,7 @@ impl From<u32> for seL4_RISCV_VMAttributes {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum seL4_ObjectType {
     seL4_UntypedObject = 0,
     seL4_TCBObject,
