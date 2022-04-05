@@ -24,4 +24,7 @@ component DebugConsole {
   uses SecurityCoordinatorInterface security;
   // TODO(b/200707300): for debugging
   uses StorageInterface storage;
+
+  // Add a bunch of free slots for test code to use.
+  attribute int cnode_headroom = 64;
 }
