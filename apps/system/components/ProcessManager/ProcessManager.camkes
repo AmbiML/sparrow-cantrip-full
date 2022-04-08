@@ -11,4 +11,7 @@ component ProcessManager {
 
   uses LoggerInterface logger;
   uses SecurityCoordinatorInterface security;
+
+  // Enable CantripOS CAmkES support.
+  attribute int cantripos = true;
 }

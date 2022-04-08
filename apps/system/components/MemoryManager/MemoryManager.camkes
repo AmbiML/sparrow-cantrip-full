@@ -8,6 +8,9 @@ component MemoryManager {
 
   uses LoggerInterface logger;
 
+  // Enable CantripOS CAmkES support.
+  attribute int cantripos = true;
+
   // Mark the component that should receive the unallocated UntypedMemory
   // passed to the rootserver from the kernel. In addition to the
   // capabilities the component also gets a page with Bootinfo data that
