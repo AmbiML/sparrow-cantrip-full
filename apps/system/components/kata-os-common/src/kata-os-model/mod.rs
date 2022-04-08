@@ -934,7 +934,11 @@ impl<'a> CantripOsModel<'a> {
         let num_untypeds = self.bootinfo.untyped.end - self.bootinfo.untyped.start;
 
         // NB: UntypedMemory caps are appended to the CAmkES-generated slots
-        let dest_start = self.spec.obj_slice()[cnode_obj_id].num_slots() + 1;
+        let dest_start = self.spec.obj_slice()[cnode_obj_id]
+            .slots_slice()
+            .iter()
+            .max_by_key(|slot| slot.slot)
+            .map_or(0, |slot| slot.slot + 1);
 
         info!("Hand-off {} untypeds from {} to {}",
               num_untypeds,
