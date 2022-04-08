@@ -4,10 +4,8 @@
 #![no_std]
 
 use core::slice;
-use cantrip_allocator;
-use cantrip_logger::CantripLogger;
-#[cfg(not(test))]
-extern crate cantrip_panic;
+use cantrip_os_common::allocator;
+use cantrip_os_common::logger::CantripLogger;
 use cantrip_security_coordinator::CANTRIP_SECURITY;
 use cantrip_security_interface::SecurityCoordinatorInterface;
 use cantrip_security_interface::SecurityReplyData;
@@ -26,7 +24,7 @@ pub extern "C" fn pre_init() {
     // TODO(sleffler): should be used rarely
     static mut HEAP_MEMORY: [u8; 8 * 1024] = [0; 8 * 1024];
     unsafe {
-        cantrip_allocator::ALLOCATOR.init(HEAP_MEMORY.as_mut_ptr() as usize, HEAP_MEMORY.len());
+      allocator::ALLOCATOR.init(HEAP_MEMORY.as_mut_ptr() as usize, HEAP_MEMORY.len());
         trace!(
             "setup heap: start_addr {:p} size {}",
             HEAP_MEMORY.as_ptr(),

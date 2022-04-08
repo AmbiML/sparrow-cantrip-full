@@ -5,9 +5,8 @@
 
 use core::ops::Range;
 use core::slice;
-extern crate cantrip_panic;
-use cantrip_allocator;
-use cantrip_logger::CantripLogger;
+use cantrip_os_common::allocator;
+use cantrip_os_common::logger::CantripLogger;
 use cantrip_memory_interface::MemoryManagerError;
 use cantrip_memory_interface::MemoryManagerInterface;
 use cantrip_memory_interface::ObjDescBundle;
@@ -15,6 +14,7 @@ use cantrip_memory_interface::RawMemoryStatsData;
 use cantrip_memory_manager::CantripMemoryManager;
 use cantrip_os_common::sel4_sys;
 use log::{info, trace};
+
 use sel4_sys::seL4_BootInfo;
 use sel4_sys::seL4_CNode_Delete;
 use sel4_sys::seL4_CPtr;
@@ -47,7 +47,7 @@ pub extern "C" fn pre_init() {
     // TODO(sleffler): temp until we integrate with seL4
     static mut HEAP_MEMORY: [u8; 8 * 1024] = [0; 8 * 1024];
     unsafe {
-        cantrip_allocator::ALLOCATOR.init(HEAP_MEMORY.as_mut_ptr() as usize, HEAP_MEMORY.len());
+        allocator::ALLOCATOR.init(HEAP_MEMORY.as_mut_ptr() as usize, HEAP_MEMORY.len());
         trace!(
             "setup heap: start_addr {:p} size {}",
             HEAP_MEMORY.as_ptr(),

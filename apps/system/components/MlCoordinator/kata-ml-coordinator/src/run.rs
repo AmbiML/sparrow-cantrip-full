@@ -1,10 +1,9 @@
 #![no_std]
 
 // ML Coordinator Design Doc: go/sparrow-ml-doc
-extern crate cantrip_panic;
 
 use core::slice;
-use cantrip_logger::CantripLogger;
+use cantrip_os_common::logger::CantripLogger;
 use cantrip_ml_interface::MlCoordinatorInterface;
 use cantrip_ml_interface::MlCoreInterface;
 use cantrip_vec_core::MlCore;

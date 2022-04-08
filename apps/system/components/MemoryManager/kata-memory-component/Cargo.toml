@@ -4,9 +4,6 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
-cantrip-allocator = { path = "../../DebugConsole/cantrip-allocator" }
-cantrip-logger = { path = "../../DebugConsole/cantrip-logger" }
-cantrip-panic = { path = "../../DebugConsole/cantrip-panic" }
 cantrip-memory-interface = { path = "../cantrip-memory-interface" }
 cantrip-memory-manager = { path = "../cantrip-memory-manager" }
 cantrip-os-common = { path = "../../cantrip-os-common" }

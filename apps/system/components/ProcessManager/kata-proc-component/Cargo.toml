@@ -5,9 +5,8 @@ edition = "2018"
 
 [dependencies]
 cstr_core = { version = "0.2.3", default-features = false }
-cantrip-allocator = { path = "../../DebugConsole/cantrip-allocator" }
-cantrip-logger = { path = "../../DebugConsole/cantrip-logger" }
-cantrip-panic = { path = "../../DebugConsole/cantrip-panic" }
+cantrip-memory-interface = { path = "../../MemoryManager/cantrip-memory-interface" }
+cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-proc-interface = { path = "../cantrip-proc-interface" }
 cantrip-proc-manager = { path = "../cantrip-proc-manager" }
 log = "0.4"

@@ -5,8 +5,7 @@ authors = ["Adam Jesionowski <jesionowski@google.com>"]
 edition = "2018"
 
 [dependencies]
-cantrip-logger = { path = "../../DebugConsole/cantrip-logger" }
-cantrip-panic = { path = "../../DebugConsole/cantrip-panic" }
+cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-ml-interface = { path = "../cantrip-ml-interface" }
 cantrip-vec-core = { path = "../cantrip-vec-core" }
 log = "0.4"

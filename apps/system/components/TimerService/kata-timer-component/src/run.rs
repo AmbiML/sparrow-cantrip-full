@@ -1,11 +1,9 @@
 //! The Timer Service provides multiplexed access to a hardware timer.
 #![no_std]
 
-extern crate cantrip_panic;
-
 use core::time::Duration;
-use cantrip_allocator;
-use cantrip_logger::CantripLogger;
+use cantrip_os_common::allocator;
+use cantrip_os_common::logger::CantripLogger;
 use cantrip_os_common::sel4_sys::seL4_Word;
 use cantrip_timer_interface::{TimerId, TimerServiceError};
 use cantrip_timer_service::TIMER_SRV;
@@ -20,7 +18,7 @@ pub extern "C" fn pre_init() {
     // TODO(jesionowski): temp until we integrate with seL4
     static mut HEAP_MEMORY: [u8; 4 * 1024] = [0; 4 * 1024];
     unsafe {
-        cantrip_allocator::ALLOCATOR.init(HEAP_MEMORY.as_mut_ptr() as usize, HEAP_MEMORY.len());
+        allocator::ALLOCATOR.init(HEAP_MEMORY.as_mut_ptr() as usize, HEAP_MEMORY.len());
         trace!(
             "setup heap: start_addr {:p} size {}",
             HEAP_MEMORY.as_ptr(),

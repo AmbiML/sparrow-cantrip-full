@@ -14,7 +14,8 @@ use cantrip_security_interface::SecurityRequestError;
 use cantrip_security_interface::SizeBufferRequest;
 use cantrip_security_interface::UninstallRequest;
 use cantrip_security_interface::WriteKeyRequest;
-use cantrip_storage_interface::{KeyValueData, KEY_VALUE_DATA_SIZE};
+use cantrip_storage_interface::KeyValueData;
+use cantrip_storage_interface::KEY_VALUE_DATA_SIZE;
 use log::trace;
 use postcard;
 

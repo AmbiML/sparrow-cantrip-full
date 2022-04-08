@@ -5,7 +5,6 @@ description = "Cantrip OS MemoryManager service"
 edition = "2018"
 
 [dependencies]
-cantrip-allocator = { path = "../../DebugConsole/cantrip-allocator" }
 cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-memory-interface = { path = "../cantrip-memory-interface" }
 log = "0.4"

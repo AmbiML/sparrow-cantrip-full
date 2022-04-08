@@ -4,9 +4,8 @@
 #![no_std]
 
 use cstr_core::CStr;
-use cantrip_allocator;
-use cantrip_logger::CantripLogger;
-extern crate cantrip_panic;
+use cantrip_os_common::allocator;
+use cantrip_os_common::logger::CantripLogger;
 use cantrip_proc_interface::*;
 use cantrip_proc_manager::CANTRIP_PROC;
 use log::trace;
@@ -22,7 +21,7 @@ pub extern "C" fn pre_init() {
     // TODO(sleffler): temp until we integrate with seL4
     static mut HEAP_MEMORY: [u8; 16 * 1024] = [0; 16 * 1024];
     unsafe {
-        cantrip_allocator::ALLOCATOR.init(HEAP_MEMORY.as_mut_ptr() as usize, HEAP_MEMORY.len());
+        allocator::ALLOCATOR.init(HEAP_MEMORY.as_mut_ptr() as usize, HEAP_MEMORY.len());
         trace!(
             "setup heap: start_addr {:p} size {}",
             HEAP_MEMORY.as_ptr(),

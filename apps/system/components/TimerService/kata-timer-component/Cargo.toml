@@ -6,12 +6,9 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-cantrip-allocator = { path = "../../DebugConsole/cantrip-allocator" }
-cantrip-logger = { path = "../../DebugConsole/cantrip-logger" }
 cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-timer-interface = { path = "../cantrip-timer-interface" }
 cantrip-timer-service = { path = "../cantrip-timer-service" }
-cantrip-panic = { path = "../../DebugConsole/cantrip-panic" }
 log = "0.4"
 
 [lib]

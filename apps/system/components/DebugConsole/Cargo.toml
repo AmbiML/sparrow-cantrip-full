@@ -4,7 +4,6 @@ members = [
     "cantrip-debug-console",
     "cantrip-io",
     "cantrip-line-reader",
-    "cantrip-logger",
     "cantrip-shell",
     "cantrip-uart-client",
     "zmodem",

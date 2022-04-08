@@ -4,11 +4,8 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
-cantrip-allocator = { path = "../../DebugConsole/cantrip-allocator" }
-cantrip-logger = { path = "../../DebugConsole/cantrip-logger" }
 cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-timer-interface = { path = "../cantrip-timer-interface" }
-cantrip-panic = { path = "../../DebugConsole/cantrip-panic" }
 log = "0.4"
 opentitan-timer = { path = "../opentitan-timer" }
 spin = "0.9"
