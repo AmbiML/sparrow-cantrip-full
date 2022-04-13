@@ -85,6 +85,17 @@ DeclareCAmkESComponent(StorageManager
   INCLUDES interfaces
 )
 
+RustAddLibrary(
+  cantrip_timer_service
+  SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/components/TimerService
+  LIB_FILENAME libcantrip_timer_component.a
+)
+
+DeclareCAmkESComponent(TimerService
+  LIBS cantrip_timer_service
+  INCLUDES interfaces
+)
+
 DeclareCAmkESComponent(LogFibonacci
   SOURCES
   components/LogFibonacci/src/main.c

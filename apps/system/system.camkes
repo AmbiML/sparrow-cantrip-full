@@ -19,7 +19,8 @@ import "components/ProcessManager/ProcessManager.camkes";
 import "components/MlCoordinator/MlCoordinator.camkes";
 import "components/MemoryManager/MemoryManager.camkes";
 import "components/StorageManager/StorageManager.camkes";
-import "components/SecurityCoordinator/SecurityCoordinator.camkes";
+import "components/SecurityCoordinator/SecurityCoordinator.camkes"; 
+import "components/TimerService/TimerService.camkes";
 
 component OpenTitanUART {
     hardware;
@@ -28,6 +29,13 @@ component OpenTitanUART {
     emits Interrupt tx_watermark;
     emits Interrupt rx_watermark;
     emits Interrupt tx_empty;
+}
+
+component OpenTitanTimer {
+    hardware;
+    dataport Buf csr;
+
+    emits Interrupt timer_interrupt;
 }
 
 component VectorCoreHw {
@@ -54,6 +62,7 @@ assembly {
 
         component OpenTitanUART uart;
         component OpenTitanUARTDriver uart_driver;
+        component OpenTitanTimer timer;
 
         component MemoryManager memory_manager;
         component ProcessManager process_manager;
@@ -61,6 +70,7 @@ assembly {
         component DebugConsole debug_console;
         component SecurityCoordinator security_coordinator;
         component StorageManager storage_manager;
+        component TimerService timer_service;
 
         // OpenTitanUARTDriver
         connection seL4HardwareMMIO uart_mem(from uart_driver.mmio_region,
@@ -89,6 +99,12 @@ assembly {
 
         connection seL4HardwareMMIO vc_elf(from ml_coordinator.elf_file,
                                             to vc_payload.elf_file);
+
+        // TimerService
+        connection seL4HardwareMMIO timer_csr(from timer_service.csr,
+                                            to timer.csr);
+        connection seL4HardwareInterrupt timer_interrupt(from timer.timer_interrupt,
+                                                       to timer_service.timer_interrupt);
 
         // Hookup ProcessManager to DebugConsole for shell commands.
         connection seL4RPCCall shell_process(from debug_console.proc_ctrl,
@@ -138,6 +154,7 @@ assembly {
             from memory_manager.logger,
             from security_coordinator.logger,
             from storage_manager.logger,
+            from timer_service.logger,
             to debug_console.logger);
     }
 
@@ -162,6 +179,9 @@ assembly {
         vc_payload.elf_file_paddr = 0x46000000;
         vc_payload.elf_file_size = 0x1000000;
 
+        timer.csr_paddr = 0x50030000;
+        timer.csr_size = 0x1000;
+        timer.timer_interrupt_irq_number = 15;
 
         random.ID = 1;
 

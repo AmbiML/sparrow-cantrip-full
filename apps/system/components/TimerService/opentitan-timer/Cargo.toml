@@ -1,0 +1,9 @@
+[package]
+name = "opentitan-timer"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+cantrip-timer-interface = { path = "../cantrip-timer-interface" }
+modular-bitfield = "0.11.2"
+log = "0.4"

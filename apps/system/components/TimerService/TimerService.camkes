@@ -1,0 +1,10 @@
+import <TimerServiceInterface.camkes>;
+
+component TimerService {
+  provides Timer timer;
+
+  dataport Buf csr;
+  consumes Interrupt timer_interrupt;
+
+  uses LoggerInterface logger;
+}

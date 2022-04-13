@@ -1,0 +1,11 @@
+procedure Timer {
+    include <TimerServiceBindings.h>;
+
+    // Returns a bit vector, where a 1 in bit N indicates timer N has finished.
+    // Outstanding completed timers are reset to 0 during this call.
+    uint32_t completed_timers();
+
+    TimerServiceError oneshot(uint32_t timer_id, uint32_t duration_in_ms);
+    TimerServiceError periodic(uint32_t timer_id, uint32_t duration_in_ms);
+    TimerServiceError cancel(uint32_t timer_id);
+};
