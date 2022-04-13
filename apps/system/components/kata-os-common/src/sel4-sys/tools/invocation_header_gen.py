@@ -66,6 +66,9 @@ def parse_xml(xml_file):
         if condition == "(!defined CONFIG_KERNEL_MCS) && CONFIG_MAX_NUM_NODES > 1":
             # NB: CONFIG_MAX_NUM_NODES > 1 =>'s CONFIG_SMP_SUPPORT
             condition = 'all(not(feature = "CONFIG_KERNEL_MCS"), feature = "CONFIG_SMP_SUPPORT")'
+        elif condition == "!defined(CONFIG_KERNEL_MCS) && CONFIG_MAX_NUM_NODES > 1":
+            # NB: CONFIG_MAX_NUM_NODES > 1 =>'s CONFIG_SMP_SUPPORT
+            condition = 'all(not(feature = "CONFIG_KERNEL_MCS"), feature = "CONFIG_SMP_SUPPORT")'
         elif condition == "CONFIG_MAX_NUM_NODES > 1":
             condition = 'feature = "CONFIG_SMP_SUPPORT"'
         elif condition:
