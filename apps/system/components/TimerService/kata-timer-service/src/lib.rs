@@ -6,7 +6,6 @@ extern crate alloc;
 extern crate cantrip_panic;
 
 use alloc::collections::BTreeMap;
-use core::convert::TryInto;
 use core::time::Duration;
 use cantrip_os_common::sel4_sys::seL4_Word;
 use cantrip_timer_interface::{HardwareTimer, Ticks, TimerId, TimerServiceError};
