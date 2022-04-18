@@ -1,7 +1,9 @@
+cargo-features = ["edition2021"]
+
 [package]
 name = "cantrip-vec-core"
 version = "0.1.0"
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 cantrip-ml-interface = { path = "../cantrip-ml-interface" }

@@ -1,8 +1,10 @@
+cargo-features = ["edition2021"]
+
 [package]
 name = "slot-allocator"
 version = "0.1.0"
 authors = ["Sam Leffler <sleffler@google.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 # TODO(sleffler): v1.0 requires rust edition2021

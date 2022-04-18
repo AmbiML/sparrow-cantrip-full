@@ -1,8 +1,10 @@
+cargo-features = ["edition2021"]
+
 [package]
 name = "cantrip-io"
 version = "0.1.0"
 authors = ["Matt Harvey <mattharvey@google.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 memchr = { version = "2.4.1", default-features = false }

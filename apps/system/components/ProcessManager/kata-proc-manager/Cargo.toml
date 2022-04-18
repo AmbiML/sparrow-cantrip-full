@@ -1,8 +1,10 @@
+cargo-features = ["edition2021"]
+
 [package]
 name = "cantrip-proc-manager"
 version = "0.1.0"
 description = "Cantrip OS ProcessManager services"
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 hashbrown = { version = "0.11", features = ["ahash-compile-time-rng"] }

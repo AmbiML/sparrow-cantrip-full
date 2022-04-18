@@ -1,7 +1,9 @@
+cargo-features = ["edition2021"]
+
 [package]
 name = "cantrip-security-coordinator"
 version = "0.1.0"
-edition = "2018"
+edition = "2021"
 
 [features]
 default = ["fake"]  # TODO(sleffler): sel4 once it exists

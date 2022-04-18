@@ -1,7 +1,9 @@
+cargo-features = ["edition2021"]
+
 [package]
 name = "cantrip-storage-component"
 version = "0.1.0"
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 cstr_core = { version = "0.2.3", default-features = false }

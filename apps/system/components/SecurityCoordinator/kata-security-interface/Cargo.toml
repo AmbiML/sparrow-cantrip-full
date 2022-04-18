@@ -1,7 +1,9 @@
+cargo-features = ["edition2021"]
+
 [package]
 name = "cantrip-security-interface"
 version = "0.1.0"
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 postcard = { version = "0.7", features = ["alloc"], default-features = false }

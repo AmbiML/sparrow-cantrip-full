@@ -1,7 +1,9 @@
+cargo-features = ["edition2021"]
+
 [package]
 name = "sel4-config"
 version = "0.1.0"
-edition = "2018"
+edition = "2021"
 description = "build glue for seL4 kernel configuration"
 
 [lib]

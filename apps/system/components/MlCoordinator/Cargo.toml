@@ -1,3 +1,5 @@
+cargo-features = ["edition2021"]
+
 [workspace]
 
 members = [
@@ -5,7 +7,6 @@ members = [
     "cantrip-ml-interface",
     "cantrip-vec-core"
 ]
-resolver = "2"
 
 [profile.dev]
 opt-level = 0

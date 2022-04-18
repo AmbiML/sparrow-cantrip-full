@@ -1,8 +1,10 @@
+cargo-features = ["edition2021"]
+
 [package]
 name = "cantrip-uart-client"
 version = "0.1.0"
 authors = ["Matt Harvey <mattharvey@google.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 # Disable default so we don't pull in CString which requires an allocator
