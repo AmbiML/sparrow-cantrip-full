@@ -87,7 +87,7 @@ mod tests {
     fn log_msg(_level: log::Level, msg: &str) -> Result<Vec<u8>, std::io::Error> {
         let mut v = Vec::new();
         use std::io::Write;
-        write!(&mut v, "{}::{}\0", "cantrip_logger::tests", msg)?;
+        write!(&mut v, "{}::{}\0", "logger::tests", msg)?;
         v.resize(MAX_MSG_LEN, 0);
         assert_eq!(v.len(), MAX_MSG_LEN);
         Ok(v)
@@ -222,7 +222,7 @@ mod tests {
         debug!("{}", debug_msg);
 
         // Blech, must take into account log msg formatting.
-        debug_msg.truncate(MAX_MSG_LEN - 4 - "cantrip_logger::tests::".len());
+        debug_msg.truncate(MAX_MSG_LEN - 4 - "logger::tests::".len());
         debug_msg.push_str("...");
         pop_and_check_result(log::Level::Debug, &debug_msg[..]);
     }
