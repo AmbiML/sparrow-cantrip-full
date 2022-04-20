@@ -7,7 +7,7 @@ members = [
     "cantrip-proc-interface",
     "cantrip-proc-manager",
 ]
-
+resolver = "2"
 
 [profile.dev]
 opt-level = 0
