@@ -171,10 +171,10 @@ assembly {
         vctop.itcm_size = 0x100000;
         vctop.dtcm_paddr = 0x34000000;
         vctop.dtcm_size = 0x1000000;
-        vctop.host_req_irq_number = 11;
-        vctop.finish_irq_number = 12;
-        vctop.instruction_fault_irq_number = 13;
-        vctop.data_fault_irq_number = 14;
+        vctop.host_req_irq_number = 13;          // kTopMatchaPlicIrqIdVcTopHostReq @ top_matcha.h
+        vctop.finish_irq_number = 14;            // kTopMatchaPlicIrqIdVcTopFinish @ top_matcha.h
+        vctop.instruction_fault_irq_number = 15; // kTopMatchaPlicIrqIdVcTopInstructionFault @ top_matcha.h
+        vctop.data_fault_irq_number = 16;        // kTopMatchaPlicIrqIdVcTopDataFault @ top_matcha.h
 
         vc_payload.elf_file_paddr = 0x46000000;
         vc_payload.elf_file_size = 0x1000000;
