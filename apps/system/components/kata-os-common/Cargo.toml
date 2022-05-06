@@ -5,6 +5,10 @@ name = "cantrip-os-common"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = ["camkes_support"]
+camkes_support = []
+
 [dependencies]
 capdl = { path = "src/capdl" }
 model = { path = "src/model" }
