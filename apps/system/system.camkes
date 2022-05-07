@@ -19,7 +19,7 @@ import "components/ProcessManager/ProcessManager.camkes";
 import "components/MlCoordinator/MlCoordinator.camkes";
 import "components/MemoryManager/MemoryManager.camkes";
 import "components/StorageManager/StorageManager.camkes";
-import "components/SecurityCoordinator/SecurityCoordinator.camkes";
+import "components/SecurityCoordinator/SecurityCoordinator.camkes"; 
 import "components/TimerService/TimerService.camkes";
 
 component OpenTitanUART {
@@ -171,17 +171,17 @@ assembly {
         vctop.itcm_size = 0x100000;
         vctop.dtcm_paddr = 0x34000000;
         vctop.dtcm_size = 0x1000000;
-        vctop.host_req_irq_number = 13;          // kTopMatchaPlicIrqIdVcTopHostReq @ top_matcha.h
-        vctop.finish_irq_number = 14;            // kTopMatchaPlicIrqIdVcTopFinish @ top_matcha.h
-        vctop.instruction_fault_irq_number = 15; // kTopMatchaPlicIrqIdVcTopInstructionFault @ top_matcha.h
-        vctop.data_fault_irq_number = 16;        // kTopMatchaPlicIrqIdVcTopDataFault @ top_matcha.h
+        vctop.host_req_irq_number = 11;
+        vctop.finish_irq_number = 12;
+        vctop.instruction_fault_irq_number = 13;
+        vctop.data_fault_irq_number = 14;
 
         vc_payload.elf_file_paddr = 0x46000000;
         vc_payload.elf_file_size = 0x1000000;
 
         timer.csr_paddr = 0x50030000;
         timer.csr_size = 0x1000;
-        timer.timer_interrupt_irq_number = 9; // kTopMatchaPlicIrqIdRvTimerSmcTimerExpiredHart0Timer0 @ top_matcha.h
+        timer.timer_interrupt_irq_number = 15;
 
         random.ID = 1;
 
