@@ -8,7 +8,7 @@ use cantrip_memory_interface::MemoryError;
 use cantrip_memory_interface::MemoryManagerInterface;
 use cantrip_memory_interface::MemoryManagerStats;
 use cantrip_os_common::sel4_sys;
-use log::{debug, error};
+use log::{debug, error, trace};
 use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_CNode_Delete;
 use sel4_sys::seL4_Error;
@@ -35,7 +35,7 @@ const UNTYPED_SLAB_CAPACITY: usize = 64;  // # slabs kept inline
 // TODO(sleffler): support device-backed memory objects
 #[derive(Debug)]
 struct UntypedSlab {
-    pub size_bits: usize, // XXX only used to sort
+    pub size_bits: usize, // NB: only used to sort
     pub _base_paddr: seL4_Word,  // Physical address of slab start
     pub _last_paddr: seL4_Word,  // Physical address of slab end
     pub cptr: seL4_CPtr,    // seL4 untyped object
@@ -174,7 +174,7 @@ impl MemoryManager {
 
     fn delete_caps(root: seL4_CPtr, depth: u8, od: &ObjDesc) -> seL4_Result {
         for offset in 0..od.retype_count() {
-            // XXX warn about errors?
+            // TODO(sleffler) warn about errors?
             unsafe { seL4_CNode_Delete(root, od.cptr + offset, depth) }?;
         }
         Ok(())
@@ -183,6 +183,8 @@ impl MemoryManager {
 
 impl MemoryManagerInterface for MemoryManager {
     fn alloc(&mut self, bundle: &ObjDescBundle) -> Result<(), MemoryError> {
+        trace!("alloc {:?}", bundle);
+
         // TODO(sleffler): split by device vs no-device (or allow mixing)
         let first_ut = self.cur_untyped;
         let mut ut_index = first_ut;
@@ -192,9 +194,11 @@ impl MemoryManagerInterface for MemoryManager {
 
         for od in &bundle.objs {
             // NB: we don't check slots are available (the kernel will tell us).
-            // XXX check size_bytes() against untyped slab? (depend on kernel for now)
+            // TODO(sleffler): maybe check size_bytes() against untyped slab?
+            //    (we depend on the kernel for now)
             while let Err(e) =
-                // XXX ASIDPool maps to UntypedObject?
+                // NB: we don't allocate ASIDPool objects but if we did it
+                //   would fail because it needs to map to an UntypedObject
                 MemoryManager::retype_untyped(self.untypeds[ut_index].cptr, bundle.cnode, od)
             {
                 if e != seL4_Error::seL4_NotEnoughMemory {
@@ -232,14 +236,22 @@ impl MemoryManagerInterface for MemoryManager {
         Ok(())
     }
     fn free(&mut self, bundle: &ObjDescBundle) -> Result<(), MemoryError> {
+        trace!("free {:?}", bundle);
+
         for od in &bundle.objs {
-            // XXX support leaving objects so client can do bulk reclaim on exit
-            //   (maybe require cptr != 0)
+            // TODO(sleffler): support leaving objects so client can do bulk
+            //   reclaim on exit (maybe require cptr != 0)
             if MemoryManager::delete_caps(bundle.cnode, bundle.depth, od).is_ok() {
                 // NB: atm we do not do per-untyped bookkeeping so just track
                 //   global stats.
-                self.allocated_bytes -= od.size_bytes().ok_or(MemoryError::ObjTypeInvalid)?;
-                self.allocated_objs -= od.retype_count();
+                // TODO(sleffler): temp workaround for bad bookkeeping / client mis-handling
+                let size_bytes = od.size_bytes().ok_or(MemoryError::ObjTypeInvalid)?;
+                if size_bytes <= self.allocated_bytes {
+                    self.allocated_bytes -= size_bytes;
+                    self.allocated_objs -= od.retype_count();
+                } else {
+                    debug!("Undeflow on free of {:?}", od);
+                }
             }
         }
         Ok(())

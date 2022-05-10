@@ -7,6 +7,7 @@ use core::ops::Range;
 use core::slice;
 use cantrip_os_common::allocator;
 use cantrip_os_common::logger::CantripLogger;
+use cantrip_os_common::slot_allocator;
 use cantrip_memory_interface::MemoryManagerError;
 use cantrip_memory_interface::MemoryManagerInterface;
 use cantrip_memory_interface::ObjDescBundle;
@@ -14,6 +15,8 @@ use cantrip_memory_interface::RawMemoryStatsData;
 use cantrip_memory_manager::CantripMemoryManager;
 use cantrip_os_common::sel4_sys;
 use log::{info, trace};
+
+use slot_allocator::CANTRIP_CSPACE_SLOTS;
 
 use sel4_sys::seL4_BootInfo;
 use sel4_sys::seL4_CNode_Delete;
@@ -34,7 +37,7 @@ extern "C" {
 
     // Each CAmkES-component has a CNode setup at a well-known slot in SELF_CNODE.
     // We re-use that slot to receive CNode caps passed with alloc & free requests.
-    static RECV_CNODE: seL4_CPtr;
+    static MEMORY_RECV_CNODE: seL4_CPtr;
 }
 
 #[no_mangle]
@@ -75,11 +78,20 @@ pub extern "C" fn pre_init() {
                 stats.free_bytes,
             );
         }
+
+        CANTRIP_CSPACE_SLOTS.init(
+            /*first_slot=*/ bootinfo.empty.start,
+            /*size=*/ bootinfo.empty.end - bootinfo.empty.start
+        );
+        trace!("setup cspace slots: first slot {} free {}",
+               CANTRIP_CSPACE_SLOTS.base_slot(),
+               CANTRIP_CSPACE_SLOTS.free_slots());
     }
+
     unsafe {
         // Delete the CAmkES-setup CNode; we're going to reuse the
         // well-known slot once it is empty (see below).
-        seL4_CNode_Delete(SELF_CNODE, RECV_CNODE, seL4_WordBits as u8)
+        seL4_CNode_Delete(SELF_CNODE, MEMORY_RECV_CNODE, seL4_WordBits as u8)
             .expect("recv_node");
     }
 }
@@ -94,8 +106,8 @@ pub extern "C" fn memory__init() {
         // NB: this must be done here (rather than someplace like pre_init)
         // so it's in the context of the MemoryInterface thread (so we write
         // the correct ipc buffer).
-        seL4_SetCapReceivePath(SELF_CNODE, RECV_CNODE, seL4_WordBits);
-        trace!("Cap receive path {}:{}:{}", SELF_CNODE, RECV_CNODE, seL4_WordBits);
+        seL4_SetCapReceivePath(SELF_CNODE, MEMORY_RECV_CNODE, seL4_WordBits);
+        trace!("Cap receive path {}:{}:{}", SELF_CNODE, MEMORY_RECV_CNODE, seL4_WordBits);
     }
 }
 
@@ -119,12 +131,12 @@ pub extern "C" fn memory_alloc(
     unsafe {
         let recv_path = seL4_GetCapReceivePath();
         // NB: make sure noone clobbers the setup done in memory__init
-        assert_eq!(recv_path, (SELF_CNODE, RECV_CNODE, seL4_WordBits));
+        assert_eq!(recv_path, (SELF_CNODE, MEMORY_RECV_CNODE, seL4_WordBits));
 
         let raw_slice = slice::from_raw_parts(c_raw_data, c_raw_data_len as usize);
         let ret_status = match postcard::from_bytes::<ObjDescBundle>(raw_slice) {
             Ok(mut bundle) => {
-                // TODO(sleffler): verify we received a CNode in RECV_CNODE.
+                // TODO(sleffler): verify we received a CNode in MEMORY_RECV_CNODE.
                 bundle.cnode = recv_path.1;
                 // NB: bundle.depth should reflect the received cnode
                 CANTRIP_MEMORY.alloc(&bundle).into()
@@ -145,12 +157,12 @@ pub extern "C" fn memory_free(
     unsafe {
         let recv_path = seL4_GetCapReceivePath();
         // NB: make sure noone clobbers the setup done in memory__init
-        assert_eq!(recv_path, (SELF_CNODE, RECV_CNODE, seL4_WordBits));
+        assert_eq!(recv_path, (SELF_CNODE, MEMORY_RECV_CNODE, seL4_WordBits));
 
         let raw_slice = slice::from_raw_parts(c_raw_data, c_raw_data_len as usize);
         let ret_status = match postcard::from_bytes::<ObjDescBundle>(raw_slice) {
             Ok(mut bundle) => {
-                // TODO(sleffler): verify we received a CNode in RECV_CNODE.
+                // TODO(sleffler): verify we received a CNode in MEMORY_RECV_CNODE.
                 bundle.cnode = recv_path.1;
                 // NB: bundle.depth should reflect the received cnode
                 CANTRIP_MEMORY.free(&bundle).into()
