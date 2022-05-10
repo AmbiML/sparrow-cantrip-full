@@ -421,8 +421,9 @@ impl<'a> CantripOsModel<'a> {
                 // (find_device_object just does a retype_untyped).
                 if obj.is_device() {
                     let paddr = obj.paddr().unwrap();
-                    //                    debug!(" find device frame/untyped {}, paddr {:#x}, size {}",
-                    //                           obj.name(), paddr, obj_size);
+                    #[cfg(feature = "CONFIG_NOISY_CREATE_OBJECT")]
+                    debug!(" Find device frame/untyped {}, paddr {:#x}, size {}",
+                        obj.name(), paddr, obj_size);
                     self.find_device_object(free_slot, untyped_slot, arch_type, obj_size, paddr, id)
                 } else {
                     retype_untyped(free_slot, untyped_slot, arch_type, obj_size)
@@ -500,7 +501,7 @@ impl<'a> CantripOsModel<'a> {
         let vspace_copy = self.vspace_roots.clone();
         for obj in vspace_copy.iter() {
             let sel4_page = self.get_orig_cap(*obj);
-            //            debug!("Assign ASIDPool for {}", self.get_object(*obj).name());
+            debug!("Assign ASIDPool for {}", self.get_object(*obj).name());
             unsafe { seL4_ASIDPool_Assign(seL4_CapInitThreadASIDPool, sel4_page) }?;
         }
         Ok(())
@@ -691,10 +692,11 @@ impl<'a> CantripOsModel<'a> {
         let sel4_page = self.get_orig_cap(page_cap.obj_id);
         let sel4_pd = self.get_orig_cap(pd_id);
 
-        //        trace!("  Map PT {} into {} @{:#x}, vm_attribs={:#x}",
-        //                self.get_object(page_cap.obj_id).name(),
-        //                self.get_object(pd_id).name(),
-        //                vaddr, page_cap.vm_attribs());
+        #[cfg(feature = "CONFIG_NOISY_INIT_VSPACE")]
+        trace!("  Map PT {} into {} @{:#x}, vm_attribs={:#x}",
+            self.get_object(page_cap.obj_id).name(),
+            self.get_object(pd_id).name(),
+            vaddr, page_cap.vm_attribs());
 
         let vm_attribs: seL4_VMAttributes = page_cap.vm_attribs().into();
         unsafe { seL4_PageTable_Map(sel4_page, sel4_pd, vaddr, vm_attribs) }
@@ -760,15 +762,16 @@ impl<'a> CantripOsModel<'a> {
         //     the dup_cap entry (though shared pages never need fixup).
         self.set_dup_cap(page, sel4_page);
 
-        //        trace!("  Map {} into {} @{:#x} with cap={} rights=(G: {}, R: {}, W: {}) vm_attribs={:#x}",
-        //                self.get_object(page_cap.obj_id).name(),
-        //                self.get_object(pd_id).name(),
-        //                vaddr,
-        //                sel4_page,
-        //                rights.get_capAllowGrant(),
-        //                rights.get_capAllowRead(),
-        //                rights.get_capAllowWrite(),
-        //                page_cap.vm_attribs());
+        #[cfg(feature = "CONFIG_NOISY_INIT_VSPACE")]
+        trace!("  Map {} into {} @{:#x} with cap={} rights=(G: {}, R: {}, W: {}) vm_attribs={:#x}",
+            self.get_object(page_cap.obj_id).name(),
+            self.get_object(pd_id).name(),
+            vaddr,
+            sel4_page,
+            rights.get_capAllowGrant(),
+            rights.get_capAllowRead(),
+            rights.get_capAllowWrite(),
+            page_cap.vm_attribs());
 
         // FIXME: Add support for super-pages.
         // NB: arch::seL4_Page_Map handles arch-specific work like
@@ -921,9 +924,10 @@ impl<'a> CantripOsModel<'a> {
     // Populate a CNode's slots using previously created objects.
     fn init_cnode(&self, mode: InitCnodeCmode, cnode: CDL_ObjID) -> seL4_Result {
         let cdl_cnode = self.get_object(cnode);
-        //        trace!("Init {}: {} slots, orig {} dup {}", cdl_cnode.name(),
-        //              cdl_cnode.num_slots(), self.get_orig_cap(cnode),
-        //              self.get_dup_cap(cnode));
+        #[cfg(feature = "CONFIG_NOISY_INIT_CNODE")]
+        trace!("Init {}: {} slots, orig {} dup {}", cdl_cnode.name(),
+            cdl_cnode.num_slots(), self.get_orig_cap(cnode),
+            self.get_dup_cap(cnode));
         for slot_index in 0..cdl_cnode.num_slots() {
             self.init_cnode_slot(mode, cnode, &cdl_cnode.slot(slot_index))?;
         }
@@ -1048,26 +1052,29 @@ impl<'a> CantripOsModel<'a> {
             _ => (false, self.get_orig_cap(target_cap_obj)),
         };
         let src_depth = seL4_WordBits as u8;
-        //  trace!("cap@{} has type {}", src_index, unsafe { seL4_DebugCapIdentify(src_index) });
+        #[cfg(feature = "CONFIG_NOISY_INIT_CNODE")]
+        debug!("cap@{} has type {}", src_index, sel4_sys::cap_identify(src_index));
 
         if mode == InitCnodeCmode::MOVE && move_cap {
             if is_ep_cap || is_irq_handler_cap {
-                //                debug!("  Populate slot {} by moving {}:{}:{} -> {}:{}:{}",
-                //                       cnode_slot.slot,
-                //                       src_root, src_index, src_depth,
-                //                       dest_root, dest_index, dest_depth,
-                //                );
+                #[cfg(feature = "CONFIG_NOISY_INIT_CNODE")]
+                debug!("  Populate slot {} by moving {}:{}:{} -> {}:{}:{}",
+                    cnode_slot.slot,
+                    src_root, src_index, src_depth,
+                    dest_root, dest_index, dest_depth,
+                );
                 unsafe {
                     seL4_CNode_Move(
                         dest_root, dest_index, dest_depth, src_root, src_index, src_depth,
                     )
                 }?
             } else {
-                //                debug!("  Populate slot {} by mutating {}:{}:{} -> {}:{}:{}",
-                //                       cnode_slot.slot,
-                //                       src_root, src_index, src_depth,
-                //                       dest_root, dest_index, dest_depth,
-                //                );
+                #[cfg(feature = "CONFIG_NOISY_INIT_CNODE")]
+                debug!("  Populate slot {} by mutating {}:{}:{} -> {}:{}:{}",
+                    cnode_slot.slot,
+                    src_root, src_index, src_depth,
+                    dest_root, dest_index, dest_depth,
+                );
                 unsafe {
                     seL4_CNode_Mutate(
                         dest_root,
@@ -1098,11 +1105,12 @@ impl<'a> CantripOsModel<'a> {
                 assert_eq!(frame_cap.r#type(), CDL_FrameCap);
                 // NB: the mapped frame cap is stored in the dup table.
                 let mapped_frame_cap = self.get_dup_cap(frame_cap.obj_id);
-                //                debug!("  Map slot {} by moving {}:{}:{} -> {}:{}:{}",
-                //                       cnode_slot.slot,
-                //                       src_root, mapped_frame_cap, src_depth,
-                //                       dest_root, dest_index, dest_depth,
-                //                );
+                #[cfg(feature = "CONFIG_NOISY_INIT_CNODE")]
+                debug!("  Map slot {} by moving {}:{}:{} -> {}:{}:{}",
+                    cnode_slot.slot,
+                    src_root, mapped_frame_cap, src_depth,
+                    dest_root, dest_index, dest_depth,
+                );
                 // Move the cap to the frame used for the mapping into the
                 // destination slot.
                 unsafe {
@@ -1116,12 +1124,13 @@ impl<'a> CantripOsModel<'a> {
                     )
                 }?;
             } else {
-                //                debug!("  Populate slot {} by minting {}:{}:{} -> {}:{}:{} {:?} data {:#x}",
-                //                       cnode_slot.slot,
-                //                       src_root, src_index, src_depth,
-                //                       dest_root, dest_index, dest_depth,
-                //                       target_cap_rights, target_cap_data,
-                //                );
+                #[cfg(feature = "CONFIG_NOISY_INIT_CNODE")]
+                debug!("  Populate slot {} by minting {}:{}:{} -> {}:{}:{} {:?} data {:#x}",
+                    cnode_slot.slot,
+                    src_root, src_index, src_depth,
+                    dest_root, dest_index, dest_depth,
+                    target_cap_rights, target_cap_data,
+                );
                 unsafe {
                     seL4_CNode_Mint(
                         dest_root,
