@@ -25,6 +25,9 @@ assert_cfg!(any(
     all(target_arch = "x86_64"),
 ));
 
+mod debug;
+pub use debug::*;
+
 pub use seL4_BreakpointAccess::*;
 pub use seL4_BreakpointType::*;
 pub use seL4_Error::*;
