@@ -26,11 +26,14 @@ component DebugConsole {
   // TODO(b/200707300): for debugging
   uses StorageInterface storage;
 
+  uses Timer timer;
+
   // Enable CantripOS CAmkES support.
   attribute int cantripos = true;
 
   // Add a bunch of free slots for test code to use.
   attribute int cnode_headroom = 64;
 
-  uses Timer timer;
+  // Copyregions for loading bundle images.
+  has copyregion BUNDLE_IMAGE;
 }

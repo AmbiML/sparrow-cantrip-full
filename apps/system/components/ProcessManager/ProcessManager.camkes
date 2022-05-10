@@ -14,4 +14,7 @@ component ProcessManager {
 
   // Enable CantripOS CAmkES support.
   attribute int cantripos = true;
+
+  // Copyregions for loading bundle images.
+  has copyregion BUNDLE_IMAGE;
 }

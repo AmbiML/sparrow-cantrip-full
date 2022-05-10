@@ -11,6 +11,9 @@ use cantrip_security_interface::SecurityRequestError;
 use postcard;
 use serde::{Deserialize, Serialize};
 
+mod bundle_image;
+pub use bundle_image::*;
+
 pub type BundleIdArray = Vec<String>;
 
 // Size of the data buffer used to pass a serialized BundleIdArray between Rust <> C.
