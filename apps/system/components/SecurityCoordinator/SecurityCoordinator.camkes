@@ -1,13 +1,18 @@
 // Cantrip OS SecurityCoordinator services.
 
 import <LoggerInterface.camkes>;
+import <MemoryInterface.camkes>;
 import <SecurityCoordinatorInterface.camkes>;
 
 component SecurityCoordinator {
   provides SecurityCoordinatorInterface security;
 
   uses LoggerInterface logger;
+  uses MemoryInterface memory;
 
   // Enable CantripOS CAmkES support.
   attribute int cantripos = true;
+
+  // Add free slots for processing requests.
+  attribute int cnode_headroom = 32;
 }
