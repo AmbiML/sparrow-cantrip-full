@@ -15,6 +15,7 @@ typedef enum StorageManagerError {
   SmeReadFailed,
   SmeWriteFailed,
   SmeDeleteFailed,
+  SmeUnknownError,
 } StorageManagerError;
 
 typedef uint8_t KeyValueData[KEY_VALUE_DATA_SIZE];

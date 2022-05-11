@@ -10,16 +10,20 @@
 typedef enum ProcessManagerError {
   Success = 0,
   BundleIdInvalid,
-  BundleDataInvalid,
   PackageBufferLenInvalid,
   BundleNotFound,
   BundleFound,
   BundleRunning,
-  NoSpace,
+  UnknownError,
+  DeserializeError,
+  SerializeError,
+  ObjCapInvalid,
   InstallFailed,
   UninstallFailed,
   StartFailed,
   StopFailed,
+  SuspendFailed,
+  ResumeFailed,
 } ProcessManagerError;
 
 typedef uint8_t RawBundleIdData[RAW_BUNDLE_ID_DATA_SIZE];

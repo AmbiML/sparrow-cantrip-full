@@ -28,6 +28,8 @@ typedef struct MemoryManagerStats {
   uintptr_t overhead_bytes;
   uintptr_t allocated_objs;
   uintptr_t total_requested_objs;
+  uintptr_t untyped_slab_too_small;
+  uintptr_t out_of_memory;
 } MemoryManagerStats;
 
 #endif /* __MEMORY_MANAGER_BINDINGS_H__ */

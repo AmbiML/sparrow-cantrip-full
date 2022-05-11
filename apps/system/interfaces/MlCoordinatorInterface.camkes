@@ -1,4 +1,4 @@
 procedure MlCoordinatorInterface {
-  void execute();
+  void execute(in string bundle_id, in string model_id);
   void set_continuous_mode(bool mode);
 };
