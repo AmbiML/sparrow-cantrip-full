@@ -9,7 +9,9 @@ edition = "2021"
 cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-security-interface = { path = "../cantrip-security-interface" }
 cantrip-security-coordinator = { path = "../cantrip-security-coordinator" }
+cantrip-storage-interface = { path = "../../StorageManager/cantrip-storage-interface" }
 log = "0.4"
+postcard = { version = "0.7", features = ["alloc"], default-features = false }
 
 [lib]
 name = "cantrip_security_coordinator"

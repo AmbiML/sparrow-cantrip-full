@@ -3,31 +3,36 @@
 extern crate alloc;
 use alloc::string::{String, ToString};
 use hashbrown::HashMap;
-use cantrip_security_interface::DeleteKeyRequest;
-use cantrip_security_interface::GetManifestRequest;
-use cantrip_security_interface::LoadApplicationRequest;
-use cantrip_security_interface::LoadModelRequest;
-use cantrip_security_interface::ReadKeyRequest;
-use cantrip_security_interface::SecurityCoordinatorInterface;
-use cantrip_security_interface::SecurityRequest;
-use cantrip_security_interface::SecurityRequestError;
-use cantrip_security_interface::SizeBufferRequest;
-use cantrip_security_interface::UninstallRequest;
-use cantrip_security_interface::WriteKeyRequest;
+use cantrip_os_common::sel4_sys;
+use cantrip_os_common::slot_allocator;
+use cantrip_memory_interface::ObjDescBundle;
+use cantrip_memory_interface::cantrip_object_free;
+use cantrip_security_interface::*;
 use cantrip_storage_interface::KeyValueData;
-use cantrip_storage_interface::KEY_VALUE_DATA_SIZE;
-use log::trace;
-use postcard;
+use log::error;
+
+use sel4_sys::seL4_CNode_Delete;
+use sel4_sys::seL4_CPtr;
+use sel4_sys::seL4_WordBits;
+
+use slot_allocator::CANTRIP_CSPACE_SLOTS;
+
+extern "C" {
+    static SELF_CNODE: seL4_CPtr;
+}
 
 struct BundleData {
+    pkg_contents: ObjDescBundle,
     pkg_size: usize,
     manifest: String,
     keys: HashMap<String, KeyValueData>,
 }
 impl BundleData {
-    fn new(pkg_size: usize) -> Self {
+    fn new(pkg_contents: &ObjDescBundle) -> Self {
+        let size = pkg_contents.objs.len() * 4096; // XXX
         BundleData {
-            pkg_size: pkg_size,
+            pkg_contents: pkg_contents.clone(),
+            pkg_size: size,
             manifest: String::from(
                 "# Comments like this
                         [Manifest]
@@ -42,6 +47,18 @@ impl BundleData {
                       ",
             ),
             keys: HashMap::with_capacity(2),
+        }
+    }
+}
+impl Drop for BundleData {
+    fn drop(&mut self) {
+        let _ = cantrip_object_free(&self.pkg_contents);
+        unsafe {
+            CANTRIP_CSPACE_SLOTS.free(self.pkg_contents.cnode, 1);
+            if let Err(e) = seL4_CNode_Delete(SELF_CNODE, self.pkg_contents.cnode, seL4_WordBits as u8) {
+                // XXX no bundle_id
+                error!("Error deleting CNode {}, error {:?}", self.pkg_contents.cnode, e);
+            }
         }
     }
 }
@@ -75,144 +92,50 @@ impl FakeSecurityCoordinator {
 pub type CantripSecurityCoordinatorInterface = FakeSecurityCoordinator;
 
 impl SecurityCoordinatorInterface for FakeSecurityCoordinator {
-    fn request(
-        &mut self,
-        request_id: SecurityRequest,
-        request_buffer: &[u8],
-        reply_buffer: &mut [u8],
-    ) -> Result<(), SecurityRequestError> {
-        use SecurityRequestError::*;
-
-        fn serialize_failure(e: postcard::Error) -> SecurityRequestError {
-            trace!("serialize failed: {:?}", e);
-            SreBundleDataInvalid
+    fn install(&mut self, pkg_contents: &ObjDescBundle) -> Result<String, SecurityRequestError> {
+        let bundle_id = "fubar".to_string(); // XXX
+        if self.bundles.contains_key(&bundle_id) {
+            return Err(SecurityRequestError::SreDeleteFirst);
         }
-        fn deserialize_failure(e: postcard::Error) -> SecurityRequestError {
-            trace!("deserialize failed: {:?}", e);
-            SreBundleDataInvalid
-        }
-
-        // TODO(sleffler): mailbox ipc
-        match request_id {
-            SecurityRequest::SrEcho => {
-                trace!("ECHO {:?}", request_buffer);
-                reply_buffer[0..request_buffer.len()].copy_from_slice(&request_buffer[..]);
-                Ok(())
-            }
-            SecurityRequest::SrInstall => {
-                trace!(
-                    "INSTALL addr {:p} len {}",
-                    request_buffer.as_ptr(),
-                    request_buffer.len()
-                );
-                //                let bundle_id = (request_buffer.as_ptr() as usize).to_string();
-                // TODO(sleffler): used by cantrip-storage-component for kvops
-                let bundle_id = "fubar".to_string();
-                let _ = postcard::to_slice(&bundle_id, reply_buffer).map_err(serialize_failure)?;
-                assert!(self
-                    .bundles
-                    .insert(bundle_id, BundleData::new(request_buffer.len()))
-                    .is_none());
-                Ok(())
-            }
-            SecurityRequest::SrUninstall => {
-                let request = postcard::from_bytes::<UninstallRequest>(&request_buffer[..])
-                    .map_err(deserialize_failure)?;
-                trace!("UNINSTALL {}", request.bundle_id);
-                self.remove_bundle(&request.bundle_id)
-            }
-            SecurityRequest::SrSizeBuffer => {
-                let request = postcard::from_bytes::<SizeBufferRequest>(&request_buffer[..])
-                    .map_err(deserialize_failure)?;
-                trace!("SIZE BUFFER bundle_id {}", request.bundle_id);
-                let bundle = self.get_bundle(&request.bundle_id)?;
-                let _ = postcard::to_slice(
-                    &bundle.pkg_size, // TODO(sleffler): do better
-                    reply_buffer,
-                )
-                .map_err(serialize_failure)?;
-                Ok(())
-            }
-            SecurityRequest::SrGetManifest => {
-                let request = postcard::from_bytes::<GetManifestRequest>(&request_buffer[..])
-                    .map_err(deserialize_failure)?;
-                trace!("GET MANIFEST bundle_id {}", request.bundle_id);
-                let bundle = self.get_bundle(&request.bundle_id)?;
-                let _ = postcard::to_slice(&bundle.manifest, reply_buffer)
-                    .map_err(serialize_failure)?;
-                Ok(())
-            }
-            SecurityRequest::SrLoadApplication => {
-                let request = postcard::from_bytes::<LoadApplicationRequest>(&request_buffer[..])
-                    .map_err(deserialize_failure)?;
-                trace!(
-                    "LOAD APPLICATION bundle_id {} addr {:p}",
-                    request.bundle_id,
-                    request.app_binary
-                );
-                let _ = self.get_bundle(&request.bundle_id)?;
-                Ok(())
-            }
-            SecurityRequest::SrLoadModel => {
-                let request = postcard::from_bytes::<LoadModelRequest>(&request_buffer[..])
-                    .map_err(deserialize_failure)?;
-                trace!(
-                    "LOAD MODEL bundle_id {} model_id {} addr {:p}",
-                    request.bundle_id,
-                    request.model_id,
-                    request.model_binary
-                );
-                // TODO(sleffler): check model id
-                let _ = self.get_bundle(&request.bundle_id)?;
-                Ok(())
-            }
-            SecurityRequest::SrReadKey => {
-                let request = postcard::from_bytes::<ReadKeyRequest>(&request_buffer[..])
-                    .map_err(deserialize_failure)?;
-                trace!(
-                    "READ KEY bundle_id {} key {}",
-                    request.bundle_id,
-                    request.key,
-                );
-                let bundle = self.get_bundle(&request.bundle_id)?;
-                match bundle.keys.get(request.key) {
-                    Some(value) => {
-                        // TODO(sleffler): return values are fixed size unless we serialize
-                        reply_buffer[..value.len()].copy_from_slice(&value[..]);
-                        Ok(())
-                    }
-                    None => Err(SreKeyNotFound),
-                }
-            }
-            SecurityRequest::SrWriteKey => {
-                let request = postcard::from_bytes::<WriteKeyRequest>(&request_buffer[..])
-                    .map_err(deserialize_failure)?;
-                trace!(
-                    "WRITE KEY bundle_id {} key {} value {:?}",
-                    request.bundle_id,
-                    request.key,
-                    request.value,
-                );
-                let bundle = self.get_bundle_mut(&request.bundle_id)?;
-                // TODO(sleffler): optimnize with entry
-                let mut value = [0u8; KEY_VALUE_DATA_SIZE];
-                value[..request.value.len()].copy_from_slice(request.value);
-                let _ = bundle.keys.insert(request.key.to_string(), value);
-                Ok(())
-            }
-            SecurityRequest::SrDeleteKey => {
-                let request = postcard::from_bytes::<DeleteKeyRequest>(&request_buffer[..])
-                    .map_err(deserialize_failure)?;
-                trace!(
-                    "DELETE KEY bundle_id {} key {}",
-                    request.bundle_id,
-                    request.key,
-                );
-                let bundle = self.get_bundle_mut(&request.bundle_id)?;
-                // TODO(sleffler): error if no entry?
-                let _ = bundle.keys.remove(request.key);
-                Ok(())
-            }
-        }
+        assert!(self.bundles.insert(bundle_id.clone(), BundleData::new(pkg_contents)).is_none());
+        Ok(bundle_id)
+    }
+    fn uninstall(&mut self, bundle_id: &str) -> Result<(), SecurityRequestError> {
+        self.remove_bundle(bundle_id)
+    }
+    fn size_buffer(&self, bundle_id: &str) -> Result<usize, SecurityRequestError> {
+        let bundle = self.get_bundle(bundle_id)?;
+        Ok(bundle.pkg_size) // TODO(sleffler): do better
+    }
+    fn get_manifest(&self, bundle_id: &str) -> Result<String, SecurityRequestError> {
+        let bundle = self.get_bundle(bundle_id)?;
+        // return &?
+        Ok(bundle.manifest.clone())
+    }
+    fn load_application(&self, bundle_id: &str) -> Result<ObjDescBundle, SecurityRequestError> {
+        let bundle_data = self.get_bundle(bundle_id)?;
+        // XXX just return the package for now
+        Ok(bundle_data.pkg_contents.clone())
+    }
+    fn load_model(&self, bundle_id: &str, _model_id: &str) -> Result<ObjDescBundle, SecurityRequestError> {
+        let bundle_data = self.get_bundle(bundle_id)?;
+        // TODO(sleffler): check model id
+        // XXX just return the package for now
+        Ok(bundle_data.pkg_contents.clone())
+    }
+    fn read_key(&self, bundle_id: &str, key: &str) -> Result<&KeyValueData, SecurityRequestError> {
+        let bundle = self.get_bundle(bundle_id)?;
+        bundle.keys.get(key).ok_or(SecurityRequestError::SreKeyNotFound)
+    }
+    fn write_key(&mut self, bundle_id: &str, key: &str, value: &KeyValueData) -> Result<(), SecurityRequestError> {
+        let bundle = self.get_bundle_mut(bundle_id)?;
+        let _ = bundle.keys.insert(key.to_string(), *value);
+        Ok(())
+    }
+    fn delete_key(&mut self, bundle_id: &str, key: &str) -> Result<(), SecurityRequestError> {
+        let bundle = self.get_bundle_mut(&bundle_id)?;
+        // TODO(sleffler): error if no entry?
+        let _ = bundle.keys.remove(key);
+        Ok(())
     }
 }
