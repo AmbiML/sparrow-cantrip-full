@@ -97,9 +97,6 @@ assembly {
         connection seL4HardwareMMIO vc_dtcm(from ml_coordinator.dtcm,
                                             to vctop.dtcm);
 
-        connection seL4HardwareMMIO vc_elf(from ml_coordinator.elf_file,
-                                            to vc_payload.elf_file);
-
         // TimerService
         connection seL4HardwareMMIO timer_csr(from timer_service.csr,
                                             to timer.csr);
@@ -123,7 +120,8 @@ assembly {
         // component and copies data between components.
         connection seL4RPCOverMultiSharedData multi_memory(
             from debug_console.memory,
-            // TODO(sleffler): from process_manager.memory,
+            from process_manager.memory,
+            from security_coordinator.memory,
             // TOOD(sleffler): from ml_coordinator.memory,
             to memory_manager.memory);
 

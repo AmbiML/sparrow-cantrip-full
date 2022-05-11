@@ -13,6 +13,7 @@ use cantrip_io as io;
 use cantrip_line_reader::LineReader;
 use cantrip_memory_interface::*;
 use cantrip_os_common::sel4_sys;
+use cantrip_os_common::slot_allocator;
 use cantrip_proc_interface::cantrip_pkg_mgmt_install;
 use cantrip_proc_interface::cantrip_pkg_mgmt_uninstall;
 use cantrip_proc_interface::cantrip_proc_ctrl_get_running_bundles;
@@ -26,18 +27,26 @@ use cantrip_timer_interface::timer_service_completed_timers;
 use cantrip_timer_interface::timer_service_oneshot;
 use cantrip_timer_interface::timer_service_wait;
 
+use sel4_sys::seL4_CNode_Delete;
 use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_MinSchedContextBits;
 use sel4_sys::seL4_ObjectType::*;
 use sel4_sys::seL4_WordBits;
 
+use slot_allocator::CANTRIP_CSPACE_SLOTS;
+
 mod rz;
+
+extern "C" {
+    static SELF_CNODE: seL4_CPtr;
+}
 
 /// Error type indicating why a command line is not runnable.
 enum CommandError {
     UnknownCommand,
     BadArgs,
     IO,
+    Memory,
     Formatter(fmt::Error),
 }
 
@@ -47,6 +56,7 @@ impl fmt::Display for CommandError {
             CommandError::UnknownCommand => write!(f, "unknown command"),
             CommandError::BadArgs => write!(f, "invalid arguments"),
             CommandError::IO => write!(f, "input / output error"),
+            CommandError::Memory => write!(f, "memory allocation error"),
             CommandError::Formatter(e) => write!(f, "{}", e),
         }
     }
@@ -118,7 +128,7 @@ fn dispatch_command(cmdline: &str, input: &mut dyn io::BufRead, output: &mut dyn
                 "kvdelete" => kvdelete_command(&mut args, output),
                 "kvread" => kvread_command(&mut args, output),
                 "kvwrite" => kvwrite_command(&mut args, output),
-                "install" => install_command(&mut args, output),
+                "install" => install_command(&mut args, input, output),
                 "loglevel" => loglevel_command(&mut args, output),
                 "malloc" => malloc_command(&mut args, output),
                 "mfree" => mfree_command(&mut args, output),
@@ -226,7 +236,7 @@ fn rz_command(
     writeln!(
         output,
         "size: {}, crc32: {}",
-        upload.contents().len(),
+        upload.len(),
         hex::encode(upload.crc32().to_be_bytes())
     )?;
     Ok(())
@@ -281,13 +291,53 @@ fn bundles_command(output: &mut dyn io::Write) -> Result<(), CommandError> {
     Ok(())
 }
 
+fn collect_from_zmodem(
+    input: &mut dyn io::BufRead,
+    mut output: &mut dyn io::Write,
+) -> Option<ObjDescBundle> {
+      writeln!(output, "Starting zmodem upload...").ok()?;
+      let mut upload = rz::rz(input, &mut output).ok()?;
+      upload.finish();
+      writeln!(output, "Received {} bytes of data, crc32 {}",
+               upload.len(),
+               hex::encode(upload.crc32().to_be_bytes())).ok()?;
+      Some(upload.frames().clone())
+}
+
 fn install_command(
-    _args: &mut dyn Iterator<Item = &str>,
-    output: &mut dyn io::Write,
+    args: &mut dyn Iterator<Item = &str>,
+    input: &mut dyn io::BufRead,
+    mut output: &mut dyn io::Write,
 ) -> Result<(), CommandError> {
-    // TODO(sleffler): supply a real bundle (e.g. from serial)
-    let pkg_buffer = &[0u8; 64];
-    match cantrip_pkg_mgmt_install(pkg_buffer) {
+    fn clear_slot(slot: seL4_CPtr) {
+        unsafe {
+            CANTRIP_CSPACE_SLOTS.free(slot, 1);
+            seL4_CNode_Delete(SELF_CNODE, slot, seL4_WordBits as u8)
+                .expect("install");
+        }
+    }
+
+    // Collect/setup the package frames. If a -z arg is present a zmodem
+    // upload is used; otherwise we use some raw pages (for testing).
+    let mut pkg_contents = match args.next() {
+        Some("-z") => {
+            collect_from_zmodem(input, &mut output).ok_or(CommandError::IO)?
+        }
+        _ => {
+            // TODO: pattern-fill pages
+            cantrip_frame_alloc(8192).map_err(|_| CommandError::IO)?
+        }
+    };
+
+    // The frames are in SELF_CNODE; wrap them in a dynamically allocated
+    // CNode (as expected by cantrip_pgk_mgmt_install).
+    // TODO(sleffler): useful idiom, add to MemoryManager
+    let cnode_depth = pkg_contents.count_log2();
+    let cnode = cantrip_cnode_alloc(cnode_depth)
+                    .map_err(|_| CommandError::Memory)?;  // XXX leaks pkg_contents
+    pkg_contents.move_objects_from_toplevel(cnode.objs[0].cptr, cnode_depth as u8)
+                .map_err(|_| CommandError::Memory)?; // XXX leaks pkg_contents + cnode
+    match cantrip_pkg_mgmt_install(&pkg_contents) {
         Ok(bundle_id) => {
             writeln!(output, "Bundle \"{}\" installed", bundle_id)?;
         }
@@ -295,6 +345,13 @@ fn install_command(
             writeln!(output, "install failed: {:?}", status)?;
         }
     }
+
+    // SecurityCoordinator owns the cnode & frames contained within but we
+    // still have a cap for the cnode in our top-level CNode; clean it up.
+    debug_assert!(cnode.cnode == unsafe { SELF_CNODE });
+    sel4_sys::debug_assert_slot_cnode!(cnode.objs[0].cptr);
+    clear_slot(cnode.objs[0].cptr);
+
     Ok(())
 }
 
