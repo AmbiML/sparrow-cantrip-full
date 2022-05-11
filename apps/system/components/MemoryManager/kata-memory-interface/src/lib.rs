@@ -10,7 +10,6 @@ use core::fmt;
 use cantrip_os_common::slot_allocator;
 use cantrip_os_common::sel4_sys;
 use log::trace;
-use postcard;
 use serde::{Deserialize, Serialize};
 
 use sel4_sys::seL4_CNode_Move;
@@ -150,6 +149,9 @@ impl ObjDescBundle {
         ObjDescBundle { cnode, depth, objs }
     }
 
+    // Returns whether there are any object descriptors.
+    pub fn is_empty(&self) -> bool { self.objs.len() == 0 }
+
     // Returns the number of object descriptors.
     pub fn len(&self) -> usize { self.objs.len() }
 
@@ -239,7 +241,7 @@ impl ObjDescBundle {
             }
             unsafe { CANTRIP_CSPACE_SLOTS.free(od.cptr, count) };
             od.cptr = dest_slot;
-            dest_slot = dest_slot + count;
+            dest_slot += count;
         }
         self.cnode = dest_cnode;
         self.depth = dest_depth;
@@ -347,7 +349,7 @@ impl From<MemoryError> for MemoryManagerError {
 impl From<Result<(), MemoryError>> for MemoryManagerError {
     fn from(result: Result<(), MemoryError>) -> MemoryManagerError {
         result.map_or_else(
-            |e| MemoryManagerError::from(e),
+            MemoryManagerError::from,
             |_v| MemoryManagerError::MmeSuccess,
         )
     }
@@ -400,7 +402,7 @@ pub fn cantrip_object_alloc_in_toplevel(
     let mut request = ObjDescBundle::new(
         unsafe { MEMORY_RECV_CNODE },
         unsafe { MEMORY_RECV_CNODE_DEPTH },
-        objs.clone(),
+        objs,
     );
     cantrip_object_alloc(&request)?;
     match request.move_objects_to_toplevel() {
@@ -424,7 +426,7 @@ pub fn cantrip_object_alloc_in_cnode(
     fn next_log2(value: usize) -> usize {
         let mut size_bits = 0;
         while value > (1 << size_bits) {
-            size_bits = size_bits + 1;
+            size_bits += 1;
         }
         size_bits
     }
@@ -437,7 +439,7 @@ pub fn cantrip_object_alloc_in_cnode(
 
     // Now construct the request for |objs| with |cnode| as the container.
     let request = ObjDescBundle::new(
-        cnode.objs[0].cptr, cnode_depth as u8, objs.clone(),
+        cnode.objs[0].cptr, cnode_depth as u8, objs,
     );
     match cantrip_object_alloc(&request) {
         Err(e) => {
@@ -642,7 +644,7 @@ pub fn cantrip_object_free_in_cnode(
             /*cptr=*/ request.cnode
         )],
     );
-    cantrip_object_free(&request)?;
+    cantrip_object_free(request)?;
     // No way to recover if this fails..
     cantrip_object_free_toplevel(&cnode_obj)
 }
@@ -666,7 +668,7 @@ pub fn cantrip_memory_stats() -> Result<MemoryManagerStats, MemoryManagerError> 
         fn memory_stats(c_data: *mut RawMemoryStatsData) -> MemoryManagerError;
     }
     let raw_data = &mut [0u8; RAW_MEMORY_STATS_DATA_SIZE];
-    match unsafe { memory_stats(raw_data as *mut _) }.into() {
+    match unsafe { memory_stats(raw_data as *mut _) } {
         MemoryManagerError::MmeSuccess => {
             let stats = postcard::from_bytes::<MemoryManagerStats>(raw_data)
                 .map_err(|_| MemoryManagerError::MmeDeserializeFailed)?;

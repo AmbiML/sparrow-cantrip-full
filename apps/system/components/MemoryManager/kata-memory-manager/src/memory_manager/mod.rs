@@ -47,7 +47,7 @@ impl UntypedSlab {
             size_bits: ut.size_bits(),
             _base_paddr: ut.paddr,
             _last_paddr: ut.paddr + (1 << ut.size_bits()),
-            cptr: cptr,
+            cptr,
             _next_paddr: ut.paddr,
         }
     }
@@ -89,7 +89,7 @@ impl MemoryManager {
     // Creates a new MemoryManager instance. The allocator is seeded
     // from the untyped memory descriptors.
     pub fn new(slots: Range<seL4_CPtr>, untypeds: &[seL4_UntypedDesc]) -> Self {
-        assert!(untypeds.len() > 0);
+        assert!(!untypeds.is_empty());
         assert_eq!(slots.end - slots.start, untypeds.len());
         let mut m = MemoryManager {
             untypeds: SmallVec::new(),
