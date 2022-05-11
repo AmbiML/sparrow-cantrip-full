@@ -181,7 +181,9 @@ assembly {
 
         timer.csr_paddr = 0x50030000;
         timer.csr_size = 0x1000;
-        timer.timer_interrupt_irq_number = 15;
+
+        // Placeholder interrupt number, not represented in top_matcha.h.
+        timer.timer_interrupt_irq_number = 31;
 
         random.ID = 1;
 
