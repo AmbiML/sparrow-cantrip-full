@@ -4,7 +4,6 @@
 
 use core::str;
 use cstr_core::CString;
-use cantrip_security_interface::SecurityRequestError;
 use postcard;
 
 // TODO(sleffler): temp constraint on value part of key-value pairs
@@ -26,22 +25,6 @@ pub enum StorageError {
     ReadFailed,
     WriteFailed,
     DeleteFailed,
-}
-
-impl From<SecurityRequestError> for StorageError {
-    fn from(err: SecurityRequestError) -> StorageError {
-        match err {
-            SecurityRequestError::SreBundleNotFound => StorageError::BundleNotFound,
-            SecurityRequestError::SreKeyNotFound => StorageError::KeyNotFound,
-            SecurityRequestError::SreValueInvalid => StorageError::ValueInvalid,
-            SecurityRequestError::SreKeyInvalid => StorageError::KeyInvalid,
-            SecurityRequestError::SreSerializeFailed => StorageError::SerializeFailed,
-            SecurityRequestError::SreReadFailed => StorageError::ReadFailed,
-            SecurityRequestError::SreWriteFailed => StorageError::WriteFailed,
-            SecurityRequestError::SreDeleteFailed => StorageError::DeleteFailed,
-            _ => StorageError::UnknownSecurityError, // NB: cannot happen
-        }
-    }
 }
 
 impl From<postcard::Error> for StorageError {
