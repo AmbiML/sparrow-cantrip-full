@@ -4,3 +4,7 @@ cargo-features = ["edition2021"]
 name = "cantrip-ml-interface"
 version = "0.1.0"
 edition = "2021"
+
+[dependencies]
+cstr_core = { version = "0.2.3", default-features = false }
+cantrip-memory-interface = { path = "../../MemoryManager/cantrip-memory-interface" }

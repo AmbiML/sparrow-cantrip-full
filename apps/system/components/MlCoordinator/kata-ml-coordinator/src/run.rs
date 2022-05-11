@@ -2,28 +2,41 @@
 
 // ML Coordinator Design Doc: go/sparrow-ml-doc
 
-use core::slice;
+extern crate alloc;
+
+use cstr_core::CStr;
+use alloc::string::String;
+use cantrip_os_common::allocator;
 use cantrip_os_common::logger::CantripLogger;
+use cantrip_os_common::sel4_sys;
+use cantrip_os_common::slot_allocator;
 use cantrip_ml_interface::MlCoordinatorInterface;
 use cantrip_ml_interface::MlCoreInterface;
+use cantrip_security_interface::*;
 use cantrip_vec_core::MlCore;
 use log::{error, info, trace};
 
+use sel4_sys::seL4_CPtr;
+
+use slot_allocator::CSpaceSlot;
+use slot_allocator::CANTRIP_CSPACE_SLOTS;
+
+extern "C" {
+    static SELF_CNODE_FIRST_SLOT: seL4_CPtr;
+    static SELF_CNODE_LAST_SLOT: seL4_CPtr;
+}
+
 pub struct MLCoordinator {
-    is_loaded: bool,
+    loaded_bundle: Option<String>,
+    loaded_model: Option<String>,
     is_running: bool,
     continous_mode: bool,
     ml_core: MlCore,
 }
 
-extern "C" {
-    static elf_file: *const u8;
-}
-// TODO(jesionowski): Get the size programatically.
-const ELF_SIZE: usize = 0x300000;
-
 pub static mut ML_COORD: MLCoordinator = MLCoordinator {
-    is_loaded: false,
+    loaded_bundle: None,
+    loaded_model: None,
     is_running: false,
     continous_mode: false,
     ml_core: MlCore {},
@@ -32,6 +45,15 @@ pub static mut ML_COORD: MLCoordinator = MLCoordinator {
 impl MLCoordinator {
     fn init(&mut self) {
         self.ml_core.enable_interrupts(true);
+    }
+
+    fn is_loaded(&self) -> bool {
+        self.loaded_bundle.is_some() && self.loaded_model.is_some()
+    }
+
+    fn cmp_loaded(&self, bundle_id: &str, model_id: &str) -> bool {
+        self.loaded_bundle.as_deref() == Some(bundle_id) &&
+        self.loaded_model.as_deref() == Some(model_id)
     }
 
     fn handle_return_interrupt(&mut self) {
@@ -46,15 +68,21 @@ impl MLCoordinator {
 
         if return_code != 0 {
             error!(
-                "vctop execution failed with code {}, fault pc: {:#010X}",
-                return_code, fault
+                "{}: vctop execution failed with code {}, fault pc: {:#010X}",
+                self.loaded_model.as_ref().unwrap(), return_code, fault
             );
             self.continous_mode = false;
         }
 
         self.is_running = false;
         if self.continous_mode {
-            self.execute();
+            // TODO(sleffler): can !is_loaded happen?
+            // XXX needs proper state machine
+            // XXX what is the threading/locking model?
+            if self.is_loaded() {
+                self.ml_core.run(); // Unhalt, start at default PC.
+                self.is_running = true;
+            }
         }
 
         MlCore::clear_finish();
@@ -63,26 +91,46 @@ impl MLCoordinator {
 }
 
 impl MlCoordinatorInterface for MLCoordinator {
-    fn execute(&mut self) {
+    fn execute(&mut self, bundle_id: &str, model_id: &str) {
         if self.is_running {
+            trace!("Skip execute with {}:{} already running",
+                   self.loaded_bundle.as_ref().unwrap(),
+                   self.loaded_model.as_ref().unwrap());
             return;
         }
 
-        if !self.is_loaded {
-            let res = self
-                .ml_core
-                .load_elf(unsafe { slice::from_raw_parts(elf_file, ELF_SIZE) });
-            if let Err(e) = res {
-                error!("Load error: {:?}", e);
-            } else {
-                info!("Load successful.");
-                self.is_loaded = true;
+        if !self.cmp_loaded(bundle_id, model_id) {
+            // Loads |model_id| associated with |bundle_id| from the
+            // SecurityCoordinator. The data are returned as unmapped
+            // page frames in a CNode container left in |container_slot|.
+            // To load the model into the vector core the pages must be
+            // mapped into the MlCoordinator's VSpace before being copied
+            // to their destination.
+            let container_slot = CSpaceSlot::new();
+            match cantrip_security_load_model(bundle_id, model_id, &container_slot) {
+                Ok(model_frames) => {
+                    if let Err(e) = self.ml_core.load_image(&model_frames) {
+                        error!("Load of {}:{} failed: {:?}",
+                               bundle_id, model_id, e);
+                        // NB: may have corrupted TCM, clear loaded state
+                        self.loaded_bundle = None;
+                        self.loaded_model = None;
+                    } else {
+                        info!("Load successful.");
+                        self.loaded_bundle = Some(String::from(bundle_id));
+                        self.loaded_model = Some(String::from(model_id));
+                    }
+                }
+                Err(e) => {
+                    error!("LoadModel of bundle {} model {} failed: {:?}",
+                           bundle_id, model_id, e);
+                }
             }
         }
 
-        if self.is_loaded {
-            self.is_running = true;
+        if self.is_loaded() {
             self.ml_core.run(); // Unhalt, start at default PC.
+            self.is_running = true;
         }
     }
 
@@ -96,21 +144,51 @@ pub extern "C" fn pre_init() {
     static CANTRIP_LOGGER: CantripLogger = CantripLogger;
     log::set_logger(&CANTRIP_LOGGER).unwrap();
     log::set_max_level(log::LevelFilter::Trace);
+
+    // TODO(sleffler): temp until we integrate with seL4
+    static mut HEAP_MEMORY: [u8; 4 * 1024] = [0; 4 * 1024];
+    unsafe {
+        allocator::ALLOCATOR.init(HEAP_MEMORY.as_mut_ptr() as usize, HEAP_MEMORY.len());
+        trace!(
+            "setup heap: start_addr {:p} size {}",
+            HEAP_MEMORY.as_ptr(),
+            HEAP_MEMORY.len()
+        );
+    }
+
+    unsafe {
+        CANTRIP_CSPACE_SLOTS.init(
+            /*first_slot=*/ SELF_CNODE_FIRST_SLOT,
+            /*size=*/ SELF_CNODE_LAST_SLOT - SELF_CNODE_FIRST_SLOT
+        );
+        trace!("setup cspace slots: first slot {} free {}",
+               CANTRIP_CSPACE_SLOTS.base_slot(),
+               CANTRIP_CSPACE_SLOTS.free_slots());
+    }
 }
 
 #[no_mangle]
 pub extern "C" fn mlcoord__init() {
-    trace!("init");
     unsafe {
         ML_COORD.init();
     }
 }
 
-// TODO: Once multiple model support is in start by name.
 #[no_mangle]
-pub extern "C" fn mlcoord_execute() {
+pub extern "C" fn mlcoord_execute(
+    c_bundle_id: *const cstr_core::c_char,
+    c_model_id: *const cstr_core::c_char,
+) {
     unsafe {
-        ML_COORD.execute();
+        match CStr::from_ptr(c_bundle_id).to_str() {
+            Ok(bundle_id) => match CStr::from_ptr(c_model_id).to_str() {
+                Ok(model_id) => {
+                    ML_COORD.execute(bundle_id, model_id)
+                }
+                _ => error!("Invalid model_id"),
+            }
+            _ => error!("Invalid bundle_id"),
+        }
     }
 }
 

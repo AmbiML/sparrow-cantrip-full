@@ -5,11 +5,14 @@
 
 mod vc_top;
 
-use core::assert;
+use core::mem::size_of;
 use core::slice;
 use cantrip_ml_interface::MlCoreInterface;
-use xmas_elf::program::{SegmentData, Type};
-use xmas_elf::ElfFile;
+use cantrip_memory_interface::ObjDescBundle;
+use cantrip_proc_interface::BundleImage;
+
+use cantrip_io as io;
+use io::Read;
 
 // TODO(jesionowski): Move these constants to an auto-generated file.
 // TODO(b/214092253): ITCM size blow-up needs to be addressed.
@@ -21,13 +24,11 @@ const DTCM_PADDR: usize = 0x34000000;
 // TODO(jesionowski): ITCM / DTCM will eventually be merged into a single memory.
 extern "C" {
     static itcm: *mut u32;
-}
-extern "C" {
     static dtcm: *mut u32;
 }
 
 fn get_dtcm_slice() -> &'static mut [u32] {
-    unsafe { slice::from_raw_parts_mut(dtcm, DTCM_SIZE / 4) }
+    unsafe { slice::from_raw_parts_mut(dtcm, DTCM_SIZE / size_of::<u32>()) }
 }
 
 pub struct MlCore {}
@@ -68,48 +69,37 @@ impl MlCoreInterface for MlCore {
         vc_top::set_ctrl(ctrl);
     }
 
-    fn load_elf(&mut self, elf_slice: &[u8]) -> Result<(), &'static str> {
-        let itcm_slice = unsafe { slice::from_raw_parts_mut(itcm as *mut u8, ITCM_SIZE) };
-        let dtcm_slice = unsafe { slice::from_raw_parts_mut(dtcm as *mut u8, DTCM_SIZE) };
-
-        let elf = ElfFile::new(elf_slice)?;
+    // Loads the model into the TCM.
+    fn load_image(&mut self, frames: &ObjDescBundle) -> Result<(), &'static str> {
+        let mut image = BundleImage::new(frames);
+        let mut itcm_found = false;
+        let mut dtcm_found = false;
 
         clear_tcm();
+        // NB: we require both ITCM & DTCM sections and that only one
+        //   instance of each is present
+        while let Some(section) = image.next_section() {
+            let slice = if section.vaddr == ITCM_PADDR {
+                if itcm_found { return Err("dup ITCM") }
+                itcm_found = true;
 
-        for seg in elf.program_iter() {
-            if seg.get_type()? == Type::Load {
-                let fsize = seg.file_size() as usize;
-                let msize = seg.mem_size() as usize;
+                if section.fsize > ITCM_SIZE { return Err("ITCM too big") }
+                unsafe { slice::from_raw_parts_mut(itcm as *mut u8, ITCM_SIZE) }
+            } else if section.vaddr == DTCM_PADDR {
+                if dtcm_found { return Err("dup DTCM") }
+                dtcm_found = true;
 
-                if seg.virtual_addr() as usize == ITCM_PADDR {
-                    assert!(
-                        fsize <= ITCM_SIZE,
-                        "Elf's ITCM section is larger than than ITCM_SIZE"
-                    );
-
-                    // Due to being Load types we are guarunteed SegmentData::Undefined as the
-                    // data type.
-                    if let SegmentData::Undefined(bytes) = seg.get_data(&elf)? {
-                        itcm_slice[..fsize].copy_from_slice(&bytes);
-                    }
-                } else if seg.virtual_addr() as usize == DTCM_PADDR {
-                    assert!(
-                        msize <= DTCM_SIZE,
-                        "Elf's DTCM section is larger than than DTCM_SIZE"
-                    );
-
-                    if let SegmentData::Undefined(bytes) = seg.get_data(&elf)? {
-                        dtcm_slice[..fsize].copy_from_slice(&bytes);
-                    }
-                    // TODO(jesionowski): Remove when clear_tcm is fully implemented.
-                    // Clear NOBITS sections.
-                    dtcm_slice[fsize..msize].fill(0x00);
-                } else {
-                    assert!(false, "Elf contains LOAD section outside TCM");
-                }
-            }
+                if section.fsize > DTCM_SIZE { return Err("DTCM section too big") }
+                unsafe { slice::from_raw_parts_mut(dtcm as *mut u8, DTCM_SIZE) }
+            } else {
+                return Err("Unexpected section");
+            };
+            image.read_exact(&mut slice[section.data_range()])
+                .map_err(|_| "section read error")?;
+            // TODO(jesionowski): Remove when clear_tcm is fully implemented.
+            slice[section.zero_range()].fill(0x00);
         }
-
+        if !itcm_found || !dtcm_found { return Err("Incomplete") }
         Ok(())
     }
 

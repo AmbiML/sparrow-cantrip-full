@@ -6,7 +6,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+cantrip-io = { path = "../../DebugConsole/cantrip-io" }
+cantrip-memory-interface = { path = "../../MemoryManager/cantrip-memory-interface" }
 cantrip-ml-interface = { path = "../cantrip-ml-interface" }
+cantrip-proc-interface = { path = "../../ProcessManager/cantrip-proc-interface" }
+cantrip-os-common = { path = "../../cantrip-os-common" }
 modular-bitfield = "0.11.2"
 log = "0.4"
-xmas-elf = { git = "https://github.com/nrc/xmas-elf" }

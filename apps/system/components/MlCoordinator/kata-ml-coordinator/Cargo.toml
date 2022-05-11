@@ -7,11 +7,13 @@ authors = ["Adam Jesionowski <jesionowski@google.com>"]
 edition = "2021"
 
 [dependencies]
+cstr_core = { version = "0.2.3", default-features = false }
 cantrip-os-common = { path = "../../cantrip-os-common" }
+cantrip-memory-interface = { path = "../../MemoryManager/cantrip-memory-interface" }
 cantrip-ml-interface = { path = "../cantrip-ml-interface" }
+cantrip-security-interface = { path = "../../SecurityCoordinator/cantrip-security-interface" }
 cantrip-vec-core = { path = "../cantrip-vec-core" }
 log = "0.4"
-xmas-elf = "0.8.0"
 
 [lib]
 name = "cantrip_ml_coordinator"

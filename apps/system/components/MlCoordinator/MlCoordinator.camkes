@@ -11,7 +11,6 @@ component MlCoordinator {
   consumes Interrupt data_fault;
 
   dataport Buf csr;
-  dataport Buf(0x1000000) elf_file;
   dataport Buf(0x100000) itcm;
   dataport Buf(0x1000000) dtcm;
 
@@ -20,4 +19,7 @@ component MlCoordinator {
 
   // Enable CantripOS CAmkES support.
   attribute int cantripos = true;
+
+  // Copyregion for loading bundle images
+  has copyregion BUNDLE_IMAGE;
 }
