@@ -3,10 +3,11 @@
 extern crate alloc;
 use alloc::boxed::Box;
 use alloc::string::String;
-use core::convert::TryFrom;
 use core::marker::Sync;
 use hashbrown::HashMap;
+use cantrip_memory_interface::ObjDescBundle;
 use cantrip_proc_interface::Bundle;
+use cantrip_proc_interface::BundleImplInterface;
 use cantrip_proc_interface::BundleIdArray;
 use cantrip_proc_interface::PackageManagementInterface;
 use cantrip_proc_interface::ProcessControlInterface;
@@ -32,15 +33,14 @@ enum BundleState {
 struct BundleData {
     state: BundleState,
     bundle: Box<Bundle>,
-    // TODO(sleffler): seL4 capability (minted from bundle.app_token)?
-    // TODO(sleffler): seL4 capability for bundle.app_memory_address?
+    bundle_impl: Option<Box<dyn BundleImplInterface>>,
 }
-
 impl BundleData {
     fn new(bundle: &Bundle) -> Self {
         BundleData {
             state: BundleState::Stopped,
             bundle: Box::new(bundle.clone()),
+            bundle_impl: None,
         }
     }
 }
@@ -75,33 +75,18 @@ impl PackageManagementInterface for ProcessManager {
     //   (assume a fixed pathname to the app is used)
     fn install(
         &mut self,
-        pkg_buffer: *const u8,
-        pkg_buffer_len: usize,
+        pkg_contents: &ObjDescBundle,
     ) -> Result<String, ProcessManagerError> {
-        let pkg_buffer_size = match u32::try_from(pkg_buffer_len) {
-            Ok(v) => v,
-            Err(_) => return Err(ProcessManagerError::PackageBufferLenInvalid),
-        };
+        trace!("install pkg_contents {}", pkg_contents);
 
-        // We assume the seL4 capability for the memory associated with
-        // pkg_buffer has been setup for us so we can pass it along (as needed)
-        // to the Security Core.
-        //
         // NB: defer to StorageManager for handling an install of a previously
         // installed app. We do not have the app_id to check locally so if the
         // StorageManager disallows re-install then we'll return it's error;
         // otherwise we update the returned Bundle state.
-        // TODO(sleffler): owner's public key?
-        let bundle_id = self.manager.install(pkg_buffer, pkg_buffer_size)?;
-        trace!(
-            "install pkg {:p}:{} => bundle_id:{}",
-            pkg_buffer,
-            pkg_buffer_size,
-            bundle_id
-        );
+        let bundle_id = self.manager.install(pkg_contents)?;
+        trace!("install -> bundle_id {}", bundle_id);
 
-        let mut bundle = Bundle::new();
-        bundle.app_id = bundle_id;
+        let bundle = Bundle::new(&bundle_id);
         assert!(self
             .bundles
             .insert(BundleId::from_str(&bundle.app_id), BundleData::new(&bundle))
@@ -111,15 +96,12 @@ impl PackageManagementInterface for ProcessManager {
     }
 
     fn uninstall(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError> {
-        trace!("uninstall bundle_id:{}", bundle_id);
+        trace!("uninstall bundle_id {}", bundle_id);
+
         let bid = BundleId::from_str(bundle_id);
         match self.bundles.get(&bid) {
             Some(bundle) => {
-                trace!(
-                    "uninstall bundle_id:{}: state {:?}",
-                    bundle_id,
-                    bundle.state
-                );
+                trace!("uninstall state {:?}", bundle.state);
                 if bundle.state == BundleState::Running {
                     return Err(ProcessManagerError::BundleRunning);
                 }
@@ -134,12 +116,13 @@ impl PackageManagementInterface for ProcessManager {
 
 impl ProcessControlInterface for ProcessManager {
     fn start(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError> {
+        trace!("start bundle_id {}", bundle_id);
         let bid = BundleId::from_str(bundle_id);
         match self.bundles.get_mut(&bid) {
             Some(bundle) => {
-                trace!("start bundle_id:{}: state {:?}", bundle_id, bundle.state);
+                trace!("start state {:?}", bundle.state);
                 if bundle.state == BundleState::Stopped {
-                    self.manager.start(&bundle.bundle)?;
+                    bundle.bundle_impl = Some(self.manager.start(&bundle.bundle)?);
                 }
                 bundle.state = BundleState::Running;
                 Ok(())
@@ -149,25 +132,27 @@ impl ProcessControlInterface for ProcessManager {
                 // to setup/start the application. To that end we pre-populate
                 // the hashmap at start by querying the StorageManager for
                 // previously installed applications.
-                trace!("start bundle_id:{}: not found", bundle_id);
+                trace!("start {} not found", bundle_id);
                 Err(ProcessManagerError::BundleNotFound)
             }
         }
     }
 
     fn stop(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError> {
+        trace!("stop bundle_id {}", bundle_id);
         let bid = BundleId::from_str(bundle_id);
         match self.bundles.get_mut(&bid) {
             Some(bundle) => {
-                trace!("stop bundle_id:{}: state {:?}", bundle_id, bundle.state);
+                trace!("stop state {:?}", bundle.state);
                 if bundle.state == BundleState::Running {
-                    self.manager.stop(&bundle.bundle)?;
+                    self.manager.stop(bundle.bundle_impl.as_deref_mut().unwrap())?;
                 }
                 bundle.state = BundleState::Stopped;
+                bundle.bundle_impl = None;
                 Ok(())
             }
             None => {
-                trace!("stop bundle_id:{}: not found", bundle_id);
+                trace!("stop {} not found", bundle_id);
                 Err(ProcessManagerError::BundleNotFound)
             }
         }
@@ -203,6 +188,14 @@ mod tests {
             }
         }
     }
+    struct FakeBundleImpl {
+    }
+    impl<'a> BundleImplInterface for FakeBundleImpl<'a> {
+        fn start(&mut self) -> Result<(), ProcessManagerError> { Ok(()) }
+        fn stop(&mut self) -> Result<(), ProcessManagerError> { Ok(()) }
+        fn resume(&self) -> Result<(), ProcessManagerError> { Ok(()) }
+        fn suspend(&self) -> Result<(), ProcessManagerError> { Ok(()) }
+    }
     impl ProcessManagerInterface for FakeManager {
         fn install(&mut self, pkg_buffer: *const u8, pkg_buffer_size: u32) -> Result<String, pme> {
             let str = (pkg_buffer as usize).to_string();
@@ -218,12 +211,11 @@ mod tests {
                 None => Err(ProcessManagerError::BundleNotFound),
             }
         }
-        fn start(&mut self, bundle: &Bundle) -> Result<(), pme> {
+        fn start(&mut self, bundle: &Bundle) -> Result<Box<dyn BundleImplInterface>, pme> {
             assert!(self.bundles.contains_key(&bundle.app_id));
-            Ok(())
+            Ok(Box::new(FakeBundleImpl))
         }
-        fn stop(&mut self, bundle: &Bundle) -> Result<(), pme> {
-            assert!(self.bundles.contains_key(&bundle.app_id));
+        fn stop(&mut self, bundle_impl: &mut dyn BundleImplInterface) -> Result<(), pme> {
             Ok(())
         }
     }

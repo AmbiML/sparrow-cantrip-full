@@ -4,12 +4,18 @@
 
 extern crate alloc;
 use alloc::string::String;
+use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::str;
 use cstr_core::CString;
+use cantrip_memory_interface::ObjDescBundle;
+use cantrip_memory_interface::RAW_OBJ_DESC_DATA_SIZE;
+use cantrip_os_common::sel4_sys;
 use cantrip_security_interface::SecurityRequestError;
 use postcard;
 use serde::{Deserialize, Serialize};
+
+use sel4_sys::seL4_SetCap;
 
 mod bundle_image;
 pub use bundle_image::*;
@@ -27,25 +33,6 @@ pub type RawBundleIdData = [u8; RAW_BUNDLE_ID_DATA_SIZE];
 // TODO(sleffler): hide this; it's part of the implementation
 pub const DEFAULT_BUNDLE_ID_CAPACITY: usize = 64;
 
-mod ptr_helper {
-    use super::*;
-    use serde::{Deserializer, Serializer};
-
-    pub fn serialize<T, S>(ptr: &*const T, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        (*ptr as usize).serialize(serializer)
-    }
-
-    pub fn deserialize<'de, T, D>(deserializer: D) -> Result<*const T, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        Ok(usize::deserialize(deserializer)? as *const T)
-    }
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Bundle {
     // NB: application & ML binaries use well-known paths relative to bundle_id
@@ -54,21 +41,25 @@ pub struct Bundle {
     // Bundle id extracted from manifest
     pub app_id: String,
 
-    // Raw memory address of loaded application
-    #[serde(with = "ptr_helper")]
-    pub app_memory_address: *const u8,
-
     // Size (bytes) of loaded application
     pub app_memory_size: u32,
 }
 impl Bundle {
-    pub fn new() -> Self {
+    pub fn new(bundle_id: &String) -> Self {
         Bundle {
-            app_id: String::with_capacity(DEFAULT_BUNDLE_ID_CAPACITY),
-            app_memory_address: 0 as *const u8,
+            app_id: bundle_id.clone(),
             app_memory_size: 0u32,
         }
     }
+}
+
+// Interface to underlying Bundle implementations. Mainly
+// used to inject fakes for unit tests.
+pub trait BundleImplInterface {
+    fn start(&mut self) -> Result<(), ProcessManagerError>;
+    fn stop(&mut self) -> Result<(), ProcessManagerError>;
+    fn suspend(&self) -> Result<(), ProcessManagerError>;
+    fn resume(&self) -> Result<(), ProcessManagerError>;
 }
 
 // NB: struct's marked repr(C) are processed by cbindgen to get a .h file
@@ -86,11 +77,15 @@ pub enum ProcessManagerError {
     UnknownError,
     DeserializeError,
     SerializeError,
+    ObjCapInvalid,
     // Generic errors, mostly for unit tests.
     InstallFailed,
     UninstallFailed,
     StartFailed,
     StopFailed,
+    // TODO(sleffler): for use if/when ProcessManagerInterface grows
+    SuspendFailed,
+    ResumeFailed,
 }
 
 // Interface to underlying facilities (StorageManager, seL4); also
@@ -98,16 +93,12 @@ pub enum ProcessManagerError {
 pub trait ProcessManagerInterface {
     fn install(
         &mut self,
-        pkg_buffer: *const u8,
-        pkg_buffer_size: u32,
+        pkg_contents: &ObjDescBundle,
     ) -> Result<String, ProcessManagerError>;
     fn uninstall(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError>;
-    fn start(&mut self, bundle: &Bundle) -> Result<(), ProcessManagerError>;
-    fn stop(&mut self, bundle: &Bundle) -> Result<(), ProcessManagerError>;
+    fn start(&mut self, bundle: &Bundle) -> Result<Box<dyn BundleImplInterface>, ProcessManagerError>;
+    fn stop(&mut self, bundle_impl: &mut dyn BundleImplInterface) -> Result<(), ProcessManagerError>;
 }
-
-// NB: pkg contents are in-memory and (likely) page-aligned so data can be
-// passed across the C interface w/o a copy.
 
 // NB: bundle_id comes across the C interface as *const cstr_core::c_char
 // and is converted to a &str using CStr::from_ptr().to_str().
@@ -115,8 +106,7 @@ pub trait ProcessManagerInterface {
 pub trait PackageManagementInterface {
     fn install(
         &mut self,
-        pkg_buffer: *const u8,
-        pkg_buffer_len: usize,
+        pkg_contents: &ObjDescBundle,
     ) -> Result<String, ProcessManagerError>;
     fn uninstall(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError>;
 }
@@ -190,16 +180,22 @@ pub fn cantrip_proc_ctrl_get_running_bundles() -> Result<BundleIdArray, ProcessM
 
 #[inline]
 #[allow(dead_code)]
-pub fn cantrip_pkg_mgmt_install(pkg_buffer: &[u8]) -> Result<String, ProcessManagerError> {
+pub fn cantrip_pkg_mgmt_install(pkg_contents: &ObjDescBundle) -> Result<String, ProcessManagerError> {
     extern "C" {
         fn pkg_mgmt_install(
-            c_pkg_buffer_size: usize,
-            c_pkg_buffer: *const u8,
+            c_request_len: u32,
+            c_request: *const u8,
             c_raw_data: *mut u8,
         ) -> ProcessManagerError;
     }
+    // TODO(sleffler): ~3K on the stack maybe too much
+    let raw_request = &mut [0u8; RAW_OBJ_DESC_DATA_SIZE];
+    let request = postcard::to_slice(&pkg_contents, raw_request)?;
     let raw_data = &mut [0u8; RAW_BUNDLE_ID_DATA_SIZE];
-    match unsafe { pkg_mgmt_install(pkg_buffer.len(), pkg_buffer.as_ptr(), raw_data as *mut _) } {
+    match unsafe {
+        seL4_SetCap(0, pkg_contents.cnode);
+        pkg_mgmt_install(request.len() as u32, request.as_ptr(), raw_data as *mut _)
+    } {
         ProcessManagerError::Success => {
             let bundle_id = postcard::from_bytes::<String>(raw_data.as_ref())?;
             Ok(bundle_id)

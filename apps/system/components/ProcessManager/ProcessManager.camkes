@@ -1,6 +1,7 @@
 // Cantrip OS ProcessManager services.
 
 import <LoggerInterface.camkes>;
+import <MemoryInterface.camkes>;
 import <PackageManagementInterface.camkes>;
 import <ProcessControlInterface.camkes>;
 import <SecurityCoordinatorInterface.camkes>;
@@ -10,11 +11,26 @@ component ProcessManager {
   provides ProcessControlInterface proc_ctrl;
 
   uses LoggerInterface logger;
+  uses MemoryInterface memory;
   uses SecurityCoordinatorInterface security;
 
   // Enable CantripOS CAmkES support.
   attribute int cantripos = true;
 
-  // Copyregions for loading bundle images.
+  // Process creation requires enough slots to hold dynamically
+  // allocated memory when constructing the application. This
+  // can be multiple megabytes so size for 4MB / 4KB pages.
+  attribute int cnode_headroom = 1024;
+
+  // Arrange for global objects to be instantiated in our CSpace
+  // (typically by moving them from the rootserver). Capabilities
+  // are exposed with global static symbols.
+  attribute int asid_pool = true;  // ASID_POOL
+  attribute int sched_ctrl = true;  // SCHED_CTRL
+  attribute int domain_ctrl = true;  // DOMANI_CTRL
+
+  // Copyregions for loading bundle images and for loading an application.
+  // These need to be separate because they are used concurrently.
   has copyregion BUNDLE_IMAGE;
+  has copyregion LOAD_APPLICATION;
 }

@@ -4,19 +4,26 @@
 
 extern crate alloc;
 use alloc::string::String;
+use alloc::boxed::Box;
+use cantrip_memory_interface::ObjDescBundle;
+use cantrip_os_common::slot_allocator;
 use cantrip_proc_interface::Bundle;
+use cantrip_proc_interface::BundleImplInterface;
 use cantrip_proc_interface::BundleIdArray;
 use cantrip_proc_interface::PackageManagementInterface;
 use cantrip_proc_interface::ProcessControlInterface;
 use cantrip_proc_interface::ProcessManagerError;
 use cantrip_proc_interface::ProcessManagerInterface;
-use cantrip_security_interface::cantrip_security_request;
-use cantrip_security_interface::InstallRequest;
-use cantrip_security_interface::SecurityRequest;
-use cantrip_security_interface::UninstallRequest;
-use cantrip_security_interface::SECURITY_REPLY_DATA_SIZE;
-use postcard;
+use cantrip_security_interface::cantrip_security_install;
+use cantrip_security_interface::cantrip_security_load_application;
+use cantrip_security_interface::cantrip_security_uninstall;
+use log::trace;
 use spin::Mutex;
+
+use slot_allocator::CSpaceSlot;
+
+mod sel4bundle;
+use sel4bundle::seL4BundleImpl;
 
 mod proc_manager;
 pub use proc_manager::ProcessManager;
@@ -57,14 +64,13 @@ impl CantripProcManager {
 impl PackageManagementInterface for CantripProcManager {
     fn install(
         &mut self,
-        pkg_buffer: *const u8,
-        pkg_buffer_len: usize,
+        pkg_contents: &ObjDescBundle,
     ) -> Result<String, ProcessManagerError> {
         self.manager
             .lock()
             .as_mut()
             .unwrap()
-            .install(pkg_buffer, pkg_buffer_len)
+            .install(pkg_contents)
     }
     fn uninstall(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError> {
         self.manager.lock().as_mut().unwrap().uninstall(bundle_id)
@@ -86,9 +92,10 @@ struct CantripManagerInterface;
 impl ProcessManagerInterface for CantripManagerInterface {
     fn install(
         &mut self,
-        pkg_buffer: *const u8,
-        pkg_buffer_size: u32,
+        pkg_contents: &ObjDescBundle,
     ) -> Result<String, ProcessManagerError> {
+        trace!("ProcessManagerInterface::install pkg_contents {}", pkg_contents);
+
         // Package contains: application manifest, application binary, and
         // (optional) ML workload binary to run on vector core.
         // Manifest contains bundle_id.
@@ -96,34 +103,21 @@ impl ProcessManagerInterface for CantripManagerInterface {
         // Pass opaque package contents through; get back bundle_id.
 
         // This is handled by the SecurityCoordinator.
-        let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
-        cantrip_security_request(
-            SecurityRequest::SrInstall,
-            &InstallRequest {
-                pkg_buffer_size: pkg_buffer_size,
-                pkg_buffer: pkg_buffer,
-            },
-            reply,
-        )?;
-        let bundle_id = postcard::from_bytes::<String>(reply)?;
-        Ok(bundle_id)
+        Ok(cantrip_security_install(pkg_contents)?)
     }
     fn uninstall(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError> {
+        trace!("ProcessManagerInterface::uninstall bundle_id {}", bundle_id);
+
         // NB: the caller has already checked no running application exists
         // NB: the Security Core is assumed to invalidate/remove any kv store
 
         // This is handled by the SecurityCoordinator.
-        let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
-        cantrip_security_request(
-            SecurityRequest::SrUninstall,
-            &UninstallRequest {
-                bundle_id: &bundle_id,
-            },
-            reply,
-        )?;
-        Ok(())
+        Ok(cantrip_security_uninstall(bundle_id)?)
     }
-    fn start(&mut self, _bundle: &Bundle) -> Result<(), ProcessManagerError> {
+    fn start(&mut self, bundle: &Bundle) -> Result<Box<dyn BundleImplInterface>, ProcessManagerError> {
+        trace!("ProcessManagerInterface::start {:?}", bundle);
+
+        // Design doc says:
         // 1. Ask security core for application footprint with SizeBuffer
         // 2. Ask security core for manifest (maybe piggyback on SizeBuffer)
         //    and parse for necessary info (e.g. whether kv Storage is
@@ -138,28 +132,35 @@ impl ProcessManagerInterface for CantripManagerInterface {
         //     - Setup application system context and start thread
         //     - Badge seL4 recv cap w/ bundle_id for (optional) StorageManager
         //       access
-        //
-        // Applications with an ML workload use the MlCoordinator to request
-        // data be loaded for the vector core.
-        //
-        // TBD where stuff normally in ELF headers comes from (e.g. starting pc,
-        // text size for marking pages executable, bss size).
-        //
-        // May want stack size parameterized.
-        //
-        // TODO(sleffler): fill-in
-        //        Err(ProcessManagerError::StartFailed)
-        Ok(())
+        // What we do atm is:
+        // 1. Ask SecurityCoordinator to return the application contents to load.
+        //    Data are delivered as a read-only ObjDescBundle ready to copy into
+        //    the VSpace.
+        // 2. Do 4+6 with BundleImplInterface::start.
+
+        // TODO(sleffler): awkward container_slot ownership
+        let mut container_slot = CSpaceSlot::new();
+        let bundle_frames =
+            cantrip_security_load_application(&bundle.app_id, &container_slot)?;
+        let mut sel4_bundle = seL4BundleImpl::new(bundle, &bundle_frames)?;
+        sel4_bundle.start()?;
+
+        // sel4_bundle owns container_slot now; release our ref so it's not
+        // reclaimed when container_slot goes out of scope.
+        container_slot.release();
+
+        Ok(Box::new(sel4_bundle) as _)
     }
-    fn stop(&mut self, _bundle: &Bundle) -> Result<(), ProcessManagerError> {
+    fn stop(&mut self, bundle_impl: &mut dyn BundleImplInterface) -> Result<(), ProcessManagerError> {
+        trace!("ProcessManagerInterface::stop");
+
         // 0. Assume thread is running (caller verifies)
         // 1. Notify application so it can do cleanup; e.g. ask the
         //    MLCoordinator to stop any ML workloads
         // 2. Wait some period of time for an ack from application
         // 3. Stop thread
         // 4. Reclaim seL4 resources: TCB, VSpace, memory, capabilities, etc.
-        // TODO(sleffler): fill-in
-        //        Err(ProcessManagerError::StopFailed)
-        Ok(())
+        // TODO(sleffler): fill-in 1+2
+        bundle_impl.stop()
     }
 }
