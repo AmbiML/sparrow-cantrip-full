@@ -1,11 +1,11 @@
 #![no_std]
 
 extern crate alloc;
-use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
 use core::fmt;
 use core::fmt::Write;
+use cpio::CpioNewcReader;
 use hex;
 use log;
 
@@ -24,8 +24,8 @@ use cantrip_security_interface::cantrip_security_echo;
 use cantrip_storage_interface::cantrip_storage_delete;
 use cantrip_storage_interface::cantrip_storage_read;
 use cantrip_storage_interface::cantrip_storage_write;
-use cantrip_timer_interface::TimerServiceError;
 use cantrip_timer_interface::timer_service_completed_timers;
+use cantrip_timer_interface::TimerServiceError;
 use cantrip_timer_interface::timer_service_oneshot;
 use cantrip_timer_interface::timer_service_wait;
 
@@ -95,13 +95,17 @@ impl From<io::Error> for CommandError {
 }
 
 /// Read-eval-print loop for the DebugConsole command line interface.
-pub fn repl<T: io::BufRead>(output: &mut dyn io::Write, input: &mut T) -> ! {
+pub fn repl<T: io::BufRead>(
+    output: &mut dyn io::Write,
+    input: &mut T,
+    builtin_cpio: &[u8],
+) -> ! {
     let mut line_reader = LineReader::new();
     loop {
         const PROMPT: &str = "CANTRIP> ";
         let _ = output.write_str(PROMPT);
         match line_reader.read_line(output, input) {
-            Ok(cmdline) => dispatch_command(cmdline, input, output),
+            Ok(cmdline) => dispatch_command(cmdline, input, output, builtin_cpio),
             Err(e) => {
                 let _ = writeln!(output, "\n{}", e);
             }
@@ -113,7 +117,12 @@ pub fn repl<T: io::BufRead>(output: &mut dyn io::Write, input: &mut T) -> ! {
 ///
 /// The line is split on whitespace. The first token is the command; the
 /// remaining tokens are the arguments.
-fn dispatch_command(cmdline: &str, input: &mut dyn io::BufRead, output: &mut dyn io::Write) {
+fn dispatch_command(
+    cmdline: &str,
+    input: &mut dyn io::BufRead,
+    output: &mut dyn io::Write,
+    builtin_cpio: &[u8],
+) {
     let mut args = cmdline.split_ascii_whitespace();
     match args.nth(0) {
         Some(command) => {
@@ -124,13 +133,14 @@ fn dispatch_command(cmdline: &str, input: &mut dyn io::BufRead, output: &mut dyn
             // implementation to use its own preferred signature.
             let result = match command {
                 "add" => add_command(&mut args, output),
+                "builtins" => builtins_command(&mut args, builtin_cpio, output),
                 "echo" => echo_command(cmdline, output),
                 "clear" => clear_command(output),
                 "bundles" => bundles_command(output),
                 "kvdelete" => kvdelete_command(&mut args, output),
                 "kvread" => kvread_command(&mut args, output),
                 "kvwrite" => kvwrite_command(&mut args, output),
-                "install" => install_command(&mut args, input, output),
+                "install" => install_command(&mut args, builtin_cpio, input, output),
                 "loglevel" => loglevel_command(&mut args, output),
                 "malloc" => malloc_command(&mut args, output),
                 "mfree" => mfree_command(&mut args, output),
@@ -163,6 +173,23 @@ fn dispatch_command(cmdline: &str, input: &mut dyn io::BufRead, output: &mut dyn
             let _ = output.write_str("\n");
         }
     };
+}
+
+/// Implements a "builtins" command that lists the contents of the built-in cpio archive.
+fn builtins_command(
+    _args: &mut dyn Iterator<Item = &str>,
+    builtin_cpio: &[u8],
+    output: &mut dyn io::Write,
+) -> Result<(), CommandError> {
+    for e in CpioNewcReader::new(builtin_cpio) {
+        if e.is_err() {
+            writeln!(output, "{:?}", e.unwrap_err())?;
+            break; // NB: iterator does not terminate on error
+        }
+        let entry = e.unwrap();
+        writeln!(output, "{} {}", entry.name, entry.data.len())?;
+    }
+    Ok(())
 }
 
 /// Implements an "echo" command which writes its arguments to output.
@@ -273,6 +300,33 @@ fn bundles_command(output: &mut dyn io::Write) -> Result<(), CommandError> {
     Ok(())
 }
 
+fn collect_from_cpio(
+    filename: &str,
+    cpio: &[u8],
+    output: &mut dyn io::Write,
+) -> Option<ObjDescBundle> {
+    for e in CpioNewcReader::new(cpio) {
+        if e.is_err() {
+            writeln!(output, "cpio error {:?}", e.unwrap_err()).ok()?;
+            // NB: iterator does not terminate on error but also won't advance
+            break;
+        }
+        let entry = e.unwrap();
+        if entry.name == filename {
+            // Cheat, re-use zmodem data collector.
+            use cantrip_io::Write;
+            let mut upload = rz::Upload::new();
+            let len = upload.write(entry.data).ok()?;
+            upload.finish();
+            writeln!(output, "Collected {} bytes of data, crc32 {}",
+                     len, hex::encode(upload.crc32().to_be_bytes())).ok()?;
+            return Some(upload.frames().clone());
+        }
+    }
+    writeln!(output, "Built-in file \"{}\" not found", filename).ok()?;
+    None
+}
+
 fn collect_from_zmodem(
     input: &mut dyn io::BufRead,
     mut output: &mut dyn io::Write,
@@ -288,6 +342,7 @@ fn collect_from_zmodem(
 
 fn install_command(
     args: &mut dyn Iterator<Item = &str>,
+    builtin_cpio: &[u8],
     input: &mut dyn io::BufRead,
     mut output: &mut dyn io::Write,
 ) -> Result<(), CommandError> {
@@ -305,7 +360,11 @@ fn install_command(
         Some("-z") => {
             collect_from_zmodem(input, &mut output).ok_or(CommandError::IO)?
         }
-        _ => {
+        Some(filename) => {
+            collect_from_cpio(filename, builtin_cpio, output)
+                .ok_or(CommandError::IO)?
+        }
+        None => {
             // TODO: pattern-fill pages
             cantrip_frame_alloc(8192).map_err(|_| CommandError::IO)?
         }

@@ -17,6 +17,7 @@ CONFIG_KERNEL_MCS = []
 
 [dependencies]
 crc = { version = "1.4.0", default_features = false }
+cpio = { git = "https://github.com/rcore-os/cpio" }
 hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
 cantrip-io = { path = "../cantrip-io" }
 cantrip-line-reader = { path = "../cantrip-line-reader" }

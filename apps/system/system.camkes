@@ -50,15 +50,15 @@ component VectorCoreHw {
     emits Interrupt data_fault;
 }
 
-component VectorPayload {
+component BuiltinCpioArchive {
     hardware;
-    dataport Buf(0x1000000) elf_file;
+    dataport Buf(0x1000000) cpio;
 }
 
 assembly {
     composition {
         component VectorCoreHw vctop;
-        component VectorPayload vc_payload;
+        component BuiltinCpioArchive cpio;
 
         component OpenTitanUART uart;
         component OpenTitanUARTDriver uart_driver;
@@ -71,6 +71,10 @@ assembly {
         component SecurityCoordinator security_coordinator;
         component StorageManager storage_manager;
         component TimerService timer_service;
+
+        // Built-in CPIO archive is visible only to DebugConsole.
+        connection seL4HardwareMMIO cpio_archive(from debug_console.cpio_archive,
+                                                 to cpio.cpio);
 
         // OpenTitanUARTDriver
         connection seL4HardwareMMIO uart_mem(from uart_driver.mmio_region,
@@ -97,6 +101,7 @@ assembly {
         connection seL4HardwareMMIO vc_dtcm(from ml_coordinator.dtcm,
                                             to vctop.dtcm);
 
+
         // TimerService
         connection seL4HardwareMMIO timer_csr(from timer_service.csr,
                                             to timer.csr);
@@ -108,12 +113,16 @@ assembly {
         // Hookup ProcessManager to DebugConsole for shell commands.
         connection seL4RPCCall shell_process(from debug_console.proc_ctrl,
                                              to process_manager.proc_ctrl);
-        connection seL4RPCCall shell_package(from debug_console.pkg_mgmt,
-                                             to process_manager.pkg_mgmt);
         connection seL4RPCCall shell_ml(from debug_console.mlcoord,
                                         to ml_coordinator.mlcoord);
         connection seL4RPCCall shell_storage(from debug_console.storage,
                                              to storage_manager.storage);
+
+        // Note this allocates a 4KB shared memory region for pkg install
+        // to pass an ObjDescArray
+        connection seL4RPCOverMultiSharedData shell_package(
+            from debug_console.pkg_mgmt,
+            to process_manager.pkg_mgmt);
 
         // Connect the MemoryInterface to each component that needs to allocate
         // global memory. Note this allocates a 4KB shared memory region to each
@@ -159,6 +168,9 @@ assembly {
     }
 
     configuration {
+        cpio.cpio_paddr = 0x46000000;
+        cpio.cpio_size = 0x1000000;
+
         uart.mmio_region_paddr = 0x50000000;
         uart.mmio_region_size = 0x1000;
         uart.tx_watermark_irq_number = 1;
@@ -175,9 +187,6 @@ assembly {
         vctop.finish_irq_number = 14;            // kTopMatchaPlicIrqIdVcTopFinish @ top_matcha.h
         vctop.instruction_fault_irq_number = 15; // kTopMatchaPlicIrqIdVcTopInstructionFault @ top_matcha.h
         vctop.data_fault_irq_number = 16;        // kTopMatchaPlicIrqIdVcTopDataFault @ top_matcha.h
-
-        vc_payload.elf_file_paddr = 0x46000000;
-        vc_payload.elf_file_size = 0x1000000;
 
         timer.csr_paddr = 0x50030000;
         timer.csr_size = 0x1000;

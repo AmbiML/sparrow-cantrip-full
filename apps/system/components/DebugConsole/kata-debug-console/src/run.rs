@@ -11,6 +11,7 @@
 
 #![no_std]
 
+use core::slice;
 use cantrip_io;
 use cantrip_os_common::allocator;
 use cantrip_os_common::logger::CantripLogger;
@@ -27,6 +28,8 @@ use slot_allocator::CANTRIP_CSPACE_SLOTS;
 extern "C" {
     static SELF_CNODE_FIRST_SLOT: seL4_CPtr;
     static SELF_CNODE_LAST_SLOT: seL4_CPtr;
+
+    static cpio_archive: *const u8; // CPIO archive of built-in files
 }
 
 #[no_mangle]
@@ -62,8 +65,11 @@ pub extern "C" fn pre_init() {
 /// Entry point for DebugConsole. Runs the shell with UART IO.
 #[no_mangle]
 pub extern "C" fn run() -> ! {
-    trace!("run");
     let mut tx = cantrip_uart_client::Tx::new();
     let mut rx = cantrip_io::BufReader::new(cantrip_uart_client::Rx::new());
-    cantrip_shell::repl(&mut tx, &mut rx);
+    let cpio_archive_ref = unsafe {
+        // XXX want begin-end or begin+size instead of a fixed-size block
+        slice::from_raw_parts(cpio_archive, 16777216)
+    };
+    cantrip_shell::repl(&mut tx, &mut rx, cpio_archive_ref);
 }

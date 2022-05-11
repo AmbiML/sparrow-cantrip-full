@@ -10,6 +10,8 @@ import <TimerServiceInterface.camkes>;
 component DebugConsole {
   control;
 
+  dataport Buf(0x1000000) cpio_archive;
+
   dataport Buf tx_dataport;
   uses rust_write_inf uart_write;
 
