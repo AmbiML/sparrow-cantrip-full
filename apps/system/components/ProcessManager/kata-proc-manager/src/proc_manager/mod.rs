@@ -99,15 +99,12 @@ impl PackageManagementInterface for ProcessManager {
         trace!("uninstall bundle_id {}", bundle_id);
 
         let bid = BundleId::from_str(bundle_id);
-        match self.bundles.get(&bid) {
-            Some(bundle) => {
-                trace!("uninstall state {:?}", bundle.state);
-                if bundle.state == BundleState::Running {
-                    return Err(ProcessManagerError::BundleRunning);
-                }
-                let _ = self.bundles.remove(&bid);
+        if let Some(bundle) = self.bundles.get(&bid) {
+            trace!("uninstall state {:?}", bundle.state);
+            if bundle.state == BundleState::Running {
+                return Err(ProcessManagerError::BundleRunning);
             }
-            None => {}
+            let _ = self.bundles.remove(&bid);
         }
         // NB: the hashmap is ephemeral so always call through to the manager
         self.manager.uninstall(bundle_id)

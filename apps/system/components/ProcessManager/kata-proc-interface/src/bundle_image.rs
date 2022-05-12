@@ -43,10 +43,8 @@ enum BundleImageError {
     BadSectionIO,
 }
 impl From<seL4_Error> for BundleImageError {
-    fn from(err: seL4_Error) -> BundleImageError {
-        match err {
-            _ => BundleImageError::CapMoveFailed,
-        }
+    fn from(_err: seL4_Error) -> BundleImageError {
+        BundleImageError::CapMoveFailed
     }
 }
 
@@ -123,7 +121,7 @@ pub struct BundleImage<'a> {
 impl<'a> BundleImage<'a> {
     pub fn new(frames: &'a ObjDescBundle) -> Self {
         BundleImage {
-            frames: frames,
+            frames,
             cur_frame: None,
             last_frame: None,
             cur_pos: 0,
@@ -276,7 +274,7 @@ impl<'a> io::Seek for BundleImage<'a> {
 impl<'a> io::Read for BundleImage<'a> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let mut cursor = &mut *buf;
-        while cursor.len() > 0 {
+        while !cursor.is_empty() {
             let available_bytes = self.mapped_bytes - self.bytes_read;
             if available_bytes > 0 {
                 // Fill from the current frame (as space permits).
@@ -301,7 +299,7 @@ impl<'a> io::Read for BundleImage<'a> {
                     self.unmap_current_frame().map_err(|_| io::Error)?;
                 }
             }
-            if cursor.len() == 0 { break }
+            if cursor.is_empty() { break }
 
             // Map the next frame for read.
             self.map_next_frame().map_err(|_| io::Error)?;

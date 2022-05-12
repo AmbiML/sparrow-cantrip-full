@@ -29,6 +29,7 @@ pub fn get_user_context(pc: seL4_Word, sp: seL4_Word, argv: &[seL4_Word])
         t0: 0, t1: 0, t2: 0, t3: 0, t4: 0, t5: 0, t6: 0, tp: 0,
     };
 
+    #[allow(clippy::len_zero)]
     unsafe {
         regs.pc = pc;
         regs.sp = sp; // NB: may be adjusted from self.tcb_sp

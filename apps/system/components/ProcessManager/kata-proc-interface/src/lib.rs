@@ -12,7 +12,6 @@ use cantrip_memory_interface::ObjDescBundle;
 use cantrip_memory_interface::RAW_OBJ_DESC_DATA_SIZE;
 use cantrip_os_common::sel4_sys;
 use cantrip_security_interface::SecurityRequestError;
-use postcard;
 use serde::{Deserialize, Serialize};
 
 use sel4_sys::seL4_SetCap;
@@ -45,9 +44,9 @@ pub struct Bundle {
     pub app_memory_size: u32,
 }
 impl Bundle {
-    pub fn new(bundle_id: &String) -> Self {
+    pub fn new(bundle_id: &str) -> Self {
         Bundle {
-            app_id: bundle_id.clone(),
+            app_id: String::from(bundle_id),
             app_memory_size: 0u32,
         }
     }

@@ -78,9 +78,10 @@ impl seL4BundleImpl {
                 "TCB {}'s initial arguments cause its stack to cross a page boundary",
                 self.tcb_name
             );
+            let byte_offset = sp % copy_region.size();
             unsafe {
                 ptr::write(
-                    &mut copy_region.as_word_mut()[(sp % copy_region.size()) / size_of::<seL4_Word>()],
+                    &mut copy_region.as_word_mut()[byte_offset / size_of::<seL4_Word>()],
                     argv[i],
                 )
             };

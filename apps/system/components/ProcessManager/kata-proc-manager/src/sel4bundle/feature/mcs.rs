@@ -38,6 +38,7 @@ pub fn SchedControl_Configure(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn TCB_Configure(
     sel4_tcb: seL4_Word,
     _sel4_fault_ep: seL4_CPtr,

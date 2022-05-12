@@ -107,7 +107,7 @@ const_assert!(seL4_WordBits == 32 || seL4_WordBits == 64);
 // for an explanation of how this is used).
 // TODO(sleffler): move to sel4-sys because it exposes internals
 fn make_guard(guard_bits: seL4_Word, guard_size: seL4_Word) -> seL4_Word {
-    ((guard_bits << 0) & ((1 << 18) -1)) | ((guard_size << 18) | ((1 << 4) - 1))
+    ((guard_bits) & ((1 << 18) -1)) | ((guard_size << 18) | ((1 << 4) - 1))
 }
 
 fn roundup(a: usize, b: usize) -> usize {
@@ -151,7 +151,7 @@ impl CopyRegion {
     pub fn size(&self) -> usize { PAGE_SIZE }
 
     // Returns a mutable [u8] ref to the mapped region.
-    pub fn as_mut(&self) -> &mut [u8] {
+    pub fn as_mut(&mut self) -> &mut [u8] {
         assert!(self.cur_frame.is_some());
         unsafe {
             core::slice::from_raw_parts_mut(
@@ -161,7 +161,7 @@ impl CopyRegion {
     }
 
     // Returns a mutable [seL4_Word] ref to the mapped region.
-    pub fn as_word_mut(&self) -> &mut [seL4_Word] {
+    pub fn as_word_mut(&mut self) -> &mut [seL4_Word] {
         assert!(self.cur_frame.is_some());
         unsafe {
             core::slice::from_raw_parts_mut(
@@ -353,8 +353,8 @@ impl seL4BundleImpl {
 
         Ok(seL4BundleImpl {
             bundle_frames: bundle_frames.clone(),
-            dynamic_objs: dynamic_objs,
-            cspace_root: cspace_root,
+            dynamic_objs,
+            cspace_root,
             cap_tcb: CSpaceSlot::new(),  // Top-level dup for suspend/resume
             first_page: first_vaddr / PAGE_SIZE,
 
