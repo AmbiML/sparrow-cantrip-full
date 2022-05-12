@@ -9,4 +9,5 @@ edition = "2021"
 [dependencies]
 # TODO(sleffler): v1.0 requires rust edition2021
 bitvec = { version = "0.22", default-features = false, features = ["alloc"] }
+sel4-sys = { path = "../sel4-sys" }
 spin = "0.9"
