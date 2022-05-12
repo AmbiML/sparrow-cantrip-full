@@ -1,4 +1,9 @@
 procedure MlCoordinatorInterface {
-  void execute(in string bundle_id, in string model_id);
-  void set_continuous_mode(bool mode);
+  include <MlCoordBindings.h>;
+
+  MlCoordError oneshot(in string bundle_id, in string model_id);
+  MlCoordError periodic(in string bundle_id, in string model_id, in uint32_t rate_in_ms);
+  MlCoordError cancel(in string bundle_id, in string model_id);
+
+  void debug_state();
 };

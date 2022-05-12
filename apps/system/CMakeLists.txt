@@ -44,7 +44,7 @@ DeclareCAmkESComponent(MemoryManager
 RustAddLibrary(
   cantrip_ml_coordinator
   SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/components/MlCoordinator
-  LIB_FILENAME libcantrip_ml_coordinator.a
+  LIB_FILENAME libcantrip_ml_component.a
 )
 
 DeclareCAmkESComponent(MlCoordinator

@@ -3,7 +3,11 @@ import <MlCoordinatorInterface.camkes>;
 import <SecurityCoordinatorInterface.camkes>;
 
 component MlCoordinator {
+  control;
+
   provides MlCoordinatorInterface mlcoord;
+
+  uses Timer timer;
 
   consumes Interrupt host_req;
   consumes Interrupt finish;

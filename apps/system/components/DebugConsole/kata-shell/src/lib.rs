@@ -10,7 +10,7 @@ use cpio::CpioNewcReader;
 use cantrip_io as io;
 use cantrip_line_reader::LineReader;
 use cantrip_memory_interface::*;
-use cantrip_ml_interface::cantrip_mlcoord_execute;
+use cantrip_ml_interface::*;
 use cantrip_os_common::sel4_sys;
 use cantrip_os_common::slot_allocator;
 use cantrip_proc_interface::cantrip_pkg_mgmt_install;
@@ -153,13 +153,16 @@ fn dispatch_command(
                 "test_alloc" => test_alloc_command(output),
                 "test_alloc_error" => test_alloc_error_command(output),
                 "test_bootinfo" => test_bootinfo_command(output),
+                "test_mlcancel" => test_mlcancel_command(&mut args, output),
                 "test_mlexecute" => test_mlexecute_command(&mut args, output),
-                "test_mlcontinuous" => test_mlcontinuous_command(&mut args),
+                "test_mlperiodic" => test_mlperiodic_command(&mut args, output),
                 "test_obj_alloc" => test_obj_alloc_command(output),
                 "test_panic" => test_panic_command(),
                 "test_timer_async" => test_timer_async_command(&mut args, output),
                 "test_timer_blocking" => test_timer_blocking_command(&mut args, output),
                 "test_timer_completed" => test_timer_completed_command(output),
+
+                "state_mlcoord" => state_mlcoord_command(),
 
                 _ => Err(CommandError::UnknownCommand),
             };
@@ -634,30 +637,52 @@ fn test_panic_command() -> Result<(), CommandError> {
     panic!("testing");
 }
 
-/// Implements a command that runs an ML execution.
-fn test_mlexecute_command(
+/// Implements a command that cancels an ML execution.
+fn test_mlcancel_command(
     args: &mut dyn Iterator<Item = &str>,
-    _output: &mut dyn io::Write,
+    output: &mut dyn io::Write,
 ) -> Result<(), CommandError> {
     let bundle_id = args.next().ok_or(CommandError::BadArgs)?;
     let model_id = args.next().ok_or(CommandError::BadArgs)?;
-    cantrip_mlcoord_execute(bundle_id, model_id)
-        .map_err(|_| CommandError::IO)
+
+    if let Err(e) = cantrip_mlcoord_cancel(bundle_id, model_id) {
+        writeln!(output, "Cancel {:?} {:?} err: {:?}", bundle_id, model_id, e)?;
+    } else {
+        writeln!(output, "Cancelled {:?} {:?}", bundle_id, model_id)?;
+    }
+    Ok(())
 }
 
-/// Implements a command that sets whether the ml execution is continuous.
-fn test_mlcontinuous_command(args: &mut dyn Iterator<Item = &str>) -> Result<(), CommandError> {
-    extern "C" {
-        fn mlcoord_set_continuous_mode(mode: bool);
+/// Implements a command that runs a oneshot ML execution.
+fn test_mlexecute_command(
+    args: &mut dyn Iterator<Item = &str>,
+    output: &mut dyn io::Write,
+) -> Result<(), CommandError> {
+    let bundle_id = args.next().ok_or(CommandError::BadArgs)?;
+    let model_id = args.next().ok_or(CommandError::BadArgs)?;
+
+    if let Err(e) = cantrip_mlcoord_oneshot(bundle_id, model_id) {
+        writeln!(output, "Execute {:?} {:?} err: {:?}", bundle_id, model_id, e)?;
     }
-    if let Some(mode_str) = args.next() {
-        let mode = mode_str.parse::<bool>()?;
-        unsafe {
-            mlcoord_set_continuous_mode(mode);
-        }
-        return Ok(());
+
+    Ok(())
+}
+
+/// Implements a command that runs a periodic ML execution.
+fn test_mlperiodic_command(
+    args: &mut dyn Iterator<Item = &str>,
+    output: &mut dyn io::Write,
+) -> Result<(), CommandError> {
+    let bundle_id = args.next().ok_or(CommandError::BadArgs)?;
+    let model_id = args.next().ok_or(CommandError::BadArgs)?;
+    let rate_str = args.next().ok_or(CommandError::BadArgs)?;
+    let rate_in_ms = rate_str.parse::<u32>()?;
+    
+    if let Err(e) = cantrip_mlcoord_periodic(bundle_id, model_id, rate_in_ms) {
+        writeln!(output, "Periodic {:?} {:?} err: {:?}", bundle_id, model_id, e)?;
     }
-    Err(CommandError::BadArgs)
+
+    Ok(())
 }
 
 fn test_obj_alloc_command(output: &mut dyn io::Write) -> Result<(), CommandError> {
@@ -807,4 +832,8 @@ fn test_timer_completed_command(
     output: &mut dyn io::Write,
 ) -> Result<(), CommandError> {
     return Ok(writeln!(output, "Timers completed: {:#032b}", timer_service_completed_timers())?);
+}
+
+fn state_mlcoord_command() -> Result<(), CommandError> {
+    return Ok(cantrip_mlcoord_debug_state());
 }
