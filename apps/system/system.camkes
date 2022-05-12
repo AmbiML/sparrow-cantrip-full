@@ -105,6 +105,8 @@ assembly {
                                             to timer.csr);
         connection seL4HardwareInterrupt timer_interrupt(from timer.timer_interrupt,
                                                        to timer_service.timer_interrupt);
+        connection seL4RPCCallSignal timer_rpc(from debug_console.timer,
+                                                to timer_service.timer);
 
         // Hookup ProcessManager to DebugConsole for shell commands.
         connection seL4RPCCall shell_process(from debug_console.proc_ctrl,

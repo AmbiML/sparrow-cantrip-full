@@ -11,8 +11,8 @@ use log;
 
 use cantrip_io as io;
 use cantrip_line_reader::LineReader;
-use cantrip_os_common::sel4_sys;
 use cantrip_memory_interface::*;
+use cantrip_os_common::sel4_sys;
 use cantrip_proc_interface::cantrip_pkg_mgmt_install;
 use cantrip_proc_interface::cantrip_pkg_mgmt_uninstall;
 use cantrip_proc_interface::cantrip_proc_ctrl_get_running_bundles;
@@ -21,6 +21,10 @@ use cantrip_proc_interface::cantrip_proc_ctrl_stop;
 use cantrip_storage_interface::cantrip_storage_delete;
 use cantrip_storage_interface::cantrip_storage_read;
 use cantrip_storage_interface::cantrip_storage_write;
+use cantrip_timer_interface::TimerServiceError;
+use cantrip_timer_interface::timer_service_completed_timers;
+use cantrip_timer_interface::timer_service_oneshot;
+use cantrip_timer_interface::timer_service_wait;
 
 use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_MinSchedContextBits;
@@ -133,6 +137,9 @@ fn dispatch_command(cmdline: &str, input: &mut dyn io::BufRead, output: &mut dyn
                 "test_mlcontinuous" => test_mlcontinuous_command(&mut args),
                 "test_obj_alloc" => test_obj_alloc_command(output),
                 "test_panic" => test_panic_command(),
+                "test_timer_async" => test_timer_async_command(&mut args, output),
+                "test_timer_blocking" => test_timer_blocking_command(&mut args, output),
+                "test_timer_completed" => test_timer_completed_command(output),
 
                 _ => Err(CommandError::UnknownCommand),
             };
@@ -629,4 +636,56 @@ fn test_obj_alloc_command(output: &mut dyn io::Write) -> Result<(), CommandError
     }
 
     Ok(writeln!(output, "All tests passed!")?)
+}
+
+/// Implements a command that starts a timer, but does not wait on the
+/// notification.
+fn test_timer_async_command(
+    args: &mut dyn Iterator<Item = &str>,
+    output: &mut dyn io::Write,
+) -> Result<(), CommandError> {
+    let id_str = args.next().ok_or(CommandError::BadArgs)?;
+    let id = id_str.parse::<u32>()?;
+    let time_str = args.next().ok_or(CommandError::BadArgs)?;
+    let time_ms = time_str.parse::<u32>()?;
+
+    writeln!(output, "Starting timer {} for {} ms.", id, time_ms)?;
+
+    match timer_service_oneshot(id, time_ms) {
+        TimerServiceError::TimerOk => (),
+        _ => return Err(CommandError::BadArgs),
+    }
+
+    timer_service_oneshot(id, time_ms);
+
+    return Ok(());
+}
+
+/// Implements a command that starts a timer, blocking until the timer has
+/// completed.
+fn test_timer_blocking_command(
+    args: &mut dyn Iterator<Item = &str>,
+    output: &mut dyn io::Write,
+) -> Result<(), CommandError> {
+    let time_str = args.next().ok_or(CommandError::BadArgs)?;
+    let time_ms = time_str.parse::<u32>()?;
+
+    writeln!(output, "Blocking {} ms waiting for timer.", time_ms)?;
+
+    // Set timer_id to 0, we don't need to use multiple timers here.
+    match timer_service_oneshot(0, time_ms) {
+        TimerServiceError::TimerOk => (),
+        _ => return Err(CommandError::BadArgs),
+    }
+
+    timer_service_wait();
+
+    return Ok(writeln!(output, "Timer completed.")?);
+}
+
+/// Implements a command that checks the completed timers.
+fn test_timer_completed_command(
+    output: &mut dyn io::Write,
+) -> Result<(), CommandError> {
+    return Ok(writeln!(output, "Timers completed: {:#032b}", timer_service_completed_timers())?);
 }

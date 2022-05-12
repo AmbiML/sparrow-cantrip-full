@@ -25,5 +25,6 @@ cantrip-proc-interface = { path = "../../ProcessManager/cantrip-proc-interface" 
 cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-security-interface = { path = "../../SecurityCoordinator/cantrip-security-interface" }
 cantrip-storage-interface = { path = "../../StorageManager/cantrip-storage-interface" }
+cantrip-timer-interface = { path = "../../TimerService/cantrip-timer-interface" }
 log = "0.4"
 zmodem = { path = "../zmodem" }
