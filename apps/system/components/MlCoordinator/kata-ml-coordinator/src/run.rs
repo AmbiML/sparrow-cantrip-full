@@ -1,4 +1,5 @@
 #![no_std]
+#![allow(clippy::missing_safety_doc)]
 
 // ML Coordinator Design Doc: go/sparrow-ml-doc
 
@@ -138,97 +139,85 @@ impl MlCoordinatorInterface for MLCoordinator {
 }
 
 #[no_mangle]
-pub extern "C" fn pre_init() {
+pub unsafe extern "C" fn pre_init() {
     static CANTRIP_LOGGER: CantripLogger = CantripLogger;
     log::set_logger(&CANTRIP_LOGGER).unwrap();
     log::set_max_level(log::LevelFilter::Trace);
 
     // TODO(sleffler): temp until we integrate with seL4
     static mut HEAP_MEMORY: [u8; 4 * 1024] = [0; 4 * 1024];
-    unsafe {
-        allocator::ALLOCATOR.init(HEAP_MEMORY.as_mut_ptr() as usize, HEAP_MEMORY.len());
-        trace!(
-            "setup heap: start_addr {:p} size {}",
-            HEAP_MEMORY.as_ptr(),
-            HEAP_MEMORY.len()
-        );
-    }
+    allocator::ALLOCATOR.init(HEAP_MEMORY.as_mut_ptr() as usize, HEAP_MEMORY.len());
+    trace!(
+        "setup heap: start_addr {:p} size {}",
+        HEAP_MEMORY.as_ptr(),
+        HEAP_MEMORY.len()
+    );
 
-    unsafe {
-        CANTRIP_CSPACE_SLOTS.init(
-            /*first_slot=*/ SELF_CNODE_FIRST_SLOT,
-            /*size=*/ SELF_CNODE_LAST_SLOT - SELF_CNODE_FIRST_SLOT
-        );
-        trace!("setup cspace slots: first slot {} free {}",
-               CANTRIP_CSPACE_SLOTS.base_slot(),
-               CANTRIP_CSPACE_SLOTS.free_slots());
-    }
+    CANTRIP_CSPACE_SLOTS.init(
+        /*first_slot=*/ SELF_CNODE_FIRST_SLOT,
+        /*size=*/ SELF_CNODE_LAST_SLOT - SELF_CNODE_FIRST_SLOT
+    );
+    trace!("setup cspace slots: first slot {} free {}",
+           CANTRIP_CSPACE_SLOTS.base_slot(),
+           CANTRIP_CSPACE_SLOTS.free_slots());
 }
 
 #[no_mangle]
-pub extern "C" fn mlcoord__init() {
-    unsafe {
-        ML_COORD.init();
-    }
+pub unsafe extern "C" fn mlcoord__init() {
+    ML_COORD.init();
 }
 
 #[no_mangle]
-pub extern "C" fn mlcoord_execute(
+pub unsafe extern "C" fn mlcoord_execute(
     c_bundle_id: *const cstr_core::c_char,
     c_model_id: *const cstr_core::c_char,
 ) {
-    unsafe {
-        match CStr::from_ptr(c_bundle_id).to_str() {
-            Ok(bundle_id) => match CStr::from_ptr(c_model_id).to_str() {
-                Ok(model_id) => {
-                    ML_COORD.execute(bundle_id, model_id)
-                }
-                _ => error!("Invalid model_id"),
+    match CStr::from_ptr(c_bundle_id).to_str() {
+        Ok(bundle_id) => match CStr::from_ptr(c_model_id).to_str() {
+            Ok(model_id) => {
+                ML_COORD.execute(bundle_id, model_id)
             }
-            _ => error!("Invalid bundle_id"),
+            _ => error!("Invalid model_id"),
         }
+        _ => error!("Invalid bundle_id"),
     }
 }
 
 #[no_mangle]
-pub extern "C" fn mlcoord_set_continuous_mode(mode: bool) {
-    unsafe {
-        ML_COORD.set_continuous_mode(mode);
-    }
+pub unsafe extern "C" fn mlcoord_set_continuous_mode(mode: bool) {
+    ML_COORD.set_continuous_mode(mode);
 }
 
 #[no_mangle]
-pub extern "C" fn host_req_handle() {
+pub unsafe extern "C" fn host_req_handle() {
     extern "C" {
         fn host_req_acknowledge() -> u32;
     }
     MlCore::clear_host_req();
-    assert!(unsafe { host_req_acknowledge() == 0 });
+    assert!(host_req_acknowledge() == 0);
 }
 
 #[no_mangle]
-pub extern "C" fn finish_handle() {
-    unsafe {
-        ML_COORD.handle_return_interrupt();
-    }
+pub unsafe extern "C" fn finish_handle() {
+    ML_COORD.handle_return_interrupt();
 }
 
 #[no_mangle]
-pub extern "C" fn instruction_fault_handle() {
+pub unsafe extern "C" fn instruction_fault_handle() {
     extern "C" {
         fn instruction_fault_acknowledge() -> u32;
     }
     error!("Instruction fault in Vector Core.");
     MlCore::clear_instruction_fault();
-    assert!(unsafe { instruction_fault_acknowledge() == 0 });
+    assert!(instruction_fault_acknowledge() == 0);
 }
 
 #[no_mangle]
-pub extern "C" fn data_fault_handle() {
+pub unsafe extern "C" fn data_fault_handle() {
     extern "C" {
         fn data_fault_acknowledge() -> u32;
     }
     error!("Data fault in Vector Core.");
     MlCore::clear_data_fault();
-    assert!(unsafe { data_fault_acknowledge() == 0 });
+    assert!(data_fault_acknowledge() == 0);
 }
