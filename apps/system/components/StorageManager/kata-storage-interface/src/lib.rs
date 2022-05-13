@@ -4,7 +4,6 @@
 
 use core::str;
 use cstr_core::CString;
-use postcard;
 
 // TODO(sleffler): temp constraint on value part of key-value pairs
 pub const KEY_VALUE_DATA_SIZE: usize = 100;
@@ -77,8 +76,8 @@ impl From<StorageError> for StorageManagerError {
 impl From<Result<(), StorageError>> for StorageManagerError {
     fn from(result: Result<(), StorageError>) -> StorageManagerError {
         result.map_or_else(
-            |e| StorageManagerError::from(e),
-            |_v| StorageManagerError::SmeSuccess,
+            StorageManagerError::from,
+            |_| StorageManagerError::SmeSuccess,
         )
     }
 }
