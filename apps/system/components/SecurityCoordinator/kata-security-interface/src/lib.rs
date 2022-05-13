@@ -11,7 +11,6 @@ use cantrip_os_common::sel4_sys;
 use cantrip_storage_interface::KeyValueData;
 use cantrip_storage_interface::StorageError;
 use log::trace;
-use postcard;
 use serde::{Deserialize, Serialize};
 
 use sel4_sys::seL4_CPtr;
@@ -321,7 +320,7 @@ pub fn cantrip_security_uninstall(bundle_id: &str)
 {
     cantrip_security_request(
         SecurityRequest::SrUninstall,
-        &UninstallRequest { bundle_id: bundle_id, },
+        &UninstallRequest { bundle_id, },
         &mut [0u8; SECURITY_REPLY_DATA_SIZE],
     )
 }
@@ -334,7 +333,7 @@ pub fn cantrip_security_size_buffer(bundle_id: &str)
     let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
     cantrip_security_request(
         SecurityRequest::SrSizeBuffer,
-        &SizeBufferRequest { bundle_id: bundle_id, },
+        &SizeBufferRequest { bundle_id, },
         &mut [0u8; SECURITY_REPLY_DATA_SIZE],
     )?;
     let size = postcard::from_bytes::<u32>(reply)
@@ -350,7 +349,7 @@ pub fn cantrip_security_get_manifest(bundle_id: &str)
     let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
     cantrip_security_request(
         SecurityRequest::SrGetManifest,
-        &GetManifestRequest { bundle_id: bundle_id, },
+        &GetManifestRequest { bundle_id, },
         reply,
     )?;
     let manifest = postcard::from_bytes::<String>(reply)
@@ -376,13 +375,13 @@ pub fn cantrip_security_load_application(
     let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
     cantrip_security_request(
         SecurityRequest::SrLoadApplication,
-        &LoadApplicationRequest { bundle_id: bundle_id, },
+        &LoadApplicationRequest { bundle_id, },
         reply,
     )?;
     if let Ok(mut response) = postcard::from_bytes::<LoadApplicationResponse>(reply) {
         sel4_sys::debug_assert_slot_cnode!(container_slot.slot);
         response.bundle_frames.cnode = container_slot.slot;
-        Ok(response.bundle_frames.clone())
+        Ok(response.bundle_frames)
     } else {
         Err(SecurityRequestError::SreDeserializeFailed)
     }
@@ -407,16 +406,13 @@ pub fn cantrip_security_load_model(
     let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
     cantrip_security_request(
         SecurityRequest::SrLoadModel,
-        &LoadModelRequest {
-            bundle_id: bundle_id,
-            model_id: model_id,
-        },
+        &LoadModelRequest { bundle_id, model_id, },
         reply,
     )?;
     if let Ok(mut response) = postcard::from_bytes::<LoadModelResponse>(reply) {
         sel4_sys::debug_assert_slot_cnode!(container_slot.slot);
         response.model_frames.cnode = container_slot.slot;
-        Ok(response.model_frames.clone())
+        Ok(response.model_frames)
     } else {
         Err(SecurityRequestError::SreDeserializeFailed)
     }
@@ -432,10 +428,7 @@ pub fn cantrip_security_read_key(
     let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
     cantrip_security_request(
         SecurityRequest::SrReadKey,
-        &ReadKeyRequest {
-            bundle_id: bundle_id,
-            key: key,
-        },
+        &ReadKeyRequest { bundle_id, key, },
         reply,
     )?;
     let response = postcard::from_bytes::<ReadKeyResponse>(reply)
@@ -453,11 +446,7 @@ pub fn cantrip_security_write_key(
 ) -> Result<(), SecurityRequestError> {
     cantrip_security_request(
         SecurityRequest::SrWriteKey,
-        &WriteKeyRequest {
-            bundle_id: bundle_id,
-            key: key,
-            value: value,
-        },
+        &WriteKeyRequest { bundle_id, key, value, },
         &mut [0u8; SECURITY_REPLY_DATA_SIZE],
     )
 }
@@ -470,10 +459,7 @@ pub fn cantrip_security_delete_key(
 ) -> Result<(), SecurityRequestError> {
     cantrip_security_request(
         SecurityRequest::SrDeleteKey,
-        &DeleteKeyRequest {
-            bundle_id: bundle_id,
-            key: key,
-        },
+        &DeleteKeyRequest { bundle_id, key, },
         &mut [0u8; SECURITY_REPLY_DATA_SIZE],
     )
 }

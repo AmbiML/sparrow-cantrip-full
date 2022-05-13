@@ -66,6 +66,11 @@ impl Drop for BundleData {
 pub struct FakeSecurityCoordinator {
     bundles: HashMap<String, BundleData>,
 }
+impl Default for FakeSecurityCoordinator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl FakeSecurityCoordinator {
     pub fn new() -> Self {
         FakeSecurityCoordinator {
@@ -76,17 +81,17 @@ impl FakeSecurityCoordinator {
     fn get_bundle(&self, bundle_id: &str) -> Result<&BundleData, SecurityRequestError> {
         self.bundles
             .get(bundle_id)
-            .map_or_else(|| Err(SecurityRequestError::SreBundleNotFound), |v| Ok(v))
+            .map_or_else(|| Err(SecurityRequestError::SreBundleNotFound), Ok)
     }
     fn get_bundle_mut(&mut self, bundle_id: &str) -> Result<&mut BundleData, SecurityRequestError> {
         self.bundles
             .get_mut(bundle_id)
-            .map_or_else(|| Err(SecurityRequestError::SreBundleNotFound), |v| Ok(v))
+            .map_or_else(|| Err(SecurityRequestError::SreBundleNotFound), Ok)
     }
     fn remove_bundle(&mut self, bundle_id: &str) -> Result<(), SecurityRequestError> {
         self.bundles
             .remove(bundle_id)
-            .map_or_else(|| Err(SecurityRequestError::SreBundleNotFound), |_v| Ok(()))
+            .map_or_else(|| Err(SecurityRequestError::SreBundleNotFound), |_| Ok(()))
     }
 }
 pub type CantripSecurityCoordinatorInterface = FakeSecurityCoordinator;
@@ -133,7 +138,7 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinator {
         Ok(())
     }
     fn delete_key(&mut self, bundle_id: &str, key: &str) -> Result<(), SecurityRequestError> {
-        let bundle = self.get_bundle_mut(&bundle_id)?;
+        let bundle = self.get_bundle_mut(bundle_id)?;
         // TODO(sleffler): error if no entry?
         let _ = bundle.keys.remove(key);
         Ok(())

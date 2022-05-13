@@ -2,6 +2,7 @@
 
 // Code here binds the camkes component to the rust code.
 #![no_std]
+#![allow(clippy::missing_safety_doc)]
 
 use core::slice;
 use cantrip_os_common::allocator;
@@ -13,7 +14,6 @@ use cantrip_security_coordinator::CANTRIP_SECURITY;
 use cantrip_security_interface::*;
 use cantrip_storage_interface::KEY_VALUE_DATA_SIZE;
 use log::{info, trace};
-use postcard;
 
 use SecurityRequestError::*;
 
@@ -37,56 +37,48 @@ extern "C" {
 static mut SECURITY_RECV_SLOT: seL4_CPtr = 0;
 
 #[no_mangle]
-pub extern "C" fn pre_init() {
+pub unsafe extern "C" fn pre_init() {
     static CANTRIP_LOGGER: CantripLogger = CantripLogger;
     log::set_logger(&CANTRIP_LOGGER).unwrap();
     // NB: set to max; the LoggerInterface will filter
     log::set_max_level(log::LevelFilter::Trace);
 
     static mut HEAP_MEMORY: [u8; 8 * 1024] = [0; 8 * 1024];
-    unsafe {
-        allocator::ALLOCATOR.init(HEAP_MEMORY.as_mut_ptr() as usize, HEAP_MEMORY.len());
-        trace!(
-            "setup heap: start_addr {:p} size {}",
-            HEAP_MEMORY.as_ptr(),
-            HEAP_MEMORY.len()
-        );
-    }
+    allocator::ALLOCATOR.init(HEAP_MEMORY.as_mut_ptr() as usize, HEAP_MEMORY.len());
+    trace!(
+        "setup heap: start_addr {:p} size {}",
+        HEAP_MEMORY.as_ptr(),
+        HEAP_MEMORY.len()
+    );
 
     // Complete CANTRIP_SECURITY setup. This is as early as we can do it given that
     // it needs the GlobalAllocator.
-    unsafe {
-        CANTRIP_SECURITY.init();
-    }
+    CANTRIP_SECURITY.init();
 
-    unsafe {
-        CANTRIP_CSPACE_SLOTS.init(
-            /*first_slot=*/ SELF_CNODE_FIRST_SLOT,
-            /*size=*/ SELF_CNODE_LAST_SLOT - SELF_CNODE_FIRST_SLOT
-        );
-        trace!("setup cspace slots: first slot {} free {}",
-               CANTRIP_CSPACE_SLOTS.base_slot(),
-               CANTRIP_CSPACE_SLOTS.free_slots());
+    CANTRIP_CSPACE_SLOTS.init(
+        /*first_slot=*/ SELF_CNODE_FIRST_SLOT,
+        /*size=*/ SELF_CNODE_LAST_SLOT - SELF_CNODE_FIRST_SLOT
+    );
+    trace!("setup cspace slots: first slot {} free {}",
+           CANTRIP_CSPACE_SLOTS.base_slot(),
+           CANTRIP_CSPACE_SLOTS.free_slots());
 
-        SECURITY_RECV_SLOT = CANTRIP_CSPACE_SLOTS.alloc(1).unwrap();
-    }
+    SECURITY_RECV_SLOT = CANTRIP_CSPACE_SLOTS.alloc(1).unwrap();
 }
 
 
 #[no_mangle]
-pub extern "C" fn security__init() {
-    unsafe {
-        // Point the receive path to the well-known empty slot. This will be
-        // used to receive CNode's from clients for install requests.
-        //
-        // NB: this must be done here (rather than someplace like pre_init)
-        // so it's in the context of the SecurityCoordinatorInterface thread
-        // (so we write the correct ipc buffer).
-        let path = (SELF_CNODE, SECURITY_RECV_SLOT, seL4_WordBits);
-        seL4_SetCapReceivePath(path.0, path.1, path.2);
-        info!("security cap receive path {:?}", path);
-        debug_check_empty("security__init", &path);
-    }
+pub unsafe extern "C" fn security__init() {
+    // Point the receive path to the well-known empty slot. This will be
+    // used to receive CNode's from clients for install requests.
+    //
+    // NB: this must be done here (rather than someplace like pre_init)
+    // so it's in the context of the SecurityCoordinatorInterface thread
+    // (so we write the correct ipc buffer).
+    let path = (SELF_CNODE, SECURITY_RECV_SLOT, seL4_WordBits);
+    seL4_SetCapReceivePath(path.0, path.1, path.2);
+    info!("security cap receive path {:?}", path);
+    debug_check_empty("security__init", &path);
 }
 
 fn debug_check_empty(tag: &str, path: &(seL4_CPtr, seL4_CPtr, seL4_Word)) {
@@ -118,7 +110,7 @@ fn echo_request(
     request_buffer: &[u8],
     reply_buffer: &mut [u8]
 ) -> Result<(), SecurityRequestError> {
-    let request = postcard::from_bytes::<EchoRequest>(&request_buffer[..])
+    let request = postcard::from_bytes::<EchoRequest>(request_buffer)
         .map_err(deserialize_failure)?;
 
     trace!("ECHO {:?}", request.value);
@@ -136,7 +128,7 @@ fn install_request(
         "install_request: expected cnode in slot {:?} but found cap type {:?}",
         recv_path, sel4_sys::cap_identify(recv_path.1));
 
-    let mut request = postcard::from_bytes::<InstallRequest>(&request_buffer[..])
+    let mut request = postcard::from_bytes::<InstallRequest>(request_buffer)
         .map_err(deserialize_failure)?;  // XXX clear_path
 
     // Move the container CNode so it's not clobbered.
@@ -161,7 +153,7 @@ fn uninstall_request(
     request_buffer: &[u8],
     _reply_buffer: &mut [u8]
 ) -> Result<(), SecurityRequestError> {
-    let request = postcard::from_bytes::<UninstallRequest>(&request_buffer[..])
+    let request = postcard::from_bytes::<UninstallRequest>(request_buffer)
         .map_err(deserialize_failure)?;
 
     trace!("UNINSTALL {}", request.bundle_id);
@@ -172,15 +164,13 @@ fn size_buffer_request(
     request_buffer: &[u8],
     reply_buffer: &mut [u8]
 ) -> Result<(), SecurityRequestError> {
-    let request = postcard::from_bytes::<SizeBufferRequest>(&request_buffer[..])
+    let request = postcard::from_bytes::<SizeBufferRequest>(request_buffer)
         .map_err(deserialize_failure)?;
 
     trace!("SIZE BUFFER bundle_id {}", request.bundle_id);
     let buffer_size = unsafe { CANTRIP_SECURITY.size_buffer(request.bundle_id) }?;
     let _ = postcard::to_slice(
-        &SizeBufferResponse {
-            buffer_size: buffer_size,
-        },
+        &SizeBufferResponse { buffer_size, },
         reply_buffer,
     ).map_err(serialize_failure)?;
     Ok(())
@@ -190,7 +180,7 @@ fn get_manifest_request(
     request_buffer: &[u8],
     reply_buffer: &mut [u8]
 ) -> Result<(), SecurityRequestError> {
-    let request = postcard::from_bytes::<GetManifestRequest>(&request_buffer[..])
+    let request = postcard::from_bytes::<GetManifestRequest>(request_buffer)
         .map_err(deserialize_failure)?;
 
     trace!("GET MANIFEST bundle_id {}", request.bundle_id);
@@ -208,7 +198,7 @@ fn load_application_request(
     request_buffer: &[u8],
     reply_buffer: &mut [u8]
 ) -> Result<(), SecurityRequestError> {
-    let request = postcard::from_bytes::<LoadApplicationRequest>(&request_buffer[..])
+    let request = postcard::from_bytes::<LoadApplicationRequest>(request_buffer)
         .map_err(deserialize_failure)?;
 
     trace!("LOAD APPLICATION bundle_id {}", request.bundle_id);
@@ -230,7 +220,7 @@ fn load_model_request(
     request_buffer: &[u8],
     reply_buffer: &mut [u8]
 ) -> Result<(), SecurityRequestError> {
-    let request = postcard::from_bytes::<LoadModelRequest>(&request_buffer[..])
+    let request = postcard::from_bytes::<LoadModelRequest>(request_buffer)
         .map_err(deserialize_failure)?;
 
     let model_frames = unsafe {
@@ -251,7 +241,7 @@ fn read_key_request(
     request_buffer: &[u8],
     reply_buffer: &mut [u8]
 ) -> Result<(), SecurityRequestError> {
-    let request = postcard::from_bytes::<ReadKeyRequest>(&request_buffer[..])
+    let request = postcard::from_bytes::<ReadKeyRequest>(request_buffer)
         .map_err(deserialize_failure)?;
 
     trace!("READ KEY bundle_id {} key {}", request.bundle_id, request.key);
@@ -259,9 +249,7 @@ fn read_key_request(
         CANTRIP_SECURITY.read_key(request.bundle_id, request.key)
     }?;
     let _ = postcard::to_slice(
-        &ReadKeyResponse {
-            value: value,
-        },
+        &ReadKeyResponse { value, },
         reply_buffer
     ).map_err(serialize_failure);
     Ok(())
@@ -271,7 +259,7 @@ fn write_key_request(
     request_buffer: &[u8],
     _reply_buffer: &mut [u8]
 ) -> Result<(), SecurityRequestError> {
-    let request = postcard::from_bytes::<WriteKeyRequest>(&request_buffer[..])
+    let request = postcard::from_bytes::<WriteKeyRequest>(request_buffer)
         .map_err(deserialize_failure)?;
 
     trace!("WRITE KEY bundle_id {} key {} value {:?}",
@@ -286,7 +274,7 @@ fn delete_key_request(
     request_buffer: &[u8],
     _reply_buffer: &mut [u8]
 ) -> Result<(), SecurityRequestError> {
-    let request = postcard::from_bytes::<DeleteKeyRequest>(&request_buffer[..])
+    let request = postcard::from_bytes::<DeleteKeyRequest>(request_buffer)
         .map_err(deserialize_failure)?;
 
     trace!("DELETE KEY bundle_id {} key {}", request.bundle_id, request.key);
@@ -294,16 +282,15 @@ fn delete_key_request(
 }
 
 #[no_mangle]
-pub extern "C" fn security_request(
+pub unsafe extern "C" fn security_request(
     c_request: SecurityRequest,
     c_request_buffer_len: u32,
     c_request_buffer: *const u8,
     c_reply_buffer: *mut SecurityReplyData,
 ) -> SecurityRequestError {
-    let request_buffer = unsafe {
-        slice::from_raw_parts(c_request_buffer, c_request_buffer_len as usize)
-    };
-    let reply_buffer = unsafe { &mut (*c_reply_buffer)[..] };
+    let request_buffer =
+        slice::from_raw_parts(c_request_buffer, c_request_buffer_len as usize);
+    let reply_buffer = &mut (*c_reply_buffer)[..];
     match c_request {
         SecurityRequest::SrEcho =>
             echo_request(request_buffer, reply_buffer),
