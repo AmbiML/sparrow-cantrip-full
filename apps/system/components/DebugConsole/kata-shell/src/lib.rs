@@ -19,6 +19,7 @@ use cantrip_proc_interface::cantrip_pkg_mgmt_uninstall;
 use cantrip_proc_interface::cantrip_proc_ctrl_get_running_bundles;
 use cantrip_proc_interface::cantrip_proc_ctrl_start;
 use cantrip_proc_interface::cantrip_proc_ctrl_stop;
+use cantrip_security_interface::cantrip_security_echo;
 use cantrip_storage_interface::cantrip_storage_delete;
 use cantrip_storage_interface::cantrip_storage_read;
 use cantrip_storage_interface::cantrip_storage_write;
@@ -179,30 +180,10 @@ fn echo_command(cmdline: &str, output: &mut dyn io::Write) -> Result<(), Command
 
 /// Implements an "scecho" command that sends arguments to the Security Core's echo service.
 fn scecho_command(cmdline: &str, output: &mut dyn io::Write) -> Result<(), CommandError> {
-    use cantrip_security_interface::cantrip_security_request;
-    use cantrip_security_interface::EchoRequest;
-    use cantrip_security_interface::SecurityRequest;
-    use cantrip_security_interface::SECURITY_REPLY_DATA_SIZE;
-
     let (_, request) = cmdline.split_at(7); // 'scecho'
-    let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
-    match cantrip_security_request(
-        SecurityRequest::SrEcho,
-        &EchoRequest {
-            value: request.as_bytes(),
-        },
-        reply,
-    ) {
-        Ok(_) => {
-            writeln!(
-                output,
-                "{}",
-                String::from_utf8_lossy(&reply[..request.len()])
-            )?;
-        }
-        Err(status) => {
-            writeln!(output, "ECHO replied {:?}", status)?;
-        }
+    match cantrip_security_echo(request) {
+        Ok(result) => writeln!(output, "{}", result)?,
+        Err(status) => writeln!(output, "ECHO replied {:?}", status)?,
     }
     Ok(())
 }
