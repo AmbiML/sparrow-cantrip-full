@@ -674,6 +674,29 @@ fn test_obj_alloc_command(output: &mut dyn io::Write) -> Result<(), CommandError
         writeln!(output, "Cnode free err: {:?} {:?}", cnode, e)?;
     }
 
+    // Batch allocate using the newer api that constructs a CNode based
+    // on the batch of objects specified.
+    match cantrip_object_alloc_in_cnode(
+        vec![
+            ObjDesc::new(seL4_TCBObject, 1, 0),        // 1 tcb
+            ObjDesc::new(seL4_EndpointObject, 1, 1),   // 1 endpoiints
+            ObjDesc::new(seL4_ReplyObject, 1, 2),      // 1 replys
+            ObjDesc::new(seL4_SchedContextObject,      // 1 sched context
+                         seL4_MinSchedContextBits, 3),
+            ObjDesc::new(seL4_RISCV_4K_Page, 2, 4),    // 2 4K pages
+        ],
+    ) {
+        Ok(objs) => {
+            writeln!(output, "cantrip_object_alloc_in_cnode ok: {:?}", objs)?;
+            if let Err(e) = cantrip_object_free_in_cnode(&objs) {
+                writeln!(output, "cantrip_object_free_in_cnode failed: {:?}", e)?;
+            }
+        }
+        Err(e) => {
+            writeln!(output, "cantrip_object_alloc_in_cnode failed: {:?}", e)?;
+        }
+    }
+
     Ok(writeln!(output, "All tests passed!")?)
 }
 
