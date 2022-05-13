@@ -72,8 +72,7 @@ impl CantripTimerService {
         if self
             .events
             .iter()
-            .find(|(_, ev)| ev.client_id == client_id && ev.timer_id == timer_id)
-            .is_some()
+            .any(|(_, ev)| ev.client_id == client_id && ev.timer_id == timer_id)
         {
             return Err(TimerServiceError::TimerAlreadyExists);
         }
