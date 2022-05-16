@@ -8,7 +8,7 @@ use cantrip_memory_interface::MemoryError;
 use cantrip_memory_interface::MemoryManagerInterface;
 use cantrip_memory_interface::MemoryManagerStats;
 use cantrip_os_common::sel4_sys;
-use log::{debug, error, trace};
+use log::{debug, error, warn, trace};
 use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_CNode_Delete;
 use sel4_sys::seL4_Error;
@@ -174,8 +174,10 @@ impl MemoryManager {
 
     fn delete_caps(root: seL4_CPtr, depth: u8, od: &ObjDesc) -> seL4_Result {
         for offset in 0..od.retype_count() {
-            // TODO(sleffler) warn about errors?
-            unsafe { seL4_CNode_Delete(root, od.cptr + offset, depth) }?;
+            let path = (root, od.cptr + offset, depth);
+            if let Err(e) = unsafe { seL4_CNode_Delete(path.0, path.1, path.2) } {
+                warn!("DELETE {:?} failed: od {:?} error {:?}", &path, od, e);
+            }
         }
         Ok(())
     }
