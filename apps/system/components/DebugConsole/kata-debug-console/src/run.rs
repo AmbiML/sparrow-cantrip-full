@@ -12,13 +12,10 @@
 #![no_std]
 
 use core::slice;
-use cantrip_io;
 use cantrip_os_common::allocator;
 use cantrip_os_common::logger::CantripLogger;
 use cantrip_os_common::sel4_sys;
 use cantrip_os_common::slot_allocator;
-use cantrip_shell;
-use cantrip_uart_client;
 use log::trace;
 
 use sel4_sys::seL4_CPtr;

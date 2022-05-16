@@ -1,5 +1,6 @@
 use alloc::vec::Vec;
 use alloc::{format, vec};
+use alloc::string::ToString;
 
 use cantrip_io as io;
 use log::Level::Debug;
@@ -35,7 +36,7 @@ where
     Ok(true)
 }
 
-pub fn parse_header<'a, R>(mut r: R) -> io::Result<Option<Frame>>
+pub fn parse_header<R>(mut r: R) -> io::Result<Option<Frame>>
 where
     R: io::Read,
 {
@@ -209,10 +210,7 @@ fn unescape(escaped_byte: u8) -> u8 {
 }
 
 fn is_escaped(byte: u8) -> bool {
-    match byte {
-        ZCRCE | ZCRCG | ZCRCQ | ZCRCW => false,
-        _ => true,
-    }
+    !matches!(byte, ZCRCE | ZCRCG | ZCRCQ | ZCRCW)
 }
 
 /// Reads out one byte
@@ -254,7 +252,7 @@ where
     if let Some(size) = filesize {
         zfile_data += &format!(" {}", size);
     }
-    zfile_data += &format!("\0");
+    zfile_data += &"\0".to_string();
 
     debug!("ZFILE supplied data: {}", zfile_data);
     write_zlde_data(w, ZCRCW, zfile_data.as_bytes())

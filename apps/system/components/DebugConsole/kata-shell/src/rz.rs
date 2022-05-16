@@ -10,7 +10,6 @@ use core::ptr;
 use cantrip_memory_interface::cantrip_frame_alloc;
 use cantrip_memory_interface::ObjDescBundle;
 use cantrip_os_common::sel4_sys;
-use log;
 
 use sel4_sys::seL4_CapRights;
 use sel4_sys::seL4_CPtr;
@@ -20,8 +19,6 @@ use sel4_sys::seL4_WordBits;
 use sel4_sys::seL4_RISCV_Page_Map as seL4_Page_Map;
 use sel4_sys::seL4_RISCV_Page_Unmap as seL4_Page_Unmap;
 use sel4_sys::seL4_RISCV_VMAttributes::Default_VMAttributes as seL4_Default_VMAttributes;
-
-use zmodem;
 
 use cantrip_io as io;
 
@@ -132,7 +129,7 @@ impl Drop for Upload {
 impl io::Write for Upload {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let mut cursor = buf;
-        while cursor.len() > 0 {
+        while !cursor.is_empty() {
             let available_bytes = self.mapped_bytes - self.next_free;
             if available_bytes > 0 {
                 // Fill the current frame (as space permits).
@@ -156,7 +153,7 @@ impl io::Write for Upload {
                     self.unmap_current_frame()?;
                 }
             }
-            if cursor.len() == 0 { break }
+            if cursor.is_empty() { break }
 
             // Allocate another frame and map it for write.
             self.expand_and_map()?;

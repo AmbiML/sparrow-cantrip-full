@@ -6,8 +6,6 @@ use alloc::vec::Vec;
 use core::fmt;
 use core::fmt::Write;
 use cpio::CpioNewcReader;
-use hex;
-use log;
 
 use cantrip_io as io;
 use cantrip_line_reader::LineReader;
@@ -124,7 +122,7 @@ fn dispatch_command(
     builtin_cpio: &[u8],
 ) {
     let mut args = cmdline.split_ascii_whitespace();
-    match args.nth(0) {
+    match args.next() {
         Some(command) => {
             // Statically binds command names to implementations fns, which are
             // defined below.
@@ -221,7 +219,7 @@ fn loglevel_command(
     args: &mut dyn Iterator<Item = &str>,
     output: &mut dyn io::Write,
 ) -> Result<(), CommandError> {
-    if let Some(level) = args.nth(0) {
+    if let Some(level) = args.next() {
         use log::LevelFilter;
         match level {
             "off" => log::set_max_level(LevelFilter::Off),
@@ -652,7 +650,7 @@ fn test_mlcontinuous_command(args: &mut dyn Iterator<Item = &str>) -> Result<(),
     extern "C" {
         fn mlcoord_set_continuous_mode(mode: bool);
     }
-    if let Some(mode_str) = args.nth(0) {
+    if let Some(mode_str) = args.next() {
         let mode = mode_str.parse::<bool>()?;
         unsafe {
             mlcoord_set_continuous_mode(mode);
@@ -779,7 +777,7 @@ fn test_timer_async_command(
 
     timer_service_oneshot(id, time_ms);
 
-    return Ok(());
+    Ok(())
 }
 
 /// Implements a command that starts a timer, blocking until the timer has

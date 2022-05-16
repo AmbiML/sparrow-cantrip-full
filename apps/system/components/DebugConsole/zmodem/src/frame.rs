@@ -1,4 +1,5 @@
 use alloc::string::String;
+use alloc::vec;
 use alloc::vec::Vec;
 use core::fmt;
 
@@ -46,9 +47,8 @@ impl Frame {
     }
 
     pub fn build(&self) -> Vec<u8> {
-        let mut out = Vec::new();
+        let mut out = vec![ZPAD];
 
-        out.push(ZPAD);
         if self.header == ZHEX {
             out.push(ZPAD);
         }
@@ -63,7 +63,7 @@ impl Frame {
 
         if self.header == ZHEX {
             let hex = out.drain(4..).collect::<Vec<u8>>().encode_hex::<String>();
-            out.extend_from_slice(&hex.as_bytes());
+            out.extend_from_slice(hex.as_bytes());
         }
 
         let tmp = out.drain(3..).collect::<Vec<_>>();

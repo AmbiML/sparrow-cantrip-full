@@ -6,7 +6,8 @@ use cantrip_io as io;
 
 // Console logging interface.
 #[no_mangle]
-pub extern "C" fn logger_log(level: u8, msg: *const cstr_core::c_char) {
+#[allow(clippy::missing_safety_doc)]
+pub unsafe extern "C" fn logger_log(level: u8, msg: *const cstr_core::c_char) {
     use log::Level;
     let l = match level {
         x if x == Level::Error as u8 => Level::Error,
@@ -18,9 +19,7 @@ pub extern "C" fn logger_log(level: u8, msg: *const cstr_core::c_char) {
     if l <= log::max_level() {
         // TODO(sleffler): is the uart driver ok w/ multiple writers?
         let output: &mut dyn io::Write = &mut self::Tx::new();
-        unsafe {
-            let _ = writeln!(output, "{}", CStr::from_ptr(msg).to_str().unwrap());
-        }
+        let _ = writeln!(output, "{}", CStr::from_ptr(msg).to_str().unwrap());
     }
 }
 
@@ -28,6 +27,11 @@ const DATAPORT_SIZE: usize = 4096;
 
 pub struct Rx {
     dataport: &'static [u8],
+}
+impl Default for Rx {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Rx {
@@ -59,6 +63,11 @@ impl io::Read for Rx {
 
 pub struct Tx {
     dataport: &'static mut [u8],
+}
+impl Default for Tx {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Tx {

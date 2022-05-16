@@ -38,6 +38,11 @@ pub struct LineReader {
     // Owned by LineReader to facilitate static allocation.
     buf: [u8; LINE_MAX],
 }
+impl Default for LineReader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 fn get_u8(reader: &mut dyn io::Read) -> io::Result<u8> {
     let mut buf: [u8; 1] = [0u8];
