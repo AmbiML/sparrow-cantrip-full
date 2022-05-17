@@ -6,7 +6,7 @@ extern crate alloc;
 use alloc::string::String;
 use alloc::boxed::Box;
 use cantrip_memory_interface::ObjDescBundle;
-use cantrip_os_common::slot_allocator;
+use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_proc_interface::Bundle;
 use cantrip_proc_interface::BundleImplInterface;
 use cantrip_proc_interface::BundleIdArray;
@@ -19,8 +19,6 @@ use cantrip_security_interface::cantrip_security_load_application;
 use cantrip_security_interface::cantrip_security_uninstall;
 use log::trace;
 use spin::Mutex;
-
-use slot_allocator::CSpaceSlot;
 
 mod sel4bundle;
 use sel4bundle::seL4BundleImpl;

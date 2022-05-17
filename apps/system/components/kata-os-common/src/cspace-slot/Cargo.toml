@@ -1,0 +1,11 @@
+cargo-features = ["edition2021"]
+
+[package]
+name = "cspace-slot"
+version = "0.1.0"
+authors = ["Sam Leffler <sleffler@google.com>"]
+edition = "2021"
+
+[dependencies]
+slot-allocator = { path = "../slot-allocator" }
+sel4-sys = { path = "../sel4-sys" }

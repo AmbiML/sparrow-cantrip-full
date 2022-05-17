@@ -16,7 +16,7 @@ use cantrip_memory_interface::cantrip_object_free;
 use cantrip_memory_interface::cantrip_object_free_in_cnode;
 use cantrip_memory_interface::ObjDesc;
 use cantrip_memory_interface::ObjDescBundle;
-use cantrip_os_common::slot_allocator;
+use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_proc_interface::Bundle;
 use cantrip_proc_interface::BundleImage;
 use cantrip_proc_interface::BundleImplInterface;
@@ -43,8 +43,6 @@ use sel4_sys::seL4_TCB_WriteRegisters;
 use sel4_sys::seL4_UserContext;
 use sel4_sys::seL4_Word;
 use sel4_sys::seL4_WordBits;
-
-use slot_allocator::CSpaceSlot;
 
 use static_assertions::const_assert;
 

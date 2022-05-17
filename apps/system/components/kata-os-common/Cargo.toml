@@ -10,10 +10,11 @@ default = ["camkes_support"]
 camkes_support = []
 
 [dependencies]
-capdl = { path = "src/capdl" }
-model = { path = "src/model" }
 allocator = { path = "src/allocator" }
+capdl = { path = "src/capdl" }
+cspace-slot = { path = "src/cspace-slot" }
 logger = { path = "src/logger" }
+model = { path = "src/model" }
 panic = { path = "src/panic" }
-slot-allocator = { path = "src/slot-allocator" }
 sel4-sys = { path = "src/sel4-sys" }
+slot-allocator = { path = "src/slot-allocator" }

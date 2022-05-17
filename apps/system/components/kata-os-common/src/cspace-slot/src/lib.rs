@@ -1,6 +1,9 @@
 //! RAII wrapper for a dynamically allocated CSpace slot.
 
-use crate::CANTRIP_CSPACE_SLOTS;
+#![cfg_attr(not(test), no_std)]
+#![allow(non_snake_case)]
+
+use slot_allocator::CANTRIP_CSPACE_SLOTS;
 
 use sel4_sys::seL4_CapRights;
 use sel4_sys::seL4_CNode_Copy;

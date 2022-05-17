@@ -5,9 +5,10 @@
 
 use core::slice;
 use cantrip_os_common::allocator;
+use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_os_common::logger::CantripLogger;
 use cantrip_os_common::sel4_sys;
-use cantrip_os_common::slot_allocator;
+use cantrip_os_common::slot_allocator::CANTRIP_CSPACE_SLOTS;
 use cantrip_security_coordinator::CANTRIP_SECURITY;
 use cantrip_security_interface::*;
 use cantrip_storage_interface::KEY_VALUE_DATA_SIZE;
@@ -23,9 +24,6 @@ use sel4_sys::seL4_SetCap;
 use sel4_sys::seL4_SetCapReceivePath;
 use sel4_sys::seL4_Word;
 use sel4_sys::seL4_WordBits;
-
-use slot_allocator::CSpaceSlot;
-use slot_allocator::CANTRIP_CSPACE_SLOTS;
 
 extern "C" {
     // Each CAmkES-generated CNode has a writable self-reference to itself in

@@ -5,8 +5,8 @@ use core::mem::size_of;
 use core::ops::Range;
 use core::ptr;
 use cantrip_memory_interface::ObjDescBundle;
+use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_os_common::sel4_sys;
-use cantrip_os_common::slot_allocator;
 use log::{error, trace};
 
 use sel4_sys::seL4_CapRights;
@@ -18,8 +18,6 @@ use sel4_sys::seL4_PageBits;
 use sel4_sys::seL4_RISCV_Page_Map as seL4_Page_Map;
 use sel4_sys::seL4_RISCV_Page_Unmap as seL4_Page_Unmap;
 use sel4_sys::seL4_RISCV_VMAttributes::Default_VMAttributes as seL4_Default_VMAttributes;
-
-use slot_allocator::CSpaceSlot;
 
 use cantrip_io as io;
 use io::Read;

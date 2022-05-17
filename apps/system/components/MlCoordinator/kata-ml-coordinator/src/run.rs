@@ -4,22 +4,20 @@
 
 extern crate alloc;
 
-use cstr_core::CStr;
 use alloc::string::String;
-use cantrip_os_common::allocator;
-use cantrip_os_common::logger::CantripLogger;
-use cantrip_os_common::sel4_sys;
-use cantrip_os_common::slot_allocator;
+use cstr_core::CStr;
 use cantrip_ml_interface::MlCoordinatorInterface;
 use cantrip_ml_interface::MlCoreInterface;
+use cantrip_os_common::allocator;
+use cantrip_os_common::cspace_slot::CSpaceSlot;
+use cantrip_os_common::logger::CantripLogger;
+use cantrip_os_common::sel4_sys;
+use cantrip_os_common::slot_allocator::CANTRIP_CSPACE_SLOTS;
 use cantrip_security_interface::*;
 use cantrip_vec_core::MlCore;
 use log::{error, info, trace};
 
 use sel4_sys::seL4_CPtr;
-
-use slot_allocator::CSpaceSlot;
-use slot_allocator::CANTRIP_CSPACE_SLOTS;
 
 extern "C" {
     static SELF_CNODE_FIRST_SLOT: seL4_CPtr;

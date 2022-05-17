@@ -9,9 +9,6 @@ use bitvec::prelude::*;
 use core::ops::Range;
 use spin::Mutex;
 
-mod one_slot;
-pub use one_slot::CSpaceSlot;
-
 struct Slots {
     bits: Option<BitBox<Lsb0, u8>>,
     used: usize,
