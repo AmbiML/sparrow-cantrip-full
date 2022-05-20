@@ -3,26 +3,19 @@
 #![allow(clippy::missing_safety_doc)]
 
 use core::time::Duration;
-use cantrip_os_common::allocator;
-use cantrip_os_common::logger::CantripLogger;
+use cantrip_os_common::camkes::Camkes;
 use cantrip_os_common::sel4_sys::seL4_Word;
 use cantrip_timer_interface::{TimerId, TimerServiceError};
 use cantrip_timer_service::TIMER_SRV;
-use log::trace;
+
+static mut CAMKES: Camkes = Camkes::new("TimerService");
 
 #[no_mangle]
 pub unsafe extern "C" fn pre_init() {
-    static CANTRIP_LOGGER: CantripLogger = CantripLogger;
-    log::set_logger(&CANTRIP_LOGGER).unwrap();
-    log::set_max_level(log::LevelFilter::Trace);
-
-    // TODO(jesionowski): temp until we integrate with seL4
     static mut HEAP_MEMORY: [u8; 4 * 1024] = [0; 4 * 1024];
-    allocator::ALLOCATOR.init(HEAP_MEMORY.as_mut_ptr() as usize, HEAP_MEMORY.len());
-    trace!(
-        "setup heap: start_addr {:p} size {}",
-        HEAP_MEMORY.as_ptr(),
-        HEAP_MEMORY.len()
+    CAMKES.pre_init(
+        log::LevelFilter::Debug,
+        &mut HEAP_MEMORY,
     );
 }
 

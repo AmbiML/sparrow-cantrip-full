@@ -5,63 +5,31 @@
 #![allow(clippy::missing_safety_doc)]
 
 use core::slice;
-use cantrip_os_common::allocator;
+use cantrip_os_common::camkes::Camkes;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
-use cantrip_os_common::logger::CantripLogger;
 use cantrip_os_common::sel4_sys;
 use cantrip_os_common::slot_allocator::CANTRIP_CSPACE_SLOTS;
 use cantrip_security_coordinator::CANTRIP_SECURITY;
 use cantrip_security_interface::*;
 use cantrip_storage_interface::KEY_VALUE_DATA_SIZE;
-use log::{info, trace};
+use log::trace;
 
 use SecurityRequestError::*;
 
-use sel4_sys::seL4_CNode_Delete;
 use sel4_sys::seL4_CPtr;
-use sel4_sys::seL4_GetCapReceivePath;
 use sel4_sys::seL4_SetCap;
-use sel4_sys::seL4_SetCapReceivePath;
-use sel4_sys::seL4_Word;
-use sel4_sys::seL4_WordBits;
 
-extern "C" {
-    // Each CAmkES-generated CNode has a writable self-reference to itself in
-    // the slot SELF_CNODE.
-    static SELF_CNODE: seL4_CPtr;
-
-    static SELF_CNODE_FIRST_SLOT: seL4_CPtr;
-    static SELF_CNODE_LAST_SLOT: seL4_CPtr;
-}
-
+static mut CAMKES: Camkes = Camkes::new("SecurityCoordinator");
 static mut SECURITY_RECV_SLOT: seL4_CPtr = 0;
 
 #[no_mangle]
 pub unsafe extern "C" fn pre_init() {
-    static CANTRIP_LOGGER: CantripLogger = CantripLogger;
-    log::set_logger(&CANTRIP_LOGGER).unwrap();
-    // NB: set to max; the LoggerInterface will filter
-    log::set_max_level(log::LevelFilter::Trace);
-
     static mut HEAP_MEMORY: [u8; 8 * 1024] = [0; 8 * 1024];
-    allocator::ALLOCATOR.init(HEAP_MEMORY.as_mut_ptr() as usize, HEAP_MEMORY.len());
-    trace!(
-        "setup heap: start_addr {:p} size {}",
-        HEAP_MEMORY.as_ptr(),
-        HEAP_MEMORY.len()
-    );
+    // NB: set to max; the LoggerInterface will filter
+    CAMKES.pre_init(log::LevelFilter::Trace, &mut HEAP_MEMORY);
 
-    // Complete CANTRIP_SECURITY setup. This is as early as we can do it given that
-    // it needs the GlobalAllocator.
+    // Complete CANTRIP_SECURITY setup after Global allocator is setup.
     CANTRIP_SECURITY.init();
-
-    CANTRIP_CSPACE_SLOTS.init(
-        /*first_slot=*/ SELF_CNODE_FIRST_SLOT,
-        /*size=*/ SELF_CNODE_LAST_SLOT - SELF_CNODE_FIRST_SLOT
-    );
-    trace!("setup cspace slots: first slot {} free {}",
-           CANTRIP_CSPACE_SLOTS.base_slot(),
-           CANTRIP_CSPACE_SLOTS.free_slots());
 
     SECURITY_RECV_SLOT = CANTRIP_CSPACE_SLOTS.alloc(1).unwrap();
 }
@@ -75,26 +43,9 @@ pub unsafe extern "C" fn security__init() {
     // NB: this must be done here (rather than someplace like pre_init)
     // so it's in the context of the SecurityCoordinatorInterface thread
     // (so we write the correct ipc buffer).
-    let path = (SELF_CNODE, SECURITY_RECV_SLOT, seL4_WordBits);
-    seL4_SetCapReceivePath(path.0, path.1, path.2);
-    info!("security cap receive path {:?}", path);
-    debug_check_empty("security__init", &path);
-}
-
-fn debug_check_empty(tag: &str, path: &(seL4_CPtr, seL4_CPtr, seL4_Word)) {
-    sel4_sys::debug_assert_slot_empty!(path.1,
-        "{}: expected slot {:?} empty but has cap type {:?}",
-        tag, path, sel4_sys::cap_identify(path.1));
-}
-
-// Clears any capability the specified path points to.
-fn _clear_path(path: &(seL4_CPtr, seL4_CPtr, seL4_Word)) {
-    // TODO(sleffler): assert since future receives are likely to fail?
-    if let Err(e) = unsafe { seL4_CNode_Delete(path.0, path.1, path.2 as u8) } {
-        // NB: no error is returned if the slot is empty.
-        info!("Failed to clear receive path {:?}: {:?}", path, e);
-    }
-    debug_check_empty("clear_path", path);
+    let path = &Camkes::top_level_path(SECURITY_RECV_SLOT);
+    CAMKES.init_recv_path(path);
+    Camkes::debug_assert_slot_empty("security__init", path);
 }
 
 fn serialize_failure(e: postcard::Error) -> SecurityRequestError {
@@ -123,10 +74,8 @@ fn install_request(
     request_buffer: &[u8],
     reply_buffer: &mut [u8]
 ) -> Result<(), SecurityRequestError> {
-    let recv_path = unsafe { seL4_GetCapReceivePath() };
-    sel4_sys::debug_assert_slot_cnode!(recv_path.1,
-        "install_request: expected cnode in slot {:?} but found cap type {:?}",
-        recv_path, sel4_sys::cap_identify(recv_path.1));
+    let recv_path = unsafe { CAMKES.get_current_recv_path() };
+    Camkes::debug_assert_slot_cnode("install_request", &recv_path);
 
     let mut request = postcard::from_bytes::<InstallRequest>(request_buffer)
         .map_err(deserialize_failure)?;  // XXX clear_path

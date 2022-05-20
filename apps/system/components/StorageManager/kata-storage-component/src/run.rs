@@ -7,29 +7,18 @@
 extern crate alloc;
 use core::slice;
 use cstr_core::CStr;
-use cantrip_os_common::allocator;
-use cantrip_os_common::logger::CantripLogger;
+use cantrip_os_common::camkes::Camkes;
 use cantrip_storage_interface::KeyValueData;
 use cantrip_storage_interface::StorageManagerError;
 use cantrip_storage_interface::StorageManagerInterface;
 use cantrip_storage_manager::CANTRIP_STORAGE;
-use log::trace;
+
+static mut CAMKES: Camkes = Camkes::new("StorageManager");
 
 #[no_mangle]
 pub unsafe extern "C" fn pre_init() {
-    static CANTRIP_LOGGER: CantripLogger = CantripLogger;
-    log::set_logger(&CANTRIP_LOGGER).unwrap();
-    // NB: set to max; the LoggerInterface will filter
-    log::set_max_level(log::LevelFilter::Trace);
-
-    // TODO(sleffler): temp until we integrate with seL4
     static mut HEAP_MEMORY: [u8; 8 * 1024] = [0; 8 * 1024];
-    allocator::ALLOCATOR.init(HEAP_MEMORY.as_mut_ptr() as usize, HEAP_MEMORY.len());
-    trace!(
-        "setup heap: start_addr {:p} size {}",
-        HEAP_MEMORY.as_ptr(),
-        HEAP_MEMORY.len()
-    );
+    CAMKES.pre_init(log::LevelFilter::Trace, &mut HEAP_MEMORY);
 }
 
 // StorageInterface glue stubs.

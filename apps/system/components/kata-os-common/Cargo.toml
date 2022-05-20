@@ -11,6 +11,7 @@ camkes_support = []
 
 [dependencies]
 allocator = { path = "src/allocator" }
+camkes = { path = "src/camkes" }
 capdl = { path = "src/capdl" }
 cspace-slot = { path = "src/cspace-slot" }
 logger = { path = "src/logger" }

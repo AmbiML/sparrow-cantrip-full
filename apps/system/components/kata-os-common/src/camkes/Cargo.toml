@@ -1,0 +1,13 @@
+cargo-features = ["edition2021"]
+
+[package]
+name = "camkes"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+log = "0.4"
+allocator = { path = "../allocator" }
+logger = { path = "../logger" }
+sel4-sys = { path = "../sel4-sys" }
+slot-allocator = { path = "../slot-allocator" }
