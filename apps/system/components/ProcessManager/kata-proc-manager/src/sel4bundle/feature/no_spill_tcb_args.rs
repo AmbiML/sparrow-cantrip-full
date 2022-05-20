@@ -3,6 +3,7 @@
 
 use crate::arch::REG_ARGS;
 use crate::sel4bundle::seL4Bundle;
+use super::sel4_sys;
 
 use sel4_sys::seL4_Error;
 use sel4_sys::seL4_Word;

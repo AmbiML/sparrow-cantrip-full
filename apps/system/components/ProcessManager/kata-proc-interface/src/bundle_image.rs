@@ -11,13 +11,11 @@ use log::{error, trace};
 
 use sel4_sys::seL4_CapRights;
 use sel4_sys::seL4_CPtr;
+use sel4_sys::seL4_Default_VMAttributes;
 use sel4_sys::seL4_Error;
 use sel4_sys::seL4_PageBits;
-
-// TODO(sleffler): belongs in sel4_sys
-use sel4_sys::seL4_RISCV_Page_Map as seL4_Page_Map;
-use sel4_sys::seL4_RISCV_Page_Unmap as seL4_Page_Unmap;
-use sel4_sys::seL4_RISCV_VMAttributes::Default_VMAttributes as seL4_Default_VMAttributes;
+use sel4_sys::seL4_Page_Map;
+use sel4_sys::seL4_Page_Unmap;
 
 use cantrip_io as io;
 use io::Read;

@@ -9,6 +9,7 @@ use capdl::*;
 use log::{debug, info, trace};
 use smallvec::SmallVec;
 
+use sel4_sys::seL4_ASIDControl_MakePool;
 use sel4_sys::seL4_BootInfo;
 use sel4_sys::seL4_CapASIDControl;
 use sel4_sys::seL4_CapInitThreadCNode;
@@ -21,6 +22,7 @@ use sel4_sys::seL4_Error;
 use sel4_sys::seL4_ObjectType::*;
 use sel4_sys::seL4_ObjectType;
 use sel4_sys::seL4_PageBits;
+use sel4_sys::seL4_Page_GetAddress;
 use sel4_sys::seL4_Result;
 use sel4_sys::seL4_UntypedDesc;
 use sel4_sys::seL4_Untyped_Retype;
@@ -29,8 +31,6 @@ use sel4_sys::seL4_WordBits;
 
 use crate::arch::kobject_get_type;
 use crate::arch::requires_creation;
-use crate::arch::seL4_ASIDControl_MakePool;
-use crate::arch::seL4_Page_GetAddress;
 
 use static_assertions::assert_cfg;
 assert_cfg!(not(feature = "CONFIG_CAPDL_LOADER_STATIC_ALLOC"));

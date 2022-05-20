@@ -2,9 +2,6 @@
 // The first REG_ARGS arguments are passed to threads using registers;
 // any more arguments are written to the stack.
 
-use crate::arch::seL4_Default_VMAttributes;
-use crate::arch::seL4_Page_Map;
-use crate::arch::seL4_Page_Unmap;
 use crate::arch::PAGE_SIZE;
 use crate::arch::PT_SLOT;
 use crate::arch::REG_ARGS;
@@ -16,10 +13,13 @@ use capdl::*;
 use core::mem::size_of;
 use core::ptr;
 
-use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_CapInitThreadVSpace;
 use sel4_sys::seL4_CapRights;
+use sel4_sys::seL4_CPtr;
+use sel4_sys::seL4_Default_VMAttributes;
 use sel4_sys::seL4_Error;
+use sel4_sys::seL4_Page_Map;
+use sel4_sys::seL4_Page_Unmap;
 use sel4_sys::seL4_Word;
 
 use static_assertions::assert_cfg;

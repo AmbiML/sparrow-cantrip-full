@@ -18,6 +18,7 @@ pub const seL4_ReplyBits: usize = 4;
 pub const seL4_EndpointBits: usize = 4;
 pub const seL4_PageTableEntryBits: usize = 2;
 pub const seL4_PageTableIndexBits: usize = 10;
+pub const seL4_PageDirIndexBits: usize = seL4_PageTableIndexBits;
 pub const seL4_LargePageBits: usize = 22;
 pub const seL4_PageTableBits: usize = 12;
 pub const seL4_VSpaceBits: usize = seL4_PageTableBits;
@@ -37,6 +38,9 @@ pub type seL4_RISCV_Page = seL4_CPtr;
 pub type seL4_RISCV_PageTable = seL4_CPtr;
 pub type seL4_RISCV_ASIDControl = seL4_CPtr;
 pub type seL4_RISCV_ASIDPool = seL4_CPtr;
+
+#[cfg(feature = "arch_generic")]
+include!("riscv_generic.rs");
 
 error_types!(u32);
 
@@ -83,14 +87,16 @@ pub struct seL4_UserContext {
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum seL4_RISCV_VMAttributes {
+    Default = 0,
     ExecuteNever = 0x1,
-    Default_VMAttributes = 0,
 }
 impl From<u32> for seL4_RISCV_VMAttributes {
     fn from(val: u32) -> seL4_RISCV_VMAttributes {
         unsafe { ::core::mem::transmute(val & 1) }
     }
 }
+pub const seL4_RISCV_Default_VMAttributes: seL4_RISCV_VMAttributes =
+	seL4_RISCV_VMAttributes::Default;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

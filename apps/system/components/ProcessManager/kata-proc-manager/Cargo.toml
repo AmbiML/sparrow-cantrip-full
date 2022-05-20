@@ -27,7 +27,6 @@ cantrip-memory-interface = { path = "../../MemoryManager/cantrip-memory-interfac
 cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-security-interface = { path = "../../SecurityCoordinator/cantrip-security-interface" }
 log = "0.4"
-sel4-sys = { path = "../../cantrip-os-common/src/sel4-sys" }
 smallstr = "0.2"
 spin = "0.9"
 static_assertions = "1.1"

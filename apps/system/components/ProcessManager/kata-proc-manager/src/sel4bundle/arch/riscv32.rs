@@ -6,15 +6,19 @@ use static_assertions::assert_cfg;
 assert_cfg!(target_arch = "riscv32");
 
 use cantrip_memory_interface::ObjDesc;
+use super::sel4_sys;
 
 mod riscv;
 pub use riscv::*;
 
 use sel4_sys::seL4_CapRights;
+use sel4_sys::seL4_PageTable_Map;
+use sel4_sys::seL4_Page_Map;
 use sel4_sys::seL4_Result;
 use sel4_sys::seL4_RISCV_4K_Page;
 use sel4_sys::seL4_RISCV_PageTableObject;
 use sel4_sys::seL4_UserContext;
+use sel4_sys::seL4_VMAttributes;
 use sel4_sys::seL4_Word;
 
 pub fn get_user_context(pc: seL4_Word, sp: seL4_Word, argv: &[seL4_Word])
@@ -64,7 +68,7 @@ pub fn map_page(
     vm_attribs: seL4_VMAttributes,
 ) -> seL4_Result {
     assert_eq!(frame.type_, seL4_RISCV_4K_Page);
-    // XXX cannot distinguish between PD & PT
+    // NB: cannot distinguish between PD & PT
     assert_eq!(pd.type_, seL4_RISCV_PageTableObject);
     unsafe {
         seL4_Page_Map(frame.cptr, pd.cptr, vaddr, rights, vm_attribs)

@@ -57,11 +57,14 @@ pub const seL4_Frame_Args: usize = 4;
 pub const seL4_Frame_MRs: usize = 7;
 pub const seL4_Frame_HasNPC: usize = 0;
 
-pub type seL4_ARM_Page = seL4_CPtr;
-pub type seL4_ARM_PageTable = seL4_CPtr;
-pub type seL4_ARM_PageDirectory = seL4_CPtr;
 pub type seL4_ARM_ASIDControl = seL4_CPtr;
 pub type seL4_ARM_ASIDPool = seL4_CPtr;
+pub type seL4_ARM_PageDirectory = seL4_CPtr;
+pub type seL4_ARM_Page = seL4_CPtr;
+pub type seL4_ARM_PageTable = seL4_CPtr;
+
+#[cfg(feature = "arch_generic")]
+include!("arm_generic.rs");
 
 error_types!(u32);
 
@@ -92,11 +95,18 @@ pub struct seL4_UserContext {
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum seL4_ARM_VMAttributes {
+    Default = 0,
     PageCacheable = 1,
     ParityEnabled = 2,
     ExecuteNever = 4,
 }
-pub const Default_VMAttributes: usize = 0;
+impl From<u32> for seL4_ARM_VMAttributes {
+    fn from(val: u32) -> seL4_RISCV_VMAttributes {
+        unsafe { ::core::mem::transmute(val & 7) }
+    }
+}
+pub const seL4_ARM_Default_VMAttributes: seL4_ARM_VMAttributes =
+    seL4_ARM_VMAttributes::Default;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

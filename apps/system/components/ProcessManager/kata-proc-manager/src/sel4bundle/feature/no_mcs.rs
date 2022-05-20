@@ -1,5 +1,7 @@
 // No MCS Kernel Support.
 
+use super::sel4_sys;
+
 use sel4_sys::seL4_CNode;
 use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_Error;

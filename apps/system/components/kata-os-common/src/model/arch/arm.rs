@@ -36,16 +36,7 @@ pub const REG_ARGS: seL4_Word = 4; // Number of regs for passing thread args
 
 pub const CDL_PT_LEVEL_3_IndexBits: usize = seL4_PageTableIndexBits;
 
-// Architecture-independent aliases to enable arch-independent rootserver code
-pub use sel4_sys::seL4_ARM_ASIDControl_MakePool as seL4_ASIDControl_MakePool;
-pub use sel4_sys::seL4_ARM_ASIDPool_Assign as seL4_ASIDPool_Assign;
-pub use sel4_sys::seL4_ARM_PageTable_Map as seL4_PageTable_Map;
-pub use sel4_sys::seL4_ARM_Page_GetAddress as seL4_Page_GetAddress;
-// NB: seL4_Page_Map has a wrapper (see below)
-pub use sel4_sys::seL4_ARM_Page_Unmap as seL4_Page_Unmap;
-pub use sel4_sys::seL4_ARM_VMAttributes as seL4_VMAttributes;
-pub use sel4_sys::seL4_ARM_VMAttributes::Default_VMAttributes as seL4_Default_VMAttributes;
-
+// NB: this overrides what sel4_sys provides
 pub fn seL4_Page_Map(
     sel4_page: seL4_ARM_Page,
     sel4_pd: seL4_ARM_PageTable,

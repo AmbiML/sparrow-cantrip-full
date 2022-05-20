@@ -17,6 +17,7 @@ use cantrip_memory_interface::cantrip_object_free_in_cnode;
 use cantrip_memory_interface::ObjDesc;
 use cantrip_memory_interface::ObjDescBundle;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
+use cantrip_os_common::sel4_sys;
 use cantrip_proc_interface::Bundle;
 use cantrip_proc_interface::BundleImage;
 use cantrip_proc_interface::BundleImplInterface;
@@ -26,16 +27,22 @@ use log::{debug, error, info, trace};
 use cantrip_io as io;
 use io::Read;
 
+use sel4_sys::seL4_ASIDPool_Assign;
 use sel4_sys::seL4_CapRights;
 use sel4_sys::seL4_CNode_Move;
 use sel4_sys::seL4_CPtr;
+use sel4_sys::seL4_Default_VMAttributes;
 use sel4_sys::seL4_DomainSet_Set;
 use sel4_sys::seL4_EndpointObject;
 use sel4_sys::seL4_Error;
 use sel4_sys::seL4_MinSchedContextBits;
+use sel4_sys::seL4_Page_Map;
+use sel4_sys::seL4_PageTableObject;
+use sel4_sys::seL4_Page_Unmap;
 use sel4_sys::seL4_ReplyObject;
 use sel4_sys::seL4_Result;
 use sel4_sys::seL4_SchedContextObject;
+use sel4_sys::seL4_SmallPageObject;
 use sel4_sys::seL4_TCBObject;
 use sel4_sys::seL4_TCB_Resume;
 use sel4_sys::seL4_TCB_Suspend;
@@ -71,12 +78,6 @@ use SELF_TCB_PROCESS_MANAGER_PROC_CTRL_0000 as SELF_TCB;
 mod arch;
 
 use arch::PAGE_SIZE;
-use arch::seL4_ASIDPool_Assign;
-use arch::seL4_Default_VMAttributes;
-use arch::seL4_Page_Map;
-use arch::seL4_Page_Unmap;
-use arch::seL4_PageTableObject;
-use arch::seL4_SmallPageObject;
 
 // MCS feature support
 #[cfg_attr(feature = "CONFIG_KERNEL_MCS", path = "feature/mcs.rs")]
@@ -411,7 +412,7 @@ impl seL4BundleImpl {
     // vaddr of the next frame to be mapped. Assumes the image fits into
     // a single PT level and that the PT has been setup.
     fn load_application(&self) -> Result<usize, seL4_Error> {
-        let vm_attribs = arch::seL4_Default_VMAttributes;
+        let vm_attribs = seL4_Default_VMAttributes;
 
         // NB: assumes pd and pt are setup (not sure we can check)
         let pd = &self.dynamic_objs.objs[PD_SLOT];
@@ -497,7 +498,7 @@ impl seL4BundleImpl {
             // NB: grant =>'s X on ARM+RISCV
             /*grant_reply=*/ 0, /*grant=*/ 0, /*read=*/ 1, /*write=*/ 1,
         );
-        let vm_attribs = arch::seL4_Default_VMAttributes;
+        let vm_attribs = seL4_Default_VMAttributes;
 
         let pd = &self.dynamic_objs.objs[PD_SLOT];
         let pt = &self.dynamic_objs.objs[PT_SLOT];

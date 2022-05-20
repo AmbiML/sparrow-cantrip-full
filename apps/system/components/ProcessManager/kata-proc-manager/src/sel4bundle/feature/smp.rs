@@ -1,6 +1,8 @@
 // SMP support.
 // TODO(sleffler): maybe merge into arch code
 
+use super::sel4_sys;
+
 use sel4_sys::seL4_Result;
 use sel4_sys::seL4_TCB_SetAffinity;
 use sel4_sys::seL4_Word;

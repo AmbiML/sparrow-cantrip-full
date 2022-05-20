@@ -37,16 +37,6 @@ pub const CDL_PT_LEVEL_1_IndexBits: usize = seL4_PUDIndexBits;
 pub const CDL_PT_LEVEL_2_IndexBits: usize = seL4_PageDirIndexBits;
 pub const CDL_PT_LEVEL_3_IndexBits: usize = seL4_PageTableIndexBits;
 
-// Architecture-independent aliases to enable arch-independent rootserver code
-pub use sel4_sys::seL4_ARM_ASIDControl_MakePool as seL4_ASIDControl_MakePool;
-pub use sel4_sys::seL4_ARM_ASIDPool_Assign as seL4_ASIDPool_Assign;
-pub use sel4_sys::seL4_ARM_PageTable_Map as seL4_PageTable_Map;
-pub use sel4_sys::seL4_ARM_Page_GetAddress as seL4_Page_GetAddress;
-pub use sel4_sys::seL4_ARM_Page_Map as seL4_Page_Map;
-pub use sel4_sys::seL4_ARM_Page_Unmap as seL4_Page_Unmap;
-pub use sel4_sys::seL4_ARM_VMAttributes as seL4_VMAttributes;
-pub use sel4_sys::seL4_ARM_VMAttributes::Default_VMAttributes as seL4_Default_VMAttributes;
-
 fn MASK(pow2_bits: usize) -> usize { (1 << pow2_bits) - 1 }
 
 pub fn PD_SLOT(vaddr: usize) -> usize {

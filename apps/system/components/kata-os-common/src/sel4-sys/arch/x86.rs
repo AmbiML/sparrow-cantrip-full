@@ -38,16 +38,17 @@ pub const seL4_MaxUntypedBits: usize = 29;
 
 pub type seL4_X86_ASIDControl = seL4_CPtr;
 pub type seL4_X86_ASIDPool = seL4_CPtr;
-pub type seL4_X86_IOSpace = seL4_CPtr;
-pub type seL4_X86_IOPort = seL4_CPtr;
-pub type seL4_X86_Page = seL4_CPtr;
-pub type seL4_X86_PageDirectory = seL4_CPtr;
-pub type seL4_X86_PageTable = seL4_CPtr;
 pub type seL4_X86_IOPageTable = seL4_CPtr;
+pub type seL4_X86_IOPort = seL4_CPtr;
+pub type seL4_X86_IOSpace = seL4_CPtr;
+pub type seL4_X86_PageDirectory = seL4_CPtr;
+pub type seL4_X86_Page = seL4_CPtr;
+pub type seL4_X86_PageTable = seL4_CPtr;
+
+#[cfg(feature = "arch_generic")]
+include!("x86_generic.rs");
 
 error_types!(u32);
-
-pub const Default_VMAttributes: usize = 0;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -102,6 +103,13 @@ pub enum seL4_X86_VMAttributes {
     Uncacheable = 3,
     WriteCombining = 4,
 }
+impl From<u32> for seL4_X86_VMAttributes {
+    fn from(val: u32) -> seL4_x86_VMAttributes {
+        unsafe { ::core::mem::transmute(val & 7) }
+    }
+}
+pub const seL4_X86_Default_VMAttributes: seL4_X86_VMAttributes =
+    seL4_X86_VMAttributes::WriteBack;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

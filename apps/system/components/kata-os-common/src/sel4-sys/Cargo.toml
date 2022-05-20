@@ -40,7 +40,8 @@ SEL4_OUT_DIR = "${ROOTDIR}out/cantrip/kernel"
 # Other syscalls api's are generated only when the associated config
 # knobs are set but do not affect the syscall ABI (e.g. CONFIG_PRINTING).
 [features]
-default = []
+default = ["arch_generic"]
+arch_generic = []
 CONFIG_KERNEL_MCS = []
 CONFIG_PRINTING = []
 CONFIG_DEBUG_BUILD = []

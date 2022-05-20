@@ -7,6 +7,7 @@ use core::ptr;
 use crate::sel4bundle::arch;
 use crate::sel4bundle::CopyRegion;
 use crate::sel4bundle::seL4BundleImpl;
+use super::sel4_sys;
 
 use arch::PAGE_SIZE;
 use arch::REG_ARGS;
