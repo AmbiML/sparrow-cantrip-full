@@ -311,11 +311,14 @@ pub struct seL4_UntypedDesc {
     pub sizeBits: u8,
     /// Whether the backing memory corresponds to some device memory
     pub isDevice: u8,
+    /// Whether the untyped object was tainted by the kernel
+    pub isTainted: u8,
     // Align to seL4_Word
     align: [seL4_Word; 0],
 }
 impl seL4_UntypedDesc {
     pub fn is_device(&self) -> bool { self.isDevice != 0 }
+    pub fn is_tainted(&self) -> bool { self.isTainted != 0 }
     pub fn size_bits(&self) -> usize { self.sizeBits as usize }
 }
 
