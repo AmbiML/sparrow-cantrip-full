@@ -1,5 +1,5 @@
 #![no_std]
-#[allow(dead_code)]
+#![allow(dead_code)]
 use cstr_core::CString;
 use cantrip_memory_interface::ObjDescBundle;
 
