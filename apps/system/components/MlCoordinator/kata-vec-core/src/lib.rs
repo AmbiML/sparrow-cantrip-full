@@ -7,12 +7,15 @@ mod vc_top;
 
 use core::mem::size_of;
 use core::slice;
-use cantrip_ml_interface::MlCoreInterface;
 use cantrip_memory_interface::ObjDescBundle;
+use cantrip_ml_interface::{MlCoreInterface, ModelSections, Window};
 use cantrip_proc_interface::BundleImage;
 
-use cantrip_io as io;
 use io::Read;
+use cantrip_io as io;
+
+// The page size of the WMMU.
+const WMMU_PAGE_SIZE: usize = 0x1000;
 
 // TODO(jesionowski): Move these constants to an auto-generated file.
 // TODO(b/214092253): ITCM size blow-up needs to be addressed.
@@ -25,6 +28,14 @@ const DTCM_PADDR: usize = 0x34000000;
 extern "C" {
     static itcm: *mut u32;
     static dtcm: *mut u32;
+}
+
+fn round_up(a: usize, b: usize) -> usize {
+    if (a % b) == 0 {
+        a
+    } else {
+        usize::checked_add(a, b).unwrap() - (a % b)
+    }
 }
 
 fn get_dtcm_slice() -> &'static mut [u32] {
@@ -52,6 +63,19 @@ fn clear_tcm() {
 }
 
 impl MlCoreInterface for MlCore {
+    fn set_wmmu(&mut self, sections: &ModelSections) {
+        // The length of the window is not the size of the window, but rather
+        // the last address of the window. This saves us a bit in hardware:
+        // 0x400000 is 23 bits vs. 0x3FFFFF 22 bits.
+        vc_top::set_immu_window_offset(0, sections.instructions.addr);
+        vc_top::set_immu_window_length(0, sections.instructions.size - 1);
+        vc_top::set_immu_window_permission(0, vc_top::Permission::Read);
+
+        vc_top::set_dmmu_window_offset(0, sections.data.addr);
+        vc_top::set_dmmu_window_length(0, sections.data.size - 1);
+        vc_top::set_dmmu_window_permission(0, vc_top::Permission::ReadAndWrite);
+    }
+
     fn enable_interrupts(&mut self, enable: bool) {
         let intr_enable = vc_top::IntrEnable::new()
             .with_host_req(enable)
@@ -70,37 +94,62 @@ impl MlCoreInterface for MlCore {
     }
 
     // Loads the model into the TCM.
-    fn load_image(&mut self, frames: &ObjDescBundle) -> Result<(), &'static str> {
+    fn load_image(&mut self, frames: &ObjDescBundle) -> Result<ModelSections, &'static str> {
         let mut image = BundleImage::new(frames);
         let mut itcm_found = false;
         let mut dtcm_found = false;
+        // Size of windows is filled in below.
+        let mut iwindow = Window {
+            addr: ITCM_PADDR,
+            size: 0,
+        };
+        let mut dwindow = Window {
+            addr: DTCM_PADDR,
+            size: 0,
+        };
 
         clear_tcm();
         // NB: we require both ITCM & DTCM sections and that only one
         //   instance of each is present
         while let Some(section) = image.next_section() {
             let slice = if section.vaddr == ITCM_PADDR {
-                if itcm_found { return Err("dup ITCM") }
+                if itcm_found {
+                    return Err("dup ITCM");
+                }
                 itcm_found = true;
 
-                if section.fsize > ITCM_SIZE { return Err("ITCM too big") }
+                if section.fsize > ITCM_SIZE {
+                    return Err("ITCM too big");
+                }
+                iwindow.size = round_up(section.msize, WMMU_PAGE_SIZE);
                 unsafe { slice::from_raw_parts_mut(itcm as *mut u8, ITCM_SIZE) }
             } else if section.vaddr == DTCM_PADDR {
-                if dtcm_found { return Err("dup DTCM") }
+                if dtcm_found {
+                    return Err("dup DTCM");
+                }
                 dtcm_found = true;
 
-                if section.fsize > DTCM_SIZE { return Err("DTCM section too big") }
+                if section.fsize > DTCM_SIZE {
+                    return Err("DTCM section too big");
+                }
+                dwindow.size = round_up(section.msize, WMMU_PAGE_SIZE);
                 unsafe { slice::from_raw_parts_mut(dtcm as *mut u8, DTCM_SIZE) }
             } else {
                 return Err("Unexpected section");
             };
-            image.read_exact(&mut slice[section.data_range()])
+            image
+                .read_exact(&mut slice[section.data_range()])
                 .map_err(|_| "section read error")?;
             // TODO(jesionowski): Remove when clear_tcm is fully implemented.
             slice[section.zero_range()].fill(0x00);
         }
-        if !itcm_found || !dtcm_found { return Err("Incomplete") }
-        Ok(())
+        if !itcm_found || !dtcm_found {
+            return Err("Incomplete");
+        }
+        Ok(ModelSections {
+            instructions: iwindow,
+            data: dwindow,
+        })
     }
 
     // TODO(jesionowski): Read these from CSRs when available.

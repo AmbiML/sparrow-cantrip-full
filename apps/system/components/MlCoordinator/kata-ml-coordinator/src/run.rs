@@ -108,7 +108,8 @@ impl MlCoordinatorInterface for MLCoordinator {
             let container_slot = CSpaceSlot::new();
             match cantrip_security_load_model(bundle_id, model_id, &container_slot) {
                 Ok(model_frames) => {
-                    if let Err(e) = self.ml_core.load_image(&model_frames) {
+                    let res = self.ml_core.load_image(&model_frames);
+                    if let Err(e) = res {
                         error!("Load of {}:{} failed: {:?}",
                                bundle_id, model_id, e);
                         // NB: may have corrupted TCM, clear loaded state
@@ -116,6 +117,7 @@ impl MlCoordinatorInterface for MLCoordinator {
                         self.loaded_model = None;
                     } else {
                         info!("Load successful.");
+                        self.ml_core.set_wmmu(&res.unwrap());
                         self.loaded_bundle = Some(String::from(bundle_id));
                         self.loaded_model = Some(String::from(model_id));
                     }
