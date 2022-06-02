@@ -115,7 +115,7 @@ impl<'a> CantripOsModel<'a> {
                         // CNode can receive the untypeds since we must move
                         // 'em from the rootserver (since they are "derived").
                         // XXX maybe just complain & ignore
-                        info!("Found bootinfo Frame at {}", obj_id);
+                        trace!("Found bootinfo Frame at {}", obj_id);
                         assert!(!is_objid_valid(bootinfo_frame));
                         bootinfo_frame = obj_id;
                     }

@@ -19,7 +19,7 @@ use core::mem::size_of;
 use core::ptr;
 use cpio::CpioNewcReader;
 use cstr_core::CStr;
-use log::{debug, info, error, trace};
+use log::{debug, error, trace};
 use smallvec::SmallVec;
 use static_assertions::*;
 
@@ -944,7 +944,7 @@ impl<'a> CantripOsModel<'a> {
             .max_by_key(|slot| slot.slot)
             .map_or(0, |slot| slot.slot + 1);
 
-        info!("Hand-off {} untypeds from {} to {}",
+        trace!("Hand-off {} untypeds from {} to {}",
               num_untypeds,
               self.bootinfo.untyped.start,
               dest_start);
