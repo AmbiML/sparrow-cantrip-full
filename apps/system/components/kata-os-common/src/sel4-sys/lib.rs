@@ -21,6 +21,7 @@ assert_cfg!(any(
     all(target_arch = "arm", target_pointer_width = "32"),
     all(target_arch = "aarch64"),
     all(target_arch = "riscv32"),
+    all(target_arch = "riscv64"),
     all(target_arch = "x86"),
     all(target_arch = "x86_64"),
 ));
@@ -106,6 +107,9 @@ include!("arch/aarch64.rs");
 #[cfg(target_arch = "riscv32")]
 include!("arch/riscv32.rs");
 
+#[cfg(target_arch = "riscv64")]
+include!("arch/riscv64.rs");
+
 #[cfg(all(target_arch = "x86"))]
 include!(concat!(env!("OUT_DIR"), "/ia32_invocation.rs"));
 
@@ -121,6 +125,9 @@ include!(concat!(env!("OUT_DIR"), "/aarch64_invocation.rs"));
 #[cfg(target_arch = "riscv32")]
 include!(concat!(env!("OUT_DIR"), "/riscv32_invocation.rs"));
 
+#[cfg(target_arch = "riscv64")]
+include!(concat!(env!("OUT_DIR"), "/riscv64_invocation.rs"));
+
 #[cfg(all(target_arch = "x86"))]
 include!(concat!(env!("OUT_DIR"), "/ia32_syscall_stub.rs"));
 
@@ -135,6 +142,9 @@ include!(concat!(env!("OUT_DIR"), "/aarch64_syscall_stub.rs"));
 
 #[cfg(target_arch = "riscv32")]
 include!(concat!(env!("OUT_DIR"), "/riscv32_syscall_stub.rs"));
+
+#[cfg(target_arch = "riscv64")]
+include!(concat!(env!("OUT_DIR"), "/riscv64_syscall_stub.rs"));
 
 #[cfg(target_pointer_width = "32")]
 include!(concat!(env!("OUT_DIR"), "/types32.rs"));

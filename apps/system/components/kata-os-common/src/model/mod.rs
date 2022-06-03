@@ -33,6 +33,7 @@ use static_assertions::*;
     path = "arch/aarch32.rs"
 )]
 #[cfg_attr(target_arch = "riscv32", path = "arch/riscv32.rs")]
+#[cfg_attr(target_arch = "riscv64", path = "arch/riscv64.rs")]
 #[cfg_attr(target_arch = "x86", path = "arch/x86.rs")]
 #[cfg_attr(target_arch = "x86_64", path = "arch/x86_64.rs")]
 mod arch;

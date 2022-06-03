@@ -10,32 +10,37 @@
  */
 
 use static_assertions::assert_cfg;
-assert_cfg!(target_arch = "riscv32");
+assert_cfg!(target_arch = "riscv64");
 
-pub const seL4_WordBits: usize = 32;
-pub const seL4_WordSizeBits: usize = 2;
+pub const seL4_WordBits: usize = 64;
+pub const seL4_WordSizeBits: usize = 3;
 pub const seL4_PageBits: usize = 12;
-pub const seL4_SlotBits: usize = 4;
-pub const seL4_TCBBits: usize = 9;
-pub const seL4_ReplyBits: usize = 4;
+pub const seL4_SlotBits: usize = 5;
+#[cfg(feature = "CONFIG_HAVE_FPU")]
+pub const seL4_TCBBits: usize = 11;
+#[cfg(not(feature = "CONFIG_HAVE_FPU"))]
+pub const seL4_TCBBits: usize = 10;
+pub const seL4_ReplyBits: usize = 5;
 pub const seL4_EndpointBits: usize = 4;
-pub const seL4_PageTableEntryBits: usize = 2;
-pub const seL4_PageTableIndexBits: usize = 10;
+pub const seL4_PageTableEntryBits: usize = 3;
+pub const seL4_PageTableIndexBits: usize = 9;
 pub const seL4_PageDirIndexBits: usize = seL4_PageTableIndexBits;
-pub const seL4_LargePageBits: usize = 22;
+pub const seL4_LargePageBits: usize = 21;
+pub const seL4_HugePageBits: usize = 30;
+pub const seL4_TeraPageBits: usize = 39;
 pub const seL4_PageTableBits: usize = 12;
 pub const seL4_VSpaceBits: usize = seL4_PageTableBits;
-pub const seL4_NumASIDPoolBits: usize = 5;
-pub const seL4_ASIDPoolIndexBits: usize = 4;
+pub const seL4_NumASIDPoolBits: usize = 7;
+pub const seL4_ASIDPoolIndexBits: usize = 9;
 pub const seL4_ASIDPoolBits: usize = 12;
 
 #[cfg(feature = "CONFIG_KERNEL_MCS")]
-pub const seL4_NotificationBits: usize = 5;
+pub const seL4_NotificationBits: usize = 6;
 #[cfg(not(feature = "CONFIG_KERNEL_MCS"))]
-pub const seL4_NotificationBits: usize = 4;
+pub const seL4_NotificationBits: usize = 5;
 
 pub const seL4_MinUntypedBits: usize = 4;
-pub const seL4_MaxUntypedBits: usize = 29;
+pub const seL4_MaxUntypedBits: usize = 38;
 
 pub type seL4_RISCV_Page = seL4_CPtr;
 pub type seL4_RISCV_PageTable = seL4_CPtr;
@@ -45,7 +50,7 @@ pub type seL4_RISCV_ASIDPool = seL4_CPtr;
 #[cfg(feature = "arch_generic")]
 include!("riscv_generic.rs");
 
-error_types!(u32);
+error_types!(u64);
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -118,6 +123,8 @@ pub enum seL4_ObjectType {
     seL4_RISCV_4K_Page,
     seL4_RISCV_Mega_Page,
     seL4_RISCV_PageTableObject,
+    seL4_RISCV_Giga_Page,
+    seL4_RISCV_Tera_Page,
 
     seL4_LastObjectType,
 }
@@ -145,8 +152,8 @@ impl seL4_ObjectType {
             //   same for both 32- and 64-bit systems
             seL4_RISCV_PageTableObject => Some(seL4_PageTableBits),
             seL4_RISCV_Mega_Page => Some(seL4_LargePageBits),
-//            seL4_RISCV_Giga_Page => Some(seL4_HugePageBits),
-//            seL4_RISCV_Tera_Page => Some(seL4_TeraPageBits),
+            seL4_RISCV_Giga_Page => Some(seL4_HugePageBits),
+            seL4_RISCV_Tera_Page => Some(seL4_TeraPageBits),
             _ => None,
         }
     }
