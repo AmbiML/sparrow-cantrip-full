@@ -3,23 +3,10 @@
 extern crate alloc;
 use alloc::string::{String, ToString};
 use hashbrown::HashMap;
-use cantrip_os_common::sel4_sys;
-use cantrip_os_common::slot_allocator;
 use cantrip_memory_interface::ObjDescBundle;
-use cantrip_memory_interface::cantrip_object_free;
+use cantrip_memory_interface::cantrip_object_free_in_cnode;
 use cantrip_security_interface::*;
 use cantrip_storage_interface::KeyValueData;
-use log::error;
-
-use sel4_sys::seL4_CNode_Delete;
-use sel4_sys::seL4_CPtr;
-use sel4_sys::seL4_WordBits;
-
-use slot_allocator::CANTRIP_CSPACE_SLOTS;
-
-extern "C" {
-    static SELF_CNODE: seL4_CPtr;
-}
 
 struct BundleData {
     pkg_contents: ObjDescBundle,
@@ -52,14 +39,7 @@ impl BundleData {
 }
 impl Drop for BundleData {
     fn drop(&mut self) {
-        let _ = cantrip_object_free(&self.pkg_contents);
-        unsafe {
-            CANTRIP_CSPACE_SLOTS.free(self.pkg_contents.cnode, 1);
-            if let Err(e) = seL4_CNode_Delete(SELF_CNODE, self.pkg_contents.cnode, seL4_WordBits as u8) {
-                // XXX no bundle_id
-                error!("Error deleting CNode {}, error {:?}", self.pkg_contents.cnode, e);
-            }
-        }
+        let _ = cantrip_object_free_in_cnode(&self.pkg_contents);
     }
 }
 
