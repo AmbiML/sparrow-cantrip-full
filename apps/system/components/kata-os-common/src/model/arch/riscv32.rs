@@ -8,10 +8,12 @@ assert_cfg!(target_arch = "riscv32");
 mod riscv;
 pub use riscv::*;
 
-use capdl::*;
+use crate::CantripOsModel;
+use capdl::kobject_t::*;
 use capdl::CDL_CapType::*;
 use capdl::CDL_ObjectType::*;
-use crate::CantripOsModel;
+use capdl::*;
+use log::error;
 
 use sel4_sys::seL4_CapInitThreadCNode;
 use sel4_sys::seL4_CapIRQControl;
@@ -19,12 +21,13 @@ use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_Error;
 use sel4_sys::seL4_IRQControl_Get;
 use sel4_sys::seL4_LargePageBits;
+use sel4_sys::seL4_MinSchedContextBits;
 use sel4_sys::seL4_ObjectType;
+use sel4_sys::seL4_ObjectType::*;
 use sel4_sys::seL4_PageBits;
+use sel4_sys::seL4_PageTableBits;
 use sel4_sys::seL4_PageTableIndexBits;
 use sel4_sys::seL4_Result;
-use sel4_sys::seL4_RISCV_4K_Page;
-use sel4_sys::seL4_RISCV_Mega_Page;
 use sel4_sys::seL4_UserContext;
 use sel4_sys::seL4_Word;
 use sel4_sys::seL4_WordBits;
@@ -32,14 +35,6 @@ use sel4_sys::seL4_WordBits;
 const CDL_PT_NUM_LEVELS: usize = 2;
 // TOOD(sleffler): levels really should be 0 & 1, the names are vestiges of 64-bit support
 const CDL_PT_LEVEL_3_IndexBits: usize = seL4_PageTableIndexBits;
-
-pub fn get_frame_type(object_size: seL4_Word) -> seL4_ObjectType {
-    match object_size {
-        seL4_PageBits => seL4_RISCV_4K_Page,
-        seL4_LargePageBits => seL4_RISCV_Mega_Page,
-        _ => panic!("Unexpected frame size {}", object_size),
-    }
-}
 
 fn MASK(pow2_bits: usize) -> usize { (1 << pow2_bits) - 1 }
 
@@ -82,6 +77,46 @@ pub fn get_user_context(cdl_tcb: &CDL_Object, sp: seL4_Word) -> *const seL4_User
 
         &regs as *const seL4_UserContext
     }
+}
+
+pub fn kobject_get_size(t: kobject_t, object_size: seL4_Word) -> seL4_Word {
+    match t {
+        KOBJECT_FRAME => {
+            if object_size == seL4_PageBits || object_size == seL4_LargePageBits {
+                return object_size;
+            }
+        }
+        KOBJECT_PAGE_TABLE  => {
+            return seL4_PageTableBits;
+        }
+        KOBJECT_SCHED_CONTEXT => {
+            return core::cmp::max(object_size, seL4_MinSchedContextBits);
+        }
+        _ => {}
+    }
+    error!("Unexpected object: type {:?} size {}", t, object_size);
+    object_size
+}
+pub fn kobject_get_type(t: kobject_t, object_size: seL4_Word) -> seL4_ObjectType {
+    match t {
+        KOBJECT_PAGE_DIRECTORY => {
+            return seL4_RISCV_PageTableObject;
+        }
+        KOBJECT_PAGE_TABLE => {
+            return seL4_RISCV_PageTableObject;
+        }
+        KOBJECT_FRAME => {
+            if object_size == seL4_PageBits {
+                return seL4_RISCV_4K_Page;
+            }
+            if object_size == seL4_LargePageBits {
+                return seL4_RISCV_Mega_Page;
+            }
+        }
+        _ => {}
+    }
+    error!("Unexpected object: type {:?} size {}", t, object_size);
+    seL4_LastObjectType // XXX not right
 }
 
 impl<'a> CantripOsModel<'a> {

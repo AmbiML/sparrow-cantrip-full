@@ -130,9 +130,7 @@ impl seL4_ObjectType {
             seL4_TCBObject => Some(seL4_TCBBits),
             seL4_EndpointObject => Some(seL4_EndpointBits),
             seL4_NotificationObject =>  Some(seL4_EndpointBits),
-            #[cfg(feature = "CONFIG_KERNEL_MCS")]
             seL4_ReplyObject => Some(seL4_ReplyBits),
-            #[cfg(feature = "CONFIG_KERNEL_MCS")]
             seL4_SchedContextObject => Some(seL4_MinSchedContextBits), // XXX maybe None?
             // NB: caller must scale by #slots
             seL4_CapTableObject => Some(seL4_SlotBits),
@@ -153,6 +151,9 @@ impl From<seL4_ObjectType> for seL4_Word {
         type_ as seL4_Word
     }
 }
+
+// NB: capDL is defined using this (sigh)
+pub const seL4_ObjectTypeCount: isize = seL4_ObjectType::seL4_LastObjectType as isize;
 
 #[inline(always)]
 pub unsafe fn seL4_GetIPCBuffer() -> *mut seL4_IPCBuffer {

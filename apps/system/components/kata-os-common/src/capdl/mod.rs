@@ -131,6 +131,24 @@ pub const CDL_TCB_TemporalFaultEP_Slot: seL4_Word = CDL_TCB_SC_Slot + 1;
 // CONFIG_ARM_HYPERVISOR_SUPPORT || CONFIG_VTX
 pub const CDL_TCB_VCPU_Slot: seL4_Word = CDL_TCB_TemporalFaultEP_Slot + 1;
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum kobject_t {
+    KOBJECT_PAGE_DIRECTORY,
+    KOBJECT_PAGE_TABLE,
+    KOBJECT_FRAME,
+    KOBJECT_ARCH_NUM_TYPES,
+
+    KOBJECT_TCB,
+    KOBJECT_CNODE,
+    KOBJECT_CSLOT,
+    KOBJECT_UNTYPED,
+    KOBJECT_ENDPOINT,
+    KOBJECT_NOTIFICATION,
+    KOBJECT_REPLY,
+    KOBJECT_SCHED_CONTEXT,
+    NUM_KOBJECT_TYPES,
+}
+
 pub type CDL_ObjID = seL4_Word;
 // NB: some object id's are written in the spec as -1
 pub fn is_objid_valid(val: CDL_ObjID) -> bool {
@@ -183,19 +201,7 @@ pub enum CDL_CapType {
     CDL_PGDCap,
     CDL_ASIDControlCap,
     CDL_ASIDPoolCap,
-
-    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    CDL_IOPortsCap,
-    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    CDL_IOSpaceCap,
-
-    #[cfg(any(target_arch = "arm", target_arch = "aarch64"))]
-    CDL_ARMIOSpaceCap,
-    #[cfg(any(target_arch = "arm", target_arch = "aarch64"))]
-    CDL_SIDCap,
-    #[cfg(any(target_arch = "arm", target_arch = "aarch64"))]
-    CDL_CBCap,
-
+    // TODO(sleffler): missing arch-specific caps
     CDL_SCCap,
     CDL_SchedControlCap,
     CDL_RTReplyCap,
@@ -360,13 +366,13 @@ impl CDL_Cap {
     #[inline]
     pub fn rights(&self) -> CDL_CapRights {
         unsafe {
-            ::core::mem::transmute::<usize, CDL_CapRights>(self._bitfield.get(4, 4) as usize)
+            ::core::mem::transmute::<u32, CDL_CapRights>(self._bitfield.get(4, 4) as u32)
         }
     }
     #[inline]
     pub fn set_rights(&mut self, val: CDL_CapRights) {
         unsafe {
-            let val: usize = ::core::mem::transmute(val);
+            let val: u32 = ::core::mem::transmute(val);
             self._bitfield.set(4, 4, val as u64)
         }
     }
@@ -409,45 +415,29 @@ impl<'a> CDL_CapMap {
     }
 }
 
-// Object tyype as found in the capdl input stream. This is partly defined
-// in terms of the seL4_ObjectType and otherwise using seL4_LastObjectCount.
-// The result is a mess and for zero gain (relative to just never reusing
-// an enum member value).
+// TODO(sleffler): values depend on config & arch, this works for riscv
+//   might be better to ditch the enum or move to arch
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum CDL_ObjectType {
-    CDL_Endpoint        = sel4_sys::seL4_EndpointObject as isize,
-    CDL_Notification    = sel4_sys::seL4_NotificationObject as isize,
-    CDL_TCB             = sel4_sys::seL4_TCBObject as isize,
-    CDL_CNode           = sel4_sys::seL4_CapTableObject as isize,
-    CDL_Untyped         = sel4_sys::seL4_UntypedObject as isize,
+    CDL_Untyped = 0,
+    CDL_TCB,
+    CDL_Endpoint,
+    CDL_Notification,
+    CDL_CNode,
 
     #[cfg(feature = "CONFIG_KERNEL_MCS")]
-    CDL_SchedContext    = sel4_sys::seL4_SchedContextObject as isize,
+    CDL_SchedContext,
     #[cfg(feature = "CONFIG_KERNEL_MCS")]
-    CDL_RTReply         = sel4_sys::seL4_ReplyObject as isize,
+    CDL_RTReply,
 
-    CDL_Frame           = sel4_sys::seL4_SmallPageObject as isize,
-    CDL_PT              = sel4_sys::seL4_PageTableObject as isize,
-    #[cfg(any(target_arch = "arm", target_arch = "aarch64", target_arch = "x86"))]
-    CDL_PD              = sel4_sys::seL4_PageDirectoryObject as isize,
+    // XXX these work for CONFIG_ARCH_RISCV
+    CDL_Frame,
+    CDL_Mega_Frame,
+    CDL_PT,
 
-    #[cfg(target_arch = "aarch64")]
-    CDL_PUD             = sel4_sys::seL4_PageUpperDirectoryObject as isize,
-    #[cfg(target_arch = "aarch64")]
-    CDL_PGD             = sel4_sys::seL4_PageGlobalDirectoryObject as isize,
-
-    #[cfg(any(feature = "CONFIG_ARM_HYPERVISOR_SUPPORT", feature = "CONFIG_VTX"))]
-    CDL_VCPU            = sel4_sys::seL4_VCPUObject as isize,
-
-    #[cfg(target_arch = "x86_64")]
-    CDL_PML4             = sel4_sys::seL4_PML4Object as isize,
-    #[cfg(target_arch = "x86_64")]
-    CDL_PDPT             = sel4_sys::seL4_PDPTObject as isize,
-
-    // NB: the following are numbered relative to seL4_ObjectTypeCount,
-    //   do not re-order!
-    CDL_ASIDPool        = seL4_ObjectTypeCount + 1,
+    // NB: remainder are numbered relative to seL4_ObjectTypeCount
+    CDL_ASIDPool = seL4_ObjectTypeCount + 1,
     CDL_Interrupt,
     CDL_IOPorts,        // CONFIG_ARCH_X86
     CDL_IODevice,       // CONFIG_ARCH_X86
@@ -468,7 +458,6 @@ pub enum CDL_ObjectType {
 }
 impl From<CDL_ObjectType> for seL4_ObjectType {
     fn from(type_: CDL_ObjectType) -> seL4_ObjectType {
-        // TODO(sleffler): maybe assert type_ < seL4_ObjectTypeCount
         unsafe { ::core::mem::transmute(type_) }
     }
 }

@@ -13,9 +13,6 @@ use capdl::*;
 use core::mem::size_of;
 use core::ptr;
 
-#[cfg(any(target_arch = "arm", target_arch = "aarch64"))]
-use sel4_sys::seL4_ARM_Page_Unify_Instruction;
-
 use sel4_sys::seL4_CapInitThreadVSpace;
 use sel4_sys::seL4_CapRights;
 use sel4_sys::seL4_CPtr;
@@ -112,7 +109,7 @@ impl<'a> CantripOsModel<'a> {
             };
         }
 
-        #[cfg(any(target_arch = "arm", target_arch = "aarch64"))]
+        #[cfg(target_arch = "arm")]
         unsafe { seL4_ARM_Page_Unify_Instruction(frame, 0, PAGE_SIZE) }?;
 
         unsafe { seL4_Page_Unmap(frame) }?;
