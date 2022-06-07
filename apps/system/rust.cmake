@@ -21,11 +21,10 @@ set(CARGO_OPTIONS
 # lib_name: Name of library that is created
 # SOURCE_DIR: source directory of cargo project
 # BUILD_DIR: directory for cargo build output
-# TARGET: custom target to use. See in ../rust_targets/ for list of available targets.
 # LIB_FILENAME: filename of library created by cargo
 # DEPENDS: And target or file dependencies that need to be run before cargo
 function(RustAddLibrary lib_name)
-    cmake_parse_arguments(PARSE_ARGV 1 RUST "" "SOURCE_DIR;BUILD_DIR;TARGET;LIB_FILENAME" "DEPENDS")
+    cmake_parse_arguments(PARSE_ARGV 1 RUST "" "SOURCE_DIR;BUILD_DIR;LIB_FILENAME" "DEPENDS")
     if(NOT "${RUST_UNPARSED_ARGUMENTS}" STREQUAL "")
         message(FATAL_ERROR "Unknown arguments to RustAddLibrary ${RUST_UNPARSED_ARGUMENTS}")
     endif()
@@ -37,9 +36,6 @@ function(RustAddLibrary lib_name)
     endif()
     if("${RUST_BUILD_DIR}" STREQUAL "")
         set(RUST_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR})
-    endif()
-    if("${RUST_TARGET}" STREQUAL "")
-        set(RUST_TARGET "riscv32imac-unknown-none-elf")
     endif()
 
     if("${RELEASE}")
