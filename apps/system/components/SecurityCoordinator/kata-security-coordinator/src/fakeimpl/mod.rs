@@ -1,6 +1,7 @@
 //! Cantrip OS security coordinator fake support
 
 extern crate alloc;
+use alloc::fmt;
 use alloc::string::{String, ToString};
 use hashbrown::HashMap;
 use cantrip_memory_interface::ObjDescBundle;
@@ -22,16 +23,16 @@ impl BundleData {
             pkg_size: size,
             manifest: String::from(
                 "# Comments like this
-                        [Manifest]
-                        BundleId=com.google.cerebra.hw.HelloWorld
+                [Manifest]
+                BundleId=com.google.cerebra.hw.HelloWorld
 
-                        [Binaries]
-                        App=HelloWorldBin
-                        Model=NeuralNetworkName
+                [Binaries]
+                App=HelloWorldBin
+                Model=NeuralNetworkName
 
-                        [Storage]
-                        Required=1
-                      ",
+                [Storage]
+                Required=1
+              ",
             ),
             keys: HashMap::with_capacity(2),
         }
@@ -78,7 +79,9 @@ pub type CantripSecurityCoordinatorInterface = FakeSecurityCoordinator;
 
 impl SecurityCoordinatorInterface for FakeSecurityCoordinator {
     fn install(&mut self, pkg_contents: &ObjDescBundle) -> Result<String, SecurityRequestError> {
-        let bundle_id = "fubar".to_string(); // XXX
+        // TODO(sleffler): get bundle_id from the manifest; for now use the
+        //    cnode's CPtr since it is unique wrt all installed packages
+        let bundle_id = fmt::format(format_args!("fake.{}", pkg_contents.cnode));
         if self.bundles.contains_key(&bundle_id) {
             return Err(SecurityRequestError::SreDeleteFirst);
         }
