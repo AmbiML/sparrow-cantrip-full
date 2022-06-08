@@ -238,7 +238,9 @@ fn bundles_command(
 ) -> Result<(), CommandError> {
     match cantrip_proc_ctrl_get_running_bundles() {
         Ok(bundle_ids) => {
-            writeln!(output, "{}", bundle_ids.join("\n"))?;
+            for b in bundle_ids {
+                writeln!(output, "{}", b)?;
+            }
         }
         Err(status) => {
             writeln!(output, "get_running_bundles failed: {:?}", status)?;
