@@ -40,6 +40,8 @@ mod test_memory_manager;
 mod test_ml_coordinator;
 #[cfg(feature = "TEST_PANIC")]
 mod test_panic;
+#[cfg(feature = "TEST_SECURITY_COORDINATOR")]
+mod test_security_coordinator;
 #[cfg(feature = "TEST_TIMER_SERVICE")]
 mod test_timer_service;
 
@@ -138,6 +140,8 @@ pub fn repl<T: io::BufRead>(
     test_ml_coordinator::add_cmds(&mut cmds);
     #[cfg(feature = "TEST_PANIC")]
     test_panic::add_cmds(&mut cmds);
+    #[cfg(feature = "TEST_SECURITY_COORDINATOR")]
+    test_security_coordinator::add_cmds(&mut cmds);
     #[cfg(feature = "TEST_TIMER_SERVICE")]
     test_timer_service::add_cmds(&mut cmds);
 

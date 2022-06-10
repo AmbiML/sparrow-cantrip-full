@@ -8,7 +8,6 @@ use crate::CommandError;
 use crate::rz;
 
 use cantrip_io as io;
-use cantrip_security_interface::cantrip_security_echo;
 
 pub fn add_cmds(cmds: &mut HashMap::<&str, CmdFn>) {
     cmds.extend([
@@ -16,7 +15,6 @@ pub fn add_cmds(cmds: &mut HashMap::<&str, CmdFn>) {
         ("echo",                echo_command as CmdFn),
         ("clear",               clear_command as CmdFn),
         ("rz",                  rz_command as CmdFn),
-        ("scecho",              scecho_command as CmdFn),
     ]);
 }
 
@@ -59,21 +57,6 @@ fn echo_command(
 ) -> Result<(), CommandError> {
     let value = args.collect::<Vec<&str>>().join(" ");
     Ok(writeln!(output, "{}", &value)?)
-}
-
-/// Implements an "scecho" command that sends arguments to the Security Core's echo service.
-fn scecho_command(
-    args: &mut dyn Iterator<Item = &str>,
-    _input: &mut dyn io::BufRead,
-    output: &mut dyn io::Write,
-    _builtin_cpio: &[u8],
-) -> Result<(), CommandError> {
-    let request = args.collect::<Vec<&str>>().join(" ");
-    match cantrip_security_echo(&request) {
-        Ok(result) => writeln!(output, "{}", result)?,
-        Err(status) => writeln!(output, "ECHO replied {:?}", status)?,
-    }
-    Ok(())
 }
 
 /// Implements a command to receive a blob using ZMODEM.

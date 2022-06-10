@@ -17,23 +17,22 @@ struct BundleData {
 }
 impl BundleData {
     fn new(pkg_contents: &ObjDescBundle) -> Self {
-        let size = pkg_contents.objs.len() * 4096; // XXX
+        let size_bytes = pkg_contents.objs.len() * 4096; // XXX
         BundleData {
             pkg_contents: pkg_contents.clone(),
-            pkg_size: size,
-            manifest: String::from(
-                "# Comments like this
-                [Manifest]
-                BundleId=com.google.cerebra.hw.HelloWorld
+            pkg_size: size_bytes,
+            manifest: String::from(r##"
+# Comments like this
+[Manifest]
+BundleId=com.google.cerebra.hw.HelloWorld
 
-                [Binaries]
-                App=HelloWorldBin
-                Model=NeuralNetworkName
+[Binaries]
+App=HelloWorldBin
+Model=NeuralNetworkName
 
-                [Storage]
-                Required=1
-              ",
-            ),
+[Storage]
+Required=1
+"##,),
             keys: HashMap::with_capacity(2),
         }
     }

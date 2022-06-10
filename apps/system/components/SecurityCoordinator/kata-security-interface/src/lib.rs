@@ -3,7 +3,7 @@
 #![cfg_attr(not(test), no_std)]
 
 extern crate alloc;
-use alloc::string::String;
+use alloc::string::{String, ToString};
 use core::str;
 use cantrip_memory_interface::ObjDescBundle;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
@@ -308,9 +308,8 @@ pub fn cantrip_security_install(pkg_contents: &ObjDescBundle)
         &InstallRequest { pkg_contents: pkg_contents.clone(), },
         reply,
     )?;
-    let bundle_id = postcard::from_bytes::<String>(reply)
-        .map_err(|_| SecurityRequestError::SreDeserializeFailed)?;
-    Ok(bundle_id)
+    postcard::from_bytes::<String>(reply)
+        .map_err(|_| SecurityRequestError::SreDeserializeFailed)
 }
 
 #[inline]
@@ -334,11 +333,11 @@ pub fn cantrip_security_size_buffer(bundle_id: &str)
     cantrip_security_request(
         SecurityRequest::SrSizeBuffer,
         &SizeBufferRequest { bundle_id, },
-        &mut [0u8; SECURITY_REPLY_DATA_SIZE],
+        reply,
     )?;
-    let size = postcard::from_bytes::<u32>(reply)
+    let response = postcard::from_bytes::<SizeBufferResponse>(reply)
         .map_err(|_| SecurityRequestError::SreDeserializeFailed)?;
-    Ok(size as usize)
+    Ok(response.buffer_size)
 }
 
 #[inline]
@@ -352,9 +351,9 @@ pub fn cantrip_security_get_manifest(bundle_id: &str)
         &GetManifestRequest { bundle_id, },
         reply,
     )?;
-    let manifest = postcard::from_bytes::<String>(reply)
+    let response = postcard::from_bytes::<GetManifestResponse>(reply)
         .map_err(|_| SecurityRequestError::SreDeserializeFailed)?;
-    Ok(manifest)
+    Ok(response.manifest.to_string())
 }
 
 #[inline]

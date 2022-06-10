@@ -154,6 +154,7 @@ fn load_application_request(
     let bundle_frames = unsafe {
         CANTRIP_SECURITY.load_application(request.bundle_id)
     }?;
+    // TODO(sleffler): maybe rearrange to eliminate clone
     postcard::to_slice(
         &LoadApplicationResponse {
             bundle_frames: bundle_frames.clone(),
@@ -175,6 +176,7 @@ fn load_model_request(
     let model_frames = unsafe {
         CANTRIP_SECURITY.load_model(request.bundle_id, request.model_id)
     }?;
+    // TODO(sleffler): maybe rearrange to eliminate clone
     let _ = postcard::to_slice(
         &LoadApplicationResponse {
             bundle_frames: model_frames.clone(),
