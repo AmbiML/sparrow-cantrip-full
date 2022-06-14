@@ -3,6 +3,7 @@ cargo-features = ["edition2021"]
 [workspace]
 
 members = [
+    "fake-vec-core",
     "cantrip-ml-component",
     "cantrip-ml-coordinator",
     "cantrip-ml-interface",

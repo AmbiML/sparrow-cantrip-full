@@ -7,11 +7,10 @@ extern crate alloc;
 use alloc::string::String;
 use alloc::vec::Vec;
 use cantrip_ml_interface::MlCoordError;
-use cantrip_ml_interface::MlCoreInterface;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_security_interface::*;
 use cantrip_timer_interface::*;
-use cantrip_vec_core::MlCore;
+use cantrip_vec_core as MlCore;
 use log::{error, info, trace, warn};
 
 /// The maximum number of models that the MLCoordinator can handle, bounded by
@@ -46,7 +45,6 @@ pub struct MLCoordinator {
     /// core, once the currently running model has finished.
     execution_queue: Vec<ModelIdx>,
     statistics: Statistics,
-    ml_core: MlCore,
 }
 
 // The index of a model in MLCoordinator.models
@@ -63,13 +61,12 @@ impl MLCoordinator {
             models: [INIT_NONE; MAX_MODELS],
             execution_queue: Vec::new(),
             statistics: Statistics{load_failures: 0, already_queued: 0},
-            ml_core: MlCore {},
         }
     }
 
     /// Initialize the vector core.
     pub fn init(&mut self) {
-        self.ml_core.enable_interrupts(true);
+        MlCore::enable_interrupts(true);
         self.execution_queue.reserve(MAX_MODELS);
     }
 
@@ -95,7 +92,7 @@ impl MLCoordinator {
         let container_slot = CSpaceSlot::new();
         match cantrip_security_load_model(&model.bundle_id, &model.model_id, &container_slot) {
             Ok(model_frames) => {
-                match self.ml_core.load_image(&model_frames) {
+                match MlCore::load_image(&model_frames) {
                     Err(e) => {
                         error!(
                             "Load of {}:{} failed: {:?}",
@@ -108,7 +105,7 @@ impl MLCoordinator {
                     }
                     Ok(sections) => {
                         info!("Load successful.");
-                        self.ml_core.set_wmmu(&sections);
+                        MlCore::set_wmmu(&sections);
                         self.loaded_model = Some(model_idx);
                         Ok(())
                     }
@@ -134,7 +131,7 @@ impl MLCoordinator {
             // It's very unlikely for load errors to be transient, it should
             // only happen in the case of a mal-formed model.
             self.load_model(next_idx)?;
-            self.ml_core.run(); // Unhalt, start at default PC.
+            MlCore::run(); // Unhalt, start at default PC.
             self.running_model = Some(next_idx);
         }
 

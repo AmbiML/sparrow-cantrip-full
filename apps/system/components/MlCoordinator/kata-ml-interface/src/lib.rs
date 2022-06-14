@@ -1,7 +1,6 @@
 #![no_std]
 #![allow(dead_code)]
 use cstr_core::CString;
-use cantrip_memory_interface::ObjDescBundle;
 
 /// The Vector Core uses a Windowed MMU (go/sparrow-wmmu) in order to prevent
 /// models from interferring with each other. Before executing a model,
@@ -39,20 +38,6 @@ impl From<MlCoordError> for Result<(), MlCoordError> {
             Err(err)
         }
     }
-}
-
-/// Abstraction layer over the hardware vector core.
-pub trait MlCoreInterface {
-    fn set_wmmu(&mut self, sections: &ModelSections);
-    fn enable_interrupts(&mut self, enabled: bool);
-    fn run(&mut self);
-    fn load_image(&mut self, frames: &ObjDescBundle) -> Result<ModelSections, &'static str>;
-    fn get_return_code() -> u32;
-    fn get_fault_register() -> u32;
-    fn clear_host_req();
-    fn clear_finish();
-    fn clear_instruction_fault();
-    fn clear_data_fault();
 }
 
 #[inline]

@@ -1,0 +1,11 @@
+cargo-features = ["edition2021"]
+
+[package]
+name = "fake-vec-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cantrip-memory-interface = { path = "../../MemoryManager/cantrip-memory-interface" }
+cantrip-ml-interface = { path = "../cantrip-ml-interface" }
+

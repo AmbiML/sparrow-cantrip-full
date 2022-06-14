@@ -7,4 +7,3 @@ edition = "2021"
 
 [dependencies]
 cstr_core = { version = "0.2.3", default-features = false }
-cantrip-memory-interface = { path = "../../MemoryManager/cantrip-memory-interface" }

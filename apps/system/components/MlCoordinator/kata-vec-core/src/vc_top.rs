@@ -1,8 +1,13 @@
-// Auto-generated hardware structs from vc_top.hjson
-
 #![allow(unused)]
+
+// Setters and getters for the Vector Core CSRs.
+
 use core::ptr;
 use modular_bitfield::prelude::*;
+
+extern "C" {
+    static csr: *mut [u32; 9];
+}
 
 #[bitfield]
 pub struct IntrState {
@@ -83,10 +88,6 @@ pub struct InitStatus {
     pub init_done: bool,
     #[skip]
     pub _unused0: B30,
-}
-
-extern "C" {
-    static csr: *mut [u32; 9];
 }
 
 pub fn get_intr_state() -> IntrState {
