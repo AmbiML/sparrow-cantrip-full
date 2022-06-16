@@ -1,0 +1,33 @@
+/*
+ * CAmkES component for accessing Sparrow's SMC -> SEC mailbox.
+ *
+ * Copyright 2021, Google LLC
+ * Apache License 2.0
+ */
+
+import <MailboxInterface.camkes>;
+import <MemoryInterface.camkes>;
+import <LoggerInterface.camkes>;
+
+component MailboxDriver {
+  provides MailboxAPI api;
+
+  // Mailbox registers
+  dataport Buf mailbox_mmio;
+
+  // Global mailbox lock
+  has mutex api_mutex;
+
+  // Mailbox arrival semaphore
+  has semaphore rx_semaphore;
+
+  // Mailbox interrupts
+  consumes Interrupt wtirq;
+  consumes Interrupt rtirq;
+  consumes Interrupt eirq;
+
+  // Enable CantripOS CAmkES support.
+  attribute int cantripos = true;
+
+  uses LoggerInterface logger;
+}

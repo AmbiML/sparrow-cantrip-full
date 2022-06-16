@@ -1,0 +1,8 @@
+cargo-features = ["edition2021"]
+
+[workspace]
+
+members = [
+    "mailbox-driver",
+]
+resolver = "2"

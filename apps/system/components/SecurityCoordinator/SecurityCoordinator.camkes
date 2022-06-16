@@ -3,16 +3,21 @@
 import <LoggerInterface.camkes>;
 import <MemoryInterface.camkes>;
 import <SecurityCoordinatorInterface.camkes>;
+import <MailboxInterface.camkes>;
 
 component SecurityCoordinator {
   provides SecurityCoordinatorInterface security;
 
   uses LoggerInterface logger;
   uses MemoryInterface memory;
+  uses MailboxAPI mailbox_api;
 
   // Enable CantripOS CAmkES support.
   attribute int cantripos = true;
 
   // Add free slots for processing requests.
   attribute int cnode_headroom = 32;
+
+  // For mailbox use. What should we call this?
+  has copyregion COPYREGION;
 }

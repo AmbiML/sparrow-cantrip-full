@@ -22,6 +22,7 @@ pub fn add_cmds(cmds: &mut HashMap::<&str, CmdFn>) {
         ("delete_key",          delete_key_command as CmdFn),
         ("read_key",            read_key_command as CmdFn),
         ("write_key",           write_key_command as CmdFn),
+        ("test_mailbox",        test_mailbox_command as CmdFn),
     ]);
 }
 
@@ -153,6 +154,23 @@ fn write_key_command(
         }
         Err(status) => {
             writeln!(output, "Write key \"{}\" failed: {:?}", key, status)?;
+        }
+    }
+    Ok(())
+}
+
+fn test_mailbox_command(
+    _args: &mut dyn Iterator<Item = &str>,
+    _input: &mut dyn io::BufRead,
+    output: &mut dyn io::Write,
+    _builtin_cpio: &[u8],
+) -> Result<(), CommandError> {
+    match cantrip_security_test_mailbox() {
+        Ok(_) => {
+            writeln!(output, "Test mailbox OK.")?;
+        }
+        Err(_status) => {
+            writeln!(output, "Test mailbox failed.")?;
         }
     }
     Ok(())

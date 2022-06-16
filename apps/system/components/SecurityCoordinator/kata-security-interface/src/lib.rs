@@ -166,6 +166,12 @@ pub struct DeleteKeyRequest<'a> {
 }
 impl<'a> SecurityCapability for DeleteKeyRequest<'a> {}
 
+// SecurityRequestTestMailbox
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TestMailboxRequest {
+}
+impl SecurityCapability for TestMailboxRequest {}
+
 // NB: this is the union of InstallInterface & StorageInterface because
 //   the camkes-generated interface code uses basic C which does not
 //   tolerate overlapping member names.
@@ -197,6 +203,7 @@ pub enum SecurityRequestError {
     SreReadFailed,
     SreWriteFailed,
     SreDeleteFailed,
+    SreTestFailed,
 }
 
 impl From<SecurityRequestError> for StorageError {
@@ -232,6 +239,8 @@ pub enum SecurityRequest {
     SrReadKey,   // Read key value [bundle_id, key] -> value
     SrWriteKey,  // Write key value [bundle_id, key, value]
     SrDeleteKey, // Delete key [bundle_id, key]
+
+    SrTestMailbox, // Run mailbox tests
 }
 
 // Interface to underlying facilities; also used to inject fakes for unit tests.
@@ -245,6 +254,7 @@ pub trait SecurityCoordinatorInterface {
     fn read_key(&self, bundle_id: &str, key: &str) -> Result<&KeyValueData, SecurityRequestError>;
     fn write_key(&mut self, bundle_id: &str, key: &str, value: &KeyValueData) -> Result<(), SecurityRequestError>;
     fn delete_key(&mut self, bundle_id: &str, key: &str) -> Result<(), SecurityRequestError>;
+    fn test_mailbox(&mut self) -> Result<(), SecurityRequestError>;
 }
 
 #[inline]
@@ -459,6 +469,16 @@ pub fn cantrip_security_delete_key(
     cantrip_security_request(
         SecurityRequest::SrDeleteKey,
         &DeleteKeyRequest { bundle_id, key, },
+        &mut [0u8; SECURITY_REPLY_DATA_SIZE],
+    )
+}
+
+#[inline]
+#[allow(dead_code)]
+pub fn cantrip_security_test_mailbox() -> Result<(), SecurityRequestError> {
+    cantrip_security_request(
+        SecurityRequest::SrTestMailbox,
+        &TestMailboxRequest {},
         &mut [0u8; SECURITY_REPLY_DATA_SIZE],
     )
 }

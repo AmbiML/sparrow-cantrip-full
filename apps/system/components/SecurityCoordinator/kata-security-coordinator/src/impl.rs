@@ -84,8 +84,9 @@ impl SecurityCoordinatorInterface for SeL4SecurityCoordinator {
                 Err(SreGetManifestFailed)
             }
             SecurityRequest::SrLoadApplication => {
-                let mut request = postcard::from_bytes::<LoadApplicationRequest>(&request_buffer[..])
-                    .map_err(deserialize_failure)?;
+                let mut request =
+                    postcard::from_bytes::<LoadApplicationRequest>(&request_buffer[..])
+                        .map_err(deserialize_failure)?;
                 request.set_container_cap(unsafe { SECURITY_RECV_SLOT });
                 trace!(
                     "LOAD APPLICATION bundle_id {} app_binary {:?}",

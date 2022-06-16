@@ -1,0 +1,4 @@
+procedure MailboxAPI {
+    void send(in uint32_t request_paddr, in uint32_t request_size);
+    void receive(out uint32_t response_paddr, out uint32_t response_size);
+};

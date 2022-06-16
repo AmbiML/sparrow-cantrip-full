@@ -21,6 +21,7 @@ import "components/MemoryManager/MemoryManager.camkes";
 import "components/StorageManager/StorageManager.camkes";
 import "components/SecurityCoordinator/SecurityCoordinator.camkes"; 
 import "components/TimerService/TimerService.camkes";
+import "components/MailboxDriver/MailboxDriver.camkes";
 
 component OpenTitanUART {
     hardware;
@@ -55,6 +56,14 @@ component BuiltinCpioArchive {
     dataport Buf(0x1000000) cpio;
 }
 
+component MailboxHardware {
+    hardware;
+    dataport Buf mmio;
+    emits Interrupt wtirq;
+    emits Interrupt rtirq;
+    emits Interrupt eirq;
+}
+
 assembly {
     composition {
         component VectorCoreHw vctop;
@@ -75,6 +84,20 @@ assembly {
         // Built-in CPIO archive is visible only to DebugConsole.
         connection seL4HardwareMMIO cpio_archive(from debug_console.cpio_archive,
                                                  to cpio.cpio);
+
+        // MailboxDriver
+        component MailboxHardware mailbox_hardware;
+        component MailboxDriver mailbox_driver;
+        connection seL4HardwareMMIO mailbox_driver_mmio(
+            from mailbox_driver.mailbox_mmio, to mailbox_hardware.mmio);
+        connection seL4HardwareInterrupt mailbox_driver_wtirq(
+            from mailbox_hardware.wtirq, to mailbox_driver.wtirq);
+        connection seL4HardwareInterrupt mailbox_driver_rtirq(
+            from mailbox_hardware.rtirq, to mailbox_driver.rtirq);
+        connection seL4HardwareInterrupt mailbox_driver_eirq(
+            from mailbox_hardware.eirq, to mailbox_driver.eirq);
+        connection seL4RPCCall security_coordinator_to_mailbox_api(
+            from security_coordinator.mailbox_api, to mailbox_driver.api);
 
         // OpenTitanUARTDriver
         connection seL4HardwareMMIO uart_mem(from uart_driver.mmio_region,
@@ -165,12 +188,21 @@ assembly {
             from security_coordinator.logger,
             from storage_manager.logger,
             from timer_service.logger,
+            from mailbox_driver.logger,
             to debug_console.logger);
     }
 
     configuration {
         cpio.cpio_paddr = 0x46000000;
         cpio.cpio_size = 0x1000000;
+
+        mailbox_hardware.mmio_paddr = 0x540F1000;
+        mailbox_hardware.mmio_size  = 0x00001000;
+        mailbox_hardware.wtirq_irq_number = 10; // kTopMatchaPlicIrqIdMailboxSmcWtirq
+        mailbox_hardware.rtirq_irq_number = 11; // kTopMatchaPlicIrqIdMailboxSmcRtirq
+        mailbox_hardware.eirq_irq_number = 12;  // kTopMatchaPlicIrqIdMailboxSmcEirq
+
+        mailbox_driver.rx_semaphore_value = 0;
 
         uart.mmio_region_paddr = 0x50000000;
         uart.mmio_region_size = 0x1000;

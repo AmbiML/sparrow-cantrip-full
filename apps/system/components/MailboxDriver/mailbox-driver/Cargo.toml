@@ -1,0 +1,20 @@
+cargo-features = ["edition2021"]
+
+[package]
+name = "mailbox-driver"
+version = "0.1.0"
+edition = "2018"
+
+[features]
+default = []
+
+[dependencies]
+cantrip-os-common = { path = "../../cantrip-os-common" }
+log = "0.4"
+cty = "0.2.1"
+cantrip-memory-interface = { path = "../../MemoryManager/cantrip-memory-interface" }
+
+[lib]
+name = "mailbox_driver"
+path = "src/lib.rs"
+crate-type = ["staticlib"]

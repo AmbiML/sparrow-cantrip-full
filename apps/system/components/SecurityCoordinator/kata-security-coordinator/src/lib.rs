@@ -57,16 +57,34 @@ impl SecurityCoordinatorInterface for CantripSecurityCoordinator {
     fn load_application(&self, bundle_id: &str) -> Result<ObjDescBundle, SecurityRequestError> {
         self.manager.as_ref().unwrap().load_application(bundle_id)
     }
-    fn load_model(&self, bundle_id: &str, model_id: &str) -> Result<ObjDescBundle, SecurityRequestError> {
-        self.manager.as_ref().unwrap().load_model(bundle_id, model_id)
+    fn load_model(
+        &self,
+        bundle_id: &str,
+        model_id: &str,
+    ) -> Result<ObjDescBundle, SecurityRequestError> {
+        self.manager
+            .as_ref()
+            .unwrap()
+            .load_model(bundle_id, model_id)
     }
     fn read_key(&self, bundle_id: &str, key: &str) -> Result<&KeyValueData, SecurityRequestError> {
         self.manager.as_ref().unwrap().read_key(bundle_id, key)
     }
-    fn write_key(&mut self, bundle_id: &str, key: &str, value: &KeyValueData) -> Result<(), SecurityRequestError> {
-        self.manager.as_mut().unwrap().write_key(bundle_id, key, value)
+    fn write_key(
+        &mut self,
+        bundle_id: &str,
+        key: &str,
+        value: &KeyValueData,
+    ) -> Result<(), SecurityRequestError> {
+        self.manager
+            .as_mut()
+            .unwrap()
+            .write_key(bundle_id, key, value)
     }
     fn delete_key(&mut self, bundle_id: &str, key: &str) -> Result<(), SecurityRequestError> {
         self.manager.as_mut().unwrap().delete_key(bundle_id, key)
+    }
+    fn test_mailbox(&mut self) -> Result<(), SecurityRequestError> {
+        self.manager.as_mut().unwrap().test_mailbox()
     }
 }

@@ -96,6 +96,17 @@ DeclareCAmkESComponent(TimerService
   INCLUDES interfaces
 )
 
+RustAddLibrary(
+  mailbox_driver
+  SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/components/MailboxDriver
+  LIB_FILENAME libmailbox_driver.a
+)
+
+DeclareCAmkESComponent(MailboxDriver
+  LIBS mailbox_driver
+  INCLUDES interfaces
+)
+
 DeclareCAmkESComponent(LogFibonacci
   SOURCES
   components/LogFibonacci/src/main.c

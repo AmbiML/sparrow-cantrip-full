@@ -13,6 +13,7 @@ sel4-config = { path = "../../cantrip-os-common/src/sel4-config" }
 [features]
 default = [
     "TEST_GLOBAL_ALLOCATOR",
+    "TEST_MAILBOX",
     "TEST_MEMORY_MANAGER",
     "TEST_ML_COORDINATOR",
     "TEST_PANIC",
@@ -25,6 +26,7 @@ CONFIG_KERNEL_MCS = []
 FRINGE_CMDS = []
 # Runtime tests for various services (please keep sorted)
 TEST_GLOBAL_ALLOCATOR = []
+TEST_MAILBOX = []
 TEST_MEMORY_MANAGER = []
 TEST_ML_COORDINATOR = []
 TEST_PANIC = []

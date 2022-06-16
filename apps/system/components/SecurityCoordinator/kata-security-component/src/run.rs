@@ -232,6 +232,12 @@ fn delete_key_request(
     unsafe { CANTRIP_SECURITY.delete_key(request.bundle_id, request.key) }
 }
 
+fn test_mailbox_request(
+) -> Result<(), SecurityRequestError> {
+    trace!("TEST MAILBOX");
+    unsafe { CANTRIP_SECURITY.test_mailbox() }
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn security_request(
     c_request: SecurityRequest,
@@ -263,5 +269,7 @@ pub unsafe extern "C" fn security_request(
             write_key_request(request_buffer, reply_buffer),
         SecurityRequest::SrDeleteKey =>
             delete_key_request(request_buffer, reply_buffer),
+        SecurityRequest::SrTestMailbox =>
+            test_mailbox_request(),
     }.map_or_else(|e| e, |_v| SecurityRequestError::SreSuccess)
 }
