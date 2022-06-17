@@ -10,6 +10,9 @@ build = "build.rs"
 sel4-config = { path = "../sel4-config" }
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.8"
+# serde_yaml has a caret version requirement for indexmap ("^1.5.2"). Specify
+# the version here so we can keep using the cargo 1.56.0-nightly toolchain.
+indexmap = "=1.8"
 
 [build-env]
 SEL4_OUT_DIR = "${ROOTDIR}out/cantrip/kernel"
