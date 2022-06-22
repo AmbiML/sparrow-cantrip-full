@@ -2,22 +2,17 @@
 
 // fake-vec-core is a stubbed out version of cantrip-vec-core.
 
-use cantrip_memory_interface::ObjDescBundle;
-use cantrip_ml_interface::{ModelSections, Window};
+use cantrip_ml_shared::ModelSections;
 
 pub fn enable_interrupts(_enable: bool) {}
 
 pub fn set_wmmu(_sections: &ModelSections) {}
 
-// NB: this function will be moved out of *-vec-core shortly.
-pub fn load_image(_frames: &ObjDescBundle) -> Result<ModelSections, &'static str> {
-    Ok(ModelSections {
-        instructions: Window { addr: 0, size: 0 },
-        data: Window { addr: 0, size: 0 },
-    })
-}
-
 pub fn run() {}
+
+pub fn tcm_write(_offset: usize, _buf: &[u32]) {}
+
+pub fn tcm_move(_src_offset: usize, _dest_offset: usize, _byte_length: usize) {}
 
 pub fn clear_host_req() {}
 

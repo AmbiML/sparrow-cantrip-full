@@ -8,15 +8,12 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use cantrip_memory_interface::cantrip_object_free_in_cnode;
 use cantrip_ml_interface::MlCoordError;
+use cantrip_ml_shared::MAX_MODELS;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_security_interface::*;
 use cantrip_timer_interface::*;
 use cantrip_vec_core as MlCore;
 use log::{error, info, trace, warn};
-
-/// The maximum number of models that the MLCoordinator can handle, bounded by
-/// timer slots. It's unlikely we'll be anywhere near this.
-const MAX_MODELS: usize = 32;
 
 /// Represents a single loadable model.
 #[derive(Debug)]

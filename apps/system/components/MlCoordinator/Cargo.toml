@@ -5,6 +5,8 @@ members = [
     "cantrip-ml-component",
     "cantrip-ml-coordinator",
     "cantrip-ml-interface",
+    "cantrip-ml-shared",
+    "cantrip-ml-support",
     "cantrip-vec-core"
 ]
 resolver = "2"

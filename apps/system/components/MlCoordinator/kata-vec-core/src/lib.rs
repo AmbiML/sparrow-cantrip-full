@@ -8,21 +8,12 @@ mod vc_top;
 use core::mem::size_of;
 use core::slice;
 use cantrip_memory_interface::ObjDescBundle;
-use cantrip_ml_interface::{ModelSections, Window};
+use cantrip_ml_shared::{ModelSections, Window, WMMU_PAGE_SIZE};
+use cantrip_ml_shared::{ITCM_SIZE, ITCM_PADDR, DTCM_SIZE, DTCM_PADDR};
 use cantrip_proc_interface::BundleImage;
 
 use io::Read;
 use cantrip_io as io;
-
-// The page size of the WMMU.
-const WMMU_PAGE_SIZE: usize = 0x1000;
-
-// TODO(jesionowski): Move these constants to an auto-generated file.
-// TODO(b/214092253): ITCM size blow-up needs to be addressed.
-const ITCM_SIZE: usize = 0x100000;
-const ITCM_PADDR: usize = 0x32000000;
-const DTCM_SIZE: usize = 0x1000000;
-const DTCM_PADDR: usize = 0x34000000;
 
 extern "C" {
     static itcm: *mut u32;

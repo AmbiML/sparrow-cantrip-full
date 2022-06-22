@@ -1,0 +1,14 @@
+[package]
+name = "cantrip-ml-support"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+log = "0.4"
+cantrip-ml-shared = { path = "../cantrip-ml-shared" }
+# XXX: Re-integrate when it does not depend on cantrip-os-common.
+# cantrip-vec-core = { path = "../cantrip-vec-core" }
+fake-vec-core = { path = "../fake-vec-core" }
+
+[dev-dependencies]
+assert_hex = "0.2.2"

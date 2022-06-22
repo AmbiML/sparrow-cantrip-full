@@ -2,22 +2,6 @@
 #![allow(dead_code)]
 use cstr_core::CString;
 
-/// The Vector Core uses a Windowed MMU (go/sparrow-wmmu) in order to prevent
-/// models from interferring with each other. Before executing a model,
-/// windows to only that model's code and data are opened.
-/// A window is represented by an address and size of that window.
-pub struct Window {
-    pub addr: usize,
-    pub size: usize,
-}
-
-/// When a model is loaded onto the Vector Core, the ML Coordinator needs to
-/// track where each window is.
-pub struct ModelSections {
-    pub instructions: Window,
-    pub data: Window,
-}
-
 /// Errors that can occur when interacting with the MlCoordinator.
 #[repr(C)]
 #[derive(Debug, Eq, PartialEq)]
