@@ -105,13 +105,20 @@ impl CSpaceSlot {
             )
         }
     }
+
+    // Delete any cap in our slot.
+    // NB: deleting an empty slot is a noop to seL4
+    pub fn delete(&self) -> seL4_Result {
+        unsafe {
+            seL4_CNode_Delete(SELF_CNODE, self.slot, seL4_WordBits as u8)
+        }
+    }
 }
 impl Drop for CSpaceSlot {
     fn drop(&mut self) {
         if self.slot != seL4_CPtr::MAX {
             unsafe {
-                seL4_CNode_Delete(SELF_CNODE, self.slot, seL4_WordBits as u8)
-                    .expect("CSpaceSlot");
+                self.delete().expect("CSpaceSlot");
                 CANTRIP_CSPACE_SLOTS.free(self.slot, 1);
             }
         }
