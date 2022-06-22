@@ -7,28 +7,34 @@
 
 use bitvec::prelude::*;
 use core::ops::Range;
+#[cfg(feature = "TRACE_OPS")]
+use log::trace;
 use spin::Mutex;
 
 struct Slots {
     bits: Option<BitBox<Lsb0, u8>>,
     used: usize,
+    name: &'static str, // Component name
     // TODO(sleffler): maybe track last alloc for O(1) sequential allocations
 }
 impl Slots {
-    fn new(size: usize) -> Self {
+    fn new(name: &'static str, size: usize) -> Self {
         Slots {
             bits: Some(bitvec![Lsb0, u8; 0; size].into_boxed_bitslice()),
             used: 0,
+            name,
         }
     }
     const fn empty() -> Self {
         Slots {
             bits: None,
             used: 0,
+            name: "",
         }
     }
-    fn init(&mut self, size: usize) {
+    fn init(&mut self, name: &'static str, size: usize) {
         self.bits = Some(bitvec![Lsb0, u8; 0; size].into_boxed_bitslice());
+        self.name = name;
     }
     fn used_slots(&self) -> usize { self.used }
     fn free_slots(&self) -> usize {
@@ -67,17 +73,28 @@ impl Slots {
             let bit = bits.first_zero()?;
             unsafe { bits.set_unchecked(bit, true) };
             self.used = self.used + 1;
+            #[cfg(feature = "TRACE_OPS")]
+            trace!("{}:alloc {}", self.name, bit);
             Some(bit)
         } else {
             let first_slot = self.bits.as_ref().unwrap().iter_zeros()
                 .find(|bit| self.not_any_in_range(bit + 1..bit + count))?;
             self.set_range(first_slot..first_slot + count, true);
+            #[cfg(feature = "TRACE_OPS")]
+            trace!("{}:alloc {}..{}", self.name, first_slot, first_slot + count);
             Some(first_slot)
         }
     }
 
     fn free(&mut self, first_slot: usize, count: usize) {
-        assert!(count <= self.used);
+        #[cfg(feature = "TRACE_OPS")]
+        if count == 1 {
+            trace!("{}:free {}", self.name, first_slot);
+        } else {
+            trace!("{}:free {} count {}", self.name, first_slot, count);
+        }
+        assert!(count <= self.used,
+               "{}: count {} > used {}", self.name, count, self.used);
         self.set_range(first_slot..first_slot + count, false);
     }
 }
@@ -92,9 +109,9 @@ pub static mut CANTRIP_CSPACE_SLOTS: CantripSlotAllocator = CantripSlotAllocator
 
 impl CantripSlotAllocator {
     /// Initializes the Slot state
-    pub fn new(first_slot: usize, size: usize) -> Self {
+    pub fn new(name: &'static str, first_slot: usize, size: usize) -> Self {
         CantripSlotAllocator {
-            slots: Mutex::new(Slots::new(size)),
+            slots: Mutex::new(Slots::new(name, size)),
             base_slot: first_slot,
         }
     }
@@ -109,9 +126,9 @@ impl CantripSlotAllocator {
     }
 
     /// Initializes the Slot state
-    pub unsafe fn init(&mut self, first_slot: usize, size: usize) {
+    pub unsafe fn init(&mut self, name: &'static str, first_slot: usize, size: usize) {
         self.base_slot = first_slot;
-        (*self.slots.lock()).init(size);
+        (*self.slots.lock()).init(name, size);
     }
 
     /// Returns the base slot number.
@@ -145,7 +162,7 @@ mod slot_tests {
 
     #[test]
     fn test_slots_new() {
-        let slots = Slots::new(NSLOTS);
+        let slots = Slots::new("new", NSLOTS);
         assert_eq!(slots.used_slots(), 0);
         assert_eq!(slots.free_slots(), NSLOTS);
     }
@@ -154,7 +171,7 @@ mod slot_tests {
     fn test_slots_init() {
         static mut SLOTS: Slots = Slots::empty();
         unsafe {
-            SLOTS.init(NSLOTS);
+            SLOTS.init("init", NSLOTS);
             assert_eq!(SLOTS.used_slots(), 0);
             assert_eq!(SLOTS.free_slots(), NSLOTS);
         }
@@ -162,7 +179,7 @@ mod slot_tests {
 
     #[test]
     fn test_slots_one() {
-        let mut slots = Slots::new(64);
+        let mut slots = Slots::new("one", 64);
         assert_eq!(slots.used_slots(), 0);
         assert_eq!(slots.free_slots(), NSLOTS);
         let first = slots.alloc_first_fit(1).unwrap();
@@ -175,7 +192,7 @@ mod slot_tests {
 
     #[test]
     fn test_slots_one_multi() {
-        let mut slots = Slots::new(64);
+        let mut slots = Slots::new("one_multi", 64);
         assert_eq!(slots.used_slots(), 0);
         assert_eq!(slots.free_slots(), NSLOTS);
         let first = slots.alloc_first_fit(1).unwrap();
@@ -196,7 +213,7 @@ mod slot_tests {
 
     #[test]
     fn test_slots_range() {
-        let mut slots = Slots::new(64);
+        let mut slots = Slots::new("range", 64);
         assert_eq!(slots.used_slots(), 0);
         assert_eq!(slots.free_slots(), NSLOTS);
         let first = slots.alloc_first_fit(3).unwrap();
@@ -212,7 +229,7 @@ mod slot_tests {
 
     #[test]
     fn test_slots_range_multi() {
-        let mut slots = Slots::new(64);
+        let mut slots = Slots::new("range_multi", 64);
         assert_eq!(slots.used_slots(), 0);
         assert_eq!(slots.free_slots(), NSLOTS);
         let first = slots.alloc_first_fit(4).unwrap();
@@ -232,7 +249,7 @@ mod slot_tests {
 
     #[test]
     fn test_slots_range_split_free() {
-        let mut slots = Slots::new(64);
+        let mut slots = Slots::new("range_split_free", 64);
         assert_eq!(slots.used_slots(), 0);
         assert_eq!(slots.free_slots(), NSLOTS);
         let first = slots.alloc_first_fit(4).unwrap();
@@ -248,7 +265,7 @@ mod slot_tests {
 
     #[test]
     fn test_slots_range_split_free_multi() {
-        let mut slots = Slots::new(64);
+        let mut slots = Slots::new("range_split_free_multi", 64);
         assert_eq!(slots.used_slots(), 0);
         assert_eq!(slots.free_slots(), NSLOTS);
 
@@ -272,7 +289,7 @@ mod slot_tests {
 
     #[test]
     fn test_slots_empty() {
-        let mut slots = Slots::new(0);
+        let mut slots = Slots::new("empty", 0);
         assert_eq!(slots.used_slots(), 0);
         assert_eq!(slots.free_slots(), 0);
         assert!(slots.alloc_first_fit(1).is_none());
@@ -282,7 +299,7 @@ mod slot_tests {
 
     #[test]
     fn test_slots_too_small() {
-        let mut slots = Slots::new(NSLOTS);
+        let mut slots = Slots::new("too_small", NSLOTS);
         assert_eq!(slots.used_slots(), 0);
         assert_eq!(slots.free_slots(), NSLOTS);
         assert!(slots.alloc_first_fit(NSLOTS + 1).is_none());
@@ -290,7 +307,7 @@ mod slot_tests {
 
     #[test]
     fn test_slots_oospace() {
-        let mut slots = Slots::new(4);
+        let mut slots = Slots::new("nospace", 4);
         // Allocate 3 of 4 slots
         let first = slots.alloc_first_fit(3).unwrap();
         assert_eq!(slots.free_slots(), 1);
@@ -306,7 +323,7 @@ mod slot_tests {
     #[test]
     #[should_panic]
     fn test_slots_free_single_invalid() {
-        let mut slots = Slots::new(NSLOTS);
+        let mut slots = Slots::new("invalid", NSLOTS);
         assert_eq!(slots.used_slots(), 0);
         assert_eq!(slots.free_slots(), NSLOTS);
         // Free an already free slot
@@ -316,7 +333,7 @@ mod slot_tests {
     #[test]
     #[should_panic]
     fn test_slots_free_hole_invalid() {
-        let mut slots = Slots::new(NSLOTS);
+        let mut slots = Slots::new("free_hole_invalid", NSLOTS);
         assert_eq!(slots.used_slots(), 0);
         assert_eq!(slots.free_slots(), NSLOTS);
         // Allocate the first 4 slots
@@ -339,7 +356,7 @@ mod cantrip_slot_tests {
     fn setup() {
         use std::sync::Once;
         static INIT: Once = Once::new();
-        INIT.call_once(|| { unsafe { SLOTS.init(SLOT_RANGE.start, SLOT_RANGE.len()) }; })
+        INIT.call_once(|| { unsafe { SLOTS.init("test", SLOT_RANGE.start, SLOT_RANGE.len()) }; })
     }
 
     #[test]

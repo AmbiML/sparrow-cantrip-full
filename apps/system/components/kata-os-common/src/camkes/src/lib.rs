@@ -56,7 +56,7 @@ impl Camkes {
 
     pub fn init_slot_allocator(self: &Camkes, first_slot: seL4_CPtr, last_slot: seL4_CPtr) {
         unsafe {
-            CANTRIP_CSPACE_SLOTS.init(first_slot, last_slot - first_slot);
+            CANTRIP_CSPACE_SLOTS.init(self.name, first_slot, last_slot - first_slot);
             trace!("setup cspace slots: first slot {} free {}",
                    CANTRIP_CSPACE_SLOTS.base_slot(),
                    CANTRIP_CSPACE_SLOTS.free_slots());
@@ -81,11 +81,14 @@ impl Camkes {
     pub fn init_recv_path(self: &mut Camkes, path: &seL4_CPath) {
         self.recv_path = *path;
         unsafe { seL4_SetCapReceivePath(path.0, path.1, path.2); }
-        trace!("Cap receive path {:?}", path);
+        trace!("{}: Cap receive path {:?}", self.name, path);
     }
 
     // Returns the path specified with init_recv_path.
     pub fn get_recv_path(self: &Camkes) -> seL4_CPath { self.recv_path }
+
+    // Returns the component name.
+    pub fn get_name(self: &Camkes) -> &'static str { self.name }
 
     // Returns the current receive path from the IPCBuffer.
     pub fn get_current_recv_path(self: &Camkes) -> seL4_CPath {
