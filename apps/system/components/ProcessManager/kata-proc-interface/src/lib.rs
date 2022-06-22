@@ -10,11 +10,9 @@ use core::str;
 use cstr_core::CString;
 use cantrip_memory_interface::ObjDescBundle;
 use cantrip_memory_interface::RAW_OBJ_DESC_DATA_SIZE;
-use cantrip_os_common::sel4_sys;
+use cantrip_os_common::camkes::Camkes;
 use cantrip_security_interface::SecurityRequestError;
 use serde::{Deserialize, Serialize};
-
-use sel4_sys::seL4_SetCap;
 
 mod bundle_image;
 pub use bundle_image::*;
@@ -192,7 +190,7 @@ pub fn cantrip_pkg_mgmt_install(pkg_contents: &ObjDescBundle) -> Result<String, 
     let request = postcard::to_slice(&pkg_contents, raw_request)?;
     let raw_data = &mut [0u8; RAW_BUNDLE_ID_DATA_SIZE];
     match unsafe {
-        seL4_SetCap(0, pkg_contents.cnode);
+        let _cleanup = Camkes::set_request_cap(pkg_contents.cnode);
         pkg_mgmt_install(request.len() as u32, request.as_ptr(), raw_data as *mut _)
     } {
         ProcessManagerError::Success => {

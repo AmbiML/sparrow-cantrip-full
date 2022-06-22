@@ -12,6 +12,7 @@ use sel4_sys;
 use sel4_sys::seL4_CNode_Delete;
 use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_GetCapReceivePath;
+use sel4_sys::seL4_SetCap;
 use sel4_sys::seL4_SetCapReceivePath;
 use sel4_sys::seL4_Word;
 use sel4_sys::seL4_WordBits;
@@ -26,6 +27,14 @@ extern "C" {
     static SELF_CNODE: seL4_CPtr;
     static SELF_CNODE_FIRST_SLOT: seL4_CPtr;
     static SELF_CNODE_LAST_SLOT: seL4_CPtr;
+}
+
+// RAII wrapper for handling request cap cleanup.
+pub struct RequestCapCleanup {}
+impl Drop for RequestCapCleanup {
+    fn drop(&mut self) {
+        unsafe { seL4_SetCap(0, 0); }
+    }
 }
 
 pub struct Camkes {
@@ -113,6 +122,14 @@ impl Camkes {
         assert!(self.check_recv_path(),
                 "Current receive path {:?} does not match init'd path {:?}",
                 self.get_current_recv_path(), self.recv_path);
+    }
+
+    // Attaches a capability to a CAmkES RPC request msg. seL4 will copy
+    // the capabiltiy.
+    #[must_use]
+    pub fn set_request_cap(cptr: seL4_CPtr) -> RequestCapCleanup {
+        unsafe { seL4_SetCap(0, cptr); }
+        RequestCapCleanup{}
     }
 
     // Wrappers for sel4_sys::debug_assert macros.

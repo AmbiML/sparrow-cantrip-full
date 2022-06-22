@@ -6,6 +6,7 @@ extern crate alloc;
 use alloc::string::{String, ToString};
 use core::str;
 use cantrip_memory_interface::ObjDescBundle;
+use cantrip_os_common::camkes::Camkes;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_os_common::sel4_sys;
 use cantrip_storage_interface::KeyValueData;
@@ -14,7 +15,6 @@ use log::trace;
 use serde::{Deserialize, Serialize};
 
 use sel4_sys::seL4_CPtr;
-use sel4_sys::seL4_SetCap;
 
 // NB: serde helper for arrays w/ >32 elements
 //   c.f. https://github.com/serde-rs/serde/pull/1860
@@ -280,14 +280,21 @@ pub fn cantrip_security_request<T: Serialize + SecurityCapability>(
         .map_err(|_| SecurityRequestError::SreSerializeFailed)?;
     match unsafe {
         if let Some(cap) = request_args.get_container_cap() {
-            seL4_SetCap(0, cap);
+            let _cleanup = Camkes::set_request_cap(cap);
+            security_request(
+                request,
+                request_buffer.len() as u32,
+                request_buffer.as_ptr(),
+                reply_buffer as *mut _,
+            )
+        } else {
+            security_request(
+                request,
+                request_buffer.len() as u32,
+                request_buffer.as_ptr(),
+                reply_buffer as *mut _,
+            )
         }
-        security_request(
-            request,
-            request_buffer.len() as u32,
-            request_buffer.as_ptr(),
-            reply_buffer as *mut _,
-        )
     } {
         SecurityRequestError::SreSuccess => Ok(()),
         status => Err(status),

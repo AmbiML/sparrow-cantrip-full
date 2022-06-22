@@ -7,6 +7,7 @@ extern crate alloc;
 use alloc::vec;
 use alloc::vec::Vec;
 use core::fmt;
+use cantrip_os_common::camkes::Camkes;
 use cantrip_os_common::slot_allocator;
 use cantrip_os_common::sel4_sys;
 use log::trace;
@@ -19,7 +20,6 @@ use sel4_sys::seL4_ObjectType::*;
 use sel4_sys::seL4_ObjectType;
 use sel4_sys::seL4_PageBits;
 use sel4_sys::seL4_Result;
-use sel4_sys::seL4_SetCap;
 use sel4_sys::seL4_WordBits;
 
 use slot_allocator::CANTRIP_CSPACE_SLOTS;
@@ -385,8 +385,9 @@ pub fn cantrip_object_alloc(
         // Attach our CNode for returning objects; the CAmkES template
         // forces extraCaps=1 when constructing the MessageInfo struct
         // used by the seL4_Call inside memory_alloc.
+        // NB: scrubbing the IPC buffer is done on drop of |cleanup|
         sel4_sys::debug_assert_slot_cnode!(request.cnode);
-        seL4_SetCap(0, request.cnode);
+        let _cleanup = Camkes::set_request_cap(request.cnode);
 
         memory_alloc(raw_data.len() as u32, raw_data.as_ptr()).into()
     }
@@ -418,7 +419,6 @@ pub fn cantrip_object_alloc_in_toplevel(
 // in a new CNode allocated with sufficient capacity.
 // Note the objects' cptr's are assumed to be consecutive and start at zero.
 // Note the returned |ObjDescBundle| has the new CNode marked as the container.
-// TODO(sleffler): not used any more, remove?
 #[inline]
 pub fn cantrip_object_alloc_in_cnode(
     objs: Vec<ObjDesc>,
@@ -622,8 +622,9 @@ pub fn cantrip_object_free(
         // Attach our CNode for returning objects; the CAmkES template
         // forces extraCaps=1 when constructing the MessageInfo struct
         // used in the seL4_Call.
+        // NB: scrubbing the IPC buffer is done on drop of |cleanup|
         sel4_sys::debug_assert_slot_cnode!(request.cnode);
-        seL4_SetCap(0, request.cnode);
+        let _cleanup = Camkes::set_request_cap(request.cnode);
 
         memory_free(raw_data.len() as u32, raw_data.as_ptr()).into()
     }
@@ -654,6 +655,8 @@ pub fn cantrip_object_free_toplevel(objs: &ObjDescBundle)
     -> Result<(), MemoryManagerError>
 {
     let mut objs_mut = objs.clone();
+    // Move ojbects to the pre-allocated container. Note this returns
+    // the toplevel slots to the slot allocator.
     objs_mut.move_objects_from_toplevel(
         unsafe { MEMORY_RECV_CNODE },
         unsafe { MEMORY_RECV_CNODE_DEPTH }
