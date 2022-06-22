@@ -5,6 +5,8 @@ pub extern crate allocator;
 pub extern crate camkes;
 pub extern crate capdl;
 #[cfg(feature = "camkes_support")]
+pub extern crate copyregion;
+#[cfg(feature = "camkes_support")]
 pub extern crate cspace_slot;
 pub extern crate logger;
 pub extern crate model;

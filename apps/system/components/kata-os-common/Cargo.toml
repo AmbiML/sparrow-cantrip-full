@@ -13,6 +13,7 @@ camkes_support = []
 allocator = { path = "src/allocator" }
 camkes = { path = "src/camkes" }
 capdl = { path = "src/capdl" }
+copyregion = { path = "src/copyregion" }
 cspace-slot = { path = "src/cspace-slot" }
 logger = { path = "src/logger" }
 model = { path = "src/model" }

@@ -5,8 +5,8 @@
 use core::mem::size_of;
 use core::ptr;
 use crate::sel4bundle::arch;
-use crate::sel4bundle::CopyRegion;
 use crate::sel4bundle::seL4BundleImpl;
+use super::CopyRegion;
 use super::sel4_sys;
 
 use arch::PAGE_SIZE;
@@ -64,8 +64,10 @@ impl seL4BundleImpl {
         // be on a page boundary.
         let frame_obj = self.get_stack_frame_obj(sp - size_of::<seL4_Word>());
 
-        let mut copy_region =
-            CopyRegion::new(unsafe { ptr::addr_of_mut!(LOAD_APPLICATION[0])});
+        let mut copy_region = CopyRegion::new(
+            unsafe { ptr::addr_of_mut!(LOAD_APPLICATION[0])},
+            PAGE_SIZE
+        );
         copy_region.map(frame_obj.cptr)?;
 
         // Write spillover arguments to the TCB's stack.

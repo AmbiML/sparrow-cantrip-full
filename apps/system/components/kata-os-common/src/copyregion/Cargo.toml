@@ -1,0 +1,11 @@
+cargo-features = ["edition2021"]
+
+[package]
+name = "copyregion"
+version = "0.1.0"
+authors = ["Sam Leffler <sleffler@google.com>"]
+edition = "2021"
+
+[dependencies]
+log = "0.4"
+sel4-sys = { path = "../sel4-sys" }

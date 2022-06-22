@@ -16,6 +16,7 @@ use cantrip_memory_interface::cantrip_object_free;
 use cantrip_memory_interface::cantrip_object_free_in_cnode;
 use cantrip_memory_interface::ObjDesc;
 use cantrip_memory_interface::ObjDescBundle;
+use cantrip_os_common::copyregion::CopyRegion;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_os_common::sel4_sys;
 use cantrip_proc_interface::Bundle;
@@ -36,9 +37,7 @@ use sel4_sys::seL4_DomainSet_Set;
 use sel4_sys::seL4_EndpointObject;
 use sel4_sys::seL4_Error;
 use sel4_sys::seL4_MinSchedContextBits;
-use sel4_sys::seL4_Page_Map;
 use sel4_sys::seL4_PageTableObject;
-use sel4_sys::seL4_Page_Unmap;
 use sel4_sys::seL4_ReplyObject;
 use sel4_sys::seL4_Result;
 use sel4_sys::seL4_SchedContextObject;
@@ -63,8 +62,6 @@ extern "C" {
 
     // Our thread's TCB; used in setting up scheduling of new TCB's.
     static SELF_TCB_PROCESS_MANAGER_PROC_CTRL_0000: seL4_CPtr;
-
-    static SELF_VSPACE_ROOT: seL4_CPtr;
 
     // Region for mapping data when loading the contents of a BundleImage.
     static mut LOAD_APPLICATION: [seL4_Word; PAGE_SIZE / size_of::<seL4_Word>()];
@@ -133,78 +130,6 @@ fn check_bundle(bundle: &ObjDescBundle) {
                 debug!("{:?} occupied", &path);
             }
         }
-    }
-}
-
-// TODO(sleffler): move to cantrip-os-common
-pub struct CopyRegion {
-    region: *mut seL4_Word,
-    cur_frame: Option<seL4_CPtr>,
-}
-impl CopyRegion {
-    pub fn new(region: *mut seL4_Word) -> Self {
-        CopyRegion {
-            region,
-            cur_frame: None,
-        }
-    }
-    // Returns the region size in bytes.
-    pub fn size(&self) -> usize { PAGE_SIZE }
-
-    // Returns a mutable [u8] ref to the mapped region.
-    pub fn as_mut(&mut self) -> &mut [u8] {
-        assert!(self.cur_frame.is_some());
-        unsafe {
-            core::slice::from_raw_parts_mut(
-                self.region as _, PAGE_SIZE
-            )
-        }
-    }
-
-    // Returns a mutable [seL4_Word] ref to the mapped region.
-    pub fn as_word_mut(&mut self) -> &mut [seL4_Word] {
-        assert!(self.cur_frame.is_some());
-        unsafe {
-            core::slice::from_raw_parts_mut(
-                self.region, PAGE_SIZE / size_of::<seL4_Word>(),
-            )
-        }
-    }
-
-    // Maps the |frame| in the SELF_VSPACE_ROOT for r/w.
-    pub fn map(&mut self, frame: seL4_CPtr) -> seL4_Result {
-        let attribs = seL4_Default_VMAttributes;
-        unsafe {
-            seL4_Page_Map(
-                frame,
-                SELF_VSPACE_ROOT,
-                self.region as usize,
-                // seL4_ReadWrite
-                seL4_CapRights::new(
-                    /*grant_reply=*/ 0, /*grant=*/ 0, /*read=*/ 1, /*write=*/ 1,
-                ),
-                attribs,
-            )
-        }?;
-        self.cur_frame = Some(frame);
-        Ok(())
-    }
-
-    // Unmaps the current frame, if any.
-    pub fn unmap(&mut self) -> seL4_Result {
-        if let Some(cptr) = self.cur_frame {
-            #[cfg(target_arch = "arm")]
-            unsafe { seL4_ARM_Page_Unify_Instruction(cptr, 0, self.size()) }?;
-
-            unsafe { seL4_Page_Unmap(cptr) }?;
-            self.cur_frame = None;
-        }
-        Ok(())
-    }
-}
-impl Drop for CopyRegion {
-    fn drop(&mut self) {
-        self.unmap().expect("CopyRegion");
     }
 }
 
@@ -427,10 +352,10 @@ impl seL4BundleImpl {
         // to fill from the |bundle_frames| and/or zero-fill.
         let mut image = BundleImage::new(bundle_frames);
 
-        let mut copy_region =
-            CopyRegion::new(unsafe { ptr::addr_of_mut!(LOAD_APPLICATION[0])});
-        // Many places assume the copy region is PAGE_SIZE
-        assert_eq!(copy_region.size(), PAGE_SIZE);
+        let mut copy_region = CopyRegion::new(
+            unsafe { ptr::addr_of_mut!(LOAD_APPLICATION[0])},
+            PAGE_SIZE
+        );
 
         let mut vaddr_top = 0;
         while let Some(section) = image.next_section() {
