@@ -29,6 +29,13 @@ extern "C" {
     static SELF_CNODE_LAST_SLOT: seL4_CPtr;
 }
 
+// Flag or'd into reply capability to indicate the cap should be
+// deleted _after_ the reply is done. This depends on CantripOS-specific
+// CAmkES support enabled through build glue (cbindgen processes this
+// crate to generate CamkesBindings.h which exports #define CAP_RELEASE
+// that enables the necessaery #ifdef's).
+pub const CAP_RELEASE: usize = 0x8000_0000;
+
 // RAII wrapper for handling request cap cleanup.
 pub struct RequestCapCleanup {}
 impl Drop for RequestCapCleanup {
@@ -131,6 +138,29 @@ impl Camkes {
         unsafe { seL4_SetCap(0, cptr); }
         RequestCapCleanup{}
     }
+
+    // Attaches a capability to a CAmkES RPC reply msg. seL4 will copy
+    // the capabiltiy.
+    pub fn set_reply_cap(cptr: seL4_CPtr) {
+        unsafe { seL4_SetCap(0, cptr); }
+    }
+
+    // Attaches a capability to a CAmkES RPC reply msg and arranges for
+    // the capability to be released after the reply completes.
+    pub fn set_reply_cap_release(cptr: seL4_CPtr) {
+        unsafe {
+            // NB: logically this belongs in the CAmkES code where the
+            // cap is deleted but that's not possible so do it here--there
+            // should be no race to re-purpose the slot since everything
+            // is assumed single-threaded (and CAmkES-generated code does
+            // not short-circuit the cap delete).
+            CANTRIP_CSPACE_SLOTS.free(cptr, 1);
+            seL4_SetCap(0, cptr | CAP_RELEASE);
+        }
+    }
+
+    // Clears any capability attached to a CAmkES RPC reply msg.
+    pub fn clear_reply_cap() { Camkes::set_reply_cap(0); }
 
     // Wrappers for sel4_sys::debug_assert macros.
     pub fn debug_assert_slot_empty(tag: &str, path: &seL4_CPath) {

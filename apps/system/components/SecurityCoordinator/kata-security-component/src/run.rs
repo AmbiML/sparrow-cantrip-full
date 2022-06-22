@@ -17,7 +17,6 @@ use log::trace;
 use SecurityRequestError::*;
 
 use sel4_sys::seL4_CPtr;
-use sel4_sys::seL4_SetCap;
 
 static mut CAMKES: Camkes = Camkes::new("SecurityCoordinator");
 static mut SECURITY_RECV_SLOT: seL4_CPtr = 0;
@@ -162,7 +161,8 @@ fn load_application_request(
         reply_buffer
     ).map_err(serialize_failure)?;
     trace!("LOAD APPLICATION -> {}", bundle_frames);
-    unsafe { seL4_SetCap(0, bundle_frames.cnode) };
+    // Cleanup allocated slot & mark cap for release after reply completes.
+    Camkes::set_reply_cap_release(bundle_frames.cnode);
     Ok(())
 }
 
@@ -184,7 +184,8 @@ fn load_model_request(
         reply_buffer
     ).map_err(serialize_failure)?;
     trace!("LOAD MODEL -> {}", model_frames);
-    unsafe { seL4_SetCap(0, model_frames.cnode) };
+    // Cleanup allocated slot & mark cap for release after reply completes.
+    Camkes::set_reply_cap_release(model_frames.cnode);
     Ok(())
 }
 
