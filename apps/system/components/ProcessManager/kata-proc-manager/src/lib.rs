@@ -141,11 +141,11 @@ impl ProcessManagerInterface for CantripManagerInterface {
         let bundle_frames =
             cantrip_security_load_application(&bundle.app_id, &container_slot)?;
         let mut sel4_bundle = seL4BundleImpl::new(bundle, &bundle_frames)?;
-        sel4_bundle.start()?;
-
         // sel4_bundle owns container_slot now; release our ref so it's not
         // reclaimed when container_slot goes out of scope.
         container_slot.release();
+
+        sel4_bundle.start()?;
 
         Ok(Box::new(sel4_bundle) as _)
     }
