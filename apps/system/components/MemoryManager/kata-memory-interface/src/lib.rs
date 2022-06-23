@@ -424,18 +424,14 @@ pub fn cantrip_object_alloc_in_cnode(
     objs: Vec<ObjDesc>,
 ) -> Result<ObjDescBundle, MemoryManagerError> {
     fn next_log2(value: usize) -> usize {
-        let mut size_bits = 0;
-        while value > (1 << size_bits) {
-            size_bits += 1;
-        }
-        size_bits
+        // NB: BITS & leading_zeros return u32
+        (1 + usize::BITS - usize::leading_zeros(value)) as usize
     }
     // NB: CNode size depends on how many objects are requested.
     let cnode_depth = next_log2(objs.iter().map(|od| od.count).sum());
 
     // Request a top-level CNode.
-    let cnode = cantrip_cnode_alloc(cnode_depth)
-        .map_err(|_| MemoryManagerError::MmeAllocFailed)?;
+    let cnode = cantrip_cnode_alloc(cnode_depth)?;
 
     // Now construct the request for |objs| with |cnode| as the container.
     let request = ObjDescBundle::new(
