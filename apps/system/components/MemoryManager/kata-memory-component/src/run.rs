@@ -92,7 +92,9 @@ pub unsafe extern "C" fn memory_alloc(
     let raw_slice = slice::from_raw_parts(c_raw_data, c_raw_data_len as usize);
     let ret_status = match postcard::from_bytes::<ObjDescBundle>(raw_slice) {
         Ok(mut bundle) => {
-            // TODO(sleffler): verify we received a CNode in MEMORY_RECV_CNODE.
+            // We must have a CNode for returning allocated objects.
+            Camkes::debug_assert_slot_cnode("memory_alloc", &recv_path);
+
             bundle.cnode = recv_path.1;
             // NB: bundle.depth should reflect the received cnode
             CANTRIP_MEMORY.alloc(&bundle).into()
@@ -116,7 +118,9 @@ pub unsafe extern "C" fn memory_free(
     let raw_slice = slice::from_raw_parts(c_raw_data, c_raw_data_len as usize);
     let ret_status = match postcard::from_bytes::<ObjDescBundle>(raw_slice) {
         Ok(mut bundle) => {
-            // TODO(sleffler): verify we received a CNode in MEMORY_RECV_CNODE.
+            // We must have a CNode for returning allocated objects.
+            Camkes::debug_assert_slot_cnode("memory_free", &recv_path);
+
             bundle.cnode = recv_path.1;
             // NB: bundle.depth should reflect the received cnode
             CANTRIP_MEMORY.free(&bundle).into()
@@ -132,13 +136,19 @@ pub unsafe extern "C" fn memory_free(
 pub unsafe extern "C" fn memory_stats(
     c_raw_resp_data: *mut RawMemoryStatsData,
 ) -> MemoryManagerError {
-    // TODO(sleffler): verify no cap was received
+    let recv_path = CAMKES.get_current_recv_path();
+    // NB: make sure noone clobbers the setup done in memory__init
+    CAMKES.assert_recv_path();
+
     match CANTRIP_MEMORY.stats() {
         Ok(stats) => {
-              match postcard::to_slice(&stats, &mut (*c_raw_resp_data)[..]) {
-                  Ok(_) => MemoryManagerError::MmeSuccess,
-                  Err(_) => MemoryManagerError::MmeSerializeFailed,
-              }
+            // Verify no cap was received
+            Camkes::debug_assert_slot_empty("memory_stats", &recv_path);
+
+            match postcard::to_slice(&stats, &mut (*c_raw_resp_data)[..]) {
+                Ok(_) => MemoryManagerError::MmeSuccess,
+                Err(_) => MemoryManagerError::MmeSerializeFailed,
+            }
         }
         Err(e) => e.into(),
     }
