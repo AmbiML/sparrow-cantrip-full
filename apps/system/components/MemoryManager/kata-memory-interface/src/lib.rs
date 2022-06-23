@@ -184,6 +184,11 @@ impl ObjDescBundle {
         }
     }
 
+    // Returns an iterator that enumerates each object's seL4_CPtr.
+    pub fn cptr_iter(&self) -> impl Iterator<Item = seL4_CPtr> + '_ {
+        self.objs.iter().flat_map(|od| od.cptr..(od.cptr + od.retype_count()))
+    }
+
     // Move objects to dynamically-allocated slots in the top-level
     // CNode and mutate the Object Descriptor with the new cptr's.
     // TODO(sleffler) make generic (requires supplying slot allocator)?
@@ -584,9 +589,20 @@ pub fn cantrip_frame_alloc_in_cnode(space_bytes: usize)
     }
     // NB: always allocate 4K pages
     let npages = howmany(space_bytes, 1 << seL4_PageBits);
-    cantrip_object_alloc_in_cnode(vec![
-        ObjDesc::new( seL4_RISCV_4K_Page, npages, /*cptr=*/ 0)
-    ])
+    // XXX horrible band-aid to workaround Retype "fanout" limit of 256
+    // objects: split our request accordingly. This shold be handled in
+    // MemoryManager using the kernel config or bump the kernel limit.
+    assert!(npages <= 512); // XXX 2MB
+    if npages > 256 {
+        cantrip_object_alloc_in_cnode(vec![
+            ObjDesc::new( seL4_RISCV_4K_Page, 256, /*cptr=*/ 0),
+            ObjDesc::new( seL4_RISCV_4K_Page, npages - 256, /*cptr=*/ 256),
+        ])
+    } else {
+        cantrip_object_alloc_in_cnode(vec![
+            ObjDesc::new( seL4_RISCV_4K_Page, npages, /*cptr=*/ 0),
+        ])
+    }
 }
 
 #[inline]

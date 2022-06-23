@@ -155,7 +155,7 @@ assembly {
             from debug_console.memory,
             from process_manager.memory,
             from security_coordinator.memory,
-            // TOOD(sleffler): from ml_coordinator.memory,
+            from ml_coordinator.memory,
             to memory_manager.memory);
 
         // Connect the SecurityCoordinatorInterface to each component that needs
@@ -164,7 +164,7 @@ assembly {
         connection seL4RPCOverMultiSharedData multi_security(
             from debug_console.security,   // NB: for debug/test
             from process_manager.security,
-            from ml_coordinator.security,  // NB: for LoadModel but not in design
+            from ml_coordinator.security,  // NB: for LoadModel
             from storage_manager.security,
             to security_coordinator.security);
 

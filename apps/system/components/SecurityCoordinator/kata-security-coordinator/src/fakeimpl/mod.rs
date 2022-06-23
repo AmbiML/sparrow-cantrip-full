@@ -4,12 +4,31 @@ extern crate alloc;
 use alloc::fmt;
 use alloc::string::{String, ToString};
 use core::mem::size_of;
+use core::ptr;
 use hashbrown::HashMap;
-use cantrip_memory_interface::*;
-use cantrip_os_common::sel4_sys::*;
+use cantrip_memory_interface::cantrip_frame_alloc;
+use cantrip_memory_interface::cantrip_frame_alloc_in_cnode;
+use cantrip_memory_interface::cantrip_object_free_in_cnode;
+use cantrip_memory_interface::cantrip_object_free_toplevel;
+use cantrip_memory_interface::ObjDescBundle;
+use cantrip_os_common::copyregion::CopyRegion;
+use cantrip_os_common::cspace_slot::CSpaceSlot;
+use cantrip_os_common::sel4_sys;
 use cantrip_security_interface::*;
 use cantrip_storage_interface::KeyValueData;
 use log::trace;
+
+use sel4_sys::seL4_Page_GetAddress;
+use sel4_sys::seL4_PageBits;
+use sel4_sys::seL4_Word;
+
+const PAGE_SIZE: usize = 1 << seL4_PageBits;
+
+extern "C" {
+    // Regions for deep_copy work.
+    static mut DEEP_COPY_SRC: [seL4_Word; PAGE_SIZE / size_of::<seL4_Word>()];
+    static mut DEEP_COPY_DEST: [seL4_Word; PAGE_SIZE / size_of::<seL4_Word>()];
+}
 
 struct BundleData {
     pkg_contents: ObjDescBundle,
@@ -19,10 +38,9 @@ struct BundleData {
 }
 impl BundleData {
     fn new(pkg_contents: &ObjDescBundle) -> Self {
-        let size_bytes = pkg_contents.objs.len() * 4096; // XXX
         BundleData {
             pkg_contents: pkg_contents.clone(),
-            pkg_size: size_bytes,
+            pkg_size: pkg_contents.size_bytes(),
             manifest: String::from(
                 r##"
 # Comments like this
@@ -80,6 +98,47 @@ impl FakeSecurityCoordinator {
 }
 pub type CantripSecurityCoordinatorInterface = FakeSecurityCoordinator;
 
+// Returns a deep copy (including seL4 objects) of |src|. The container
+// CNode is in the toplevel (allocated from the slot allocator).
+fn deep_copy(src: &ObjDescBundle) -> ObjDescBundle {
+    let dest = cantrip_frame_alloc_in_cnode(src.size_bytes())
+        .expect("deep_copy:alloc");
+    // Src top-level slot & copy region
+    let src_slot = CSpaceSlot::new();
+    let mut src_region = CopyRegion::new(
+        unsafe { ptr::addr_of_mut!(DEEP_COPY_SRC[0]) }, PAGE_SIZE
+    );
+    // Dest top-level slot & copy region
+    let dest_slot = CSpaceSlot::new();
+    let mut dest_region = CopyRegion::new(
+        unsafe { ptr::addr_of_mut!(DEEP_COPY_DEST[0]) }, PAGE_SIZE
+    );
+    for (src_cptr, dest_cptr) in src.cptr_iter().zip(dest.cptr_iter()) {
+        // Map src & dest frames and copy data.
+        src_slot.copy_to(src.cnode, src_cptr, src.depth)
+            .and_then(|_| src_region.map(src_slot.slot))
+            .expect("src_map");
+        dest_slot.copy_to(dest.cnode, dest_cptr, dest.depth)
+            .and_then(|_| dest_region.map(dest_slot.slot))
+            .expect("dest_map");
+
+        unsafe {
+            ptr::copy_nonoverlapping(
+                src_region.as_ref().as_ptr(),
+                dest_region.as_mut().as_mut_ptr(),
+                PAGE_SIZE,
+            );
+        }
+
+        // Unmap & clear top-level slot required for mapping.
+        src_region.unmap().and_then(|_| src_slot.delete())
+            .expect("src_unmap");
+        dest_region.unmap().and_then(|_| dest_slot.delete())
+            .expect("dest_unmap");
+    }
+    dest
+}
+
 impl SecurityCoordinatorInterface for FakeSecurityCoordinator {
     fn install(&mut self, pkg_contents: &ObjDescBundle) -> Result<String, SecurityRequestError> {
         // TODO(sleffler): get bundle_id from the manifest; for now use the
@@ -108,8 +167,10 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinator {
     }
     fn load_application(&self, bundle_id: &str) -> Result<ObjDescBundle, SecurityRequestError> {
         let bundle_data = self.get_bundle(bundle_id)?;
+        // Clone everything (struct + associated seL4 objects) so the
+        // return is as though it was newly instantiated from flash.
         // XXX just return the package for now
-        Ok(bundle_data.pkg_contents.clone())
+        Ok(deep_copy(&bundle_data.pkg_contents))
     }
     fn load_model(
         &self,
@@ -118,8 +179,10 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinator {
     ) -> Result<ObjDescBundle, SecurityRequestError> {
         let bundle_data = self.get_bundle(bundle_id)?;
         // TODO(sleffler): check model id
+        // Clone everything (struct + associated seL4 objects) so the
+        // return is as though it was newly instantiated from flash.
         // XXX just return the package for now
-        Ok(bundle_data.pkg_contents.clone())
+        Ok(deep_copy(&bundle_data.pkg_contents))
     }
     fn read_key(&self, bundle_id: &str, key: &str) -> Result<&KeyValueData, SecurityRequestError> {
         let bundle = self.get_bundle(bundle_id)?;
@@ -148,17 +211,11 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinator {
     fn test_mailbox(&mut self) -> Result<(), SecurityRequestError> {
         trace!("test_mailbox_command()");
 
-        const PAGE_SIZE: usize = 1 << seL4_PageBits;
         const MESSAGE_SIZE_DWORDS: usize = 17; // Just a random message size for testing.
 
         extern "C" {
             fn mailbox_api_send(paddr: u32, size: u32);
             fn mailbox_api_receive(paddr: *mut u32, size: *mut u32);
-            static SELF_VSPACE_ROOT: seL4_CPtr;
-
-            // This is not actually a block of memory, it's a reserved range in
-            // the virtual address space that we can map physical memory into.
-            static mut COPYREGION: [u32; 1024];
         }
 
         // Allocate a 4k page to serve as our message buffer.
@@ -168,31 +225,25 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinator {
 
         unsafe {
             // Map the message buffer into our copyregion so we can access it.
-            // FIXME(aappleby): We need a drop() impl here somewhere so this
-            // doesn't leak if something fails.
-            let message_ptr = core::ptr::addr_of_mut!(COPYREGION[0]);
-            seL4_Page_Map(
-                /*sel4_page=*/ frame_bundle.objs[0].cptr,
-                /*seL4_pd=*/ SELF_VSPACE_ROOT,
-                /*vaddr=*/ message_ptr as usize,
-                seL4_CapRights::new(
-                    // NB: RW 'cuz W-only silently gets upgraded by kernel
-                    /*grant_reply=*/
-                    0, /*grant=*/ 0, /*read=1*/ 1, /*write=*/ 1,
-                ),
-                seL4_Default_VMAttributes,
-            )
-            .map_err(|_| SecurityRequestError::SreTestFailed)?;
+            // NB: re-use one of the deep_copy copyregions.
+            let mut msg_region = CopyRegion::new(
+                ptr::addr_of_mut!(DEEP_COPY_SRC[0]),
+                PAGE_SIZE
+            );
+            msg_region.map(frame_bundle.objs[0].cptr)
+                .map_err(|_| SecurityRequestError::SreTestFailed)?;
+
+            let message_ptr = msg_region.as_word_mut();
 
             // Write to the message buffer through the copyregion.
-            let offset_a = 0 as isize;
-            let offset_b = (MESSAGE_SIZE_DWORDS - 1) as isize;
-            message_ptr.offset(offset_a).write(0xDEADBEEF);
-            message_ptr.offset(offset_b).write(0xF00DCAFE);
+            let offset_a = 0;
+            let offset_b = MESSAGE_SIZE_DWORDS - 1;
+            message_ptr[offset_a] = 0xDEADBEEF;
+            message_ptr[offset_b] = 0xF00DCAFE;
             trace!(
                 "test_mailbox: old buf contents  0x{:X} 0x{:X}",
-                message_ptr.offset(offset_a).read(),
-                message_ptr.offset(offset_b).read()
+                message_ptr[offset_a],
+                message_ptr[offset_b]
             );
 
             // Send the _physical_ address of the message buffer to the security
@@ -216,14 +267,14 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinator {
             trace!("test_mailbox: expected contents 0x12345678 0x87654321");
             trace!(
                 "test_mailbox: new buf contents  0x{:X} 0x{:X}",
-                message_ptr.offset(offset_a).read(),
-                message_ptr.offset(offset_b).read()
+                message_ptr[offset_a],
+                message_ptr[offset_b]
             );
 
-            let dword_a = message_ptr.offset(offset_a).read();
-            let dword_b = message_ptr.offset(offset_b).read();
+            let dword_a = message_ptr[offset_a];
+            let dword_b = message_ptr[offset_b];
 
-            seL4_Page_Unmap(frame_bundle.objs[0].cptr)
+            msg_region.unmap()
                 .map_err(|_| SecurityRequestError::SreTestFailed)?;
 
             // Done, free the message buffer.

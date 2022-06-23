@@ -18,6 +18,7 @@ component SecurityCoordinator {
   // Add free slots for processing requests.
   attribute int cnode_headroom = 32;
 
-  // For mailbox use. What should we call this?
-  has copyregion COPYREGION;
+  // For fakeimpl deep_copy (re-used by test_mailbox).
+  has copyregion DEEP_COPY_SRC;
+  has copyregion DEEP_COPY_DEST;
 }

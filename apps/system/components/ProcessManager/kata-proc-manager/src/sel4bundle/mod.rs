@@ -592,7 +592,7 @@ impl BundleImplInterface for seL4BundleImpl {
     }
     fn stop(&mut self) -> Result<(), ProcessManagerError> {
         self.suspend()?;
-        cantrip_object_free(&self.bundle_frames)
+        cantrip_object_free_in_cnode(&self.bundle_frames)
             .map_err(|_| ProcessManagerError::StopFailed)?;
         cantrip_object_free_in_cnode(&self.dynamic_objs)
             .map_err(|_| ProcessManagerError::StopFailed)?;
