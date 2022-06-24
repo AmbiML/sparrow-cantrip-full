@@ -232,10 +232,3 @@ assembly {
         uart.integrity_label = "opentitan_uart_driver";
     }
 }
-
-// Uncomment to run a concurrency test component that is runnable every time
-// the scheduler checks and which periodically calls logger.log.
-//
-// (Needs to be at the bottom of file because CAmkES ADL does not have forward
-// declaration.)
-// import "components/LogFibonacci/assembly.camkes";
