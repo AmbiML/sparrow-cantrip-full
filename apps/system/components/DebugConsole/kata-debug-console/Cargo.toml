@@ -5,6 +5,12 @@ authors = ["Matt Harvey <mattharvey@google.com>"]
 edition = "2021"
 description = "Cantrip OS DebugConsole"
 
+[features]
+default = []
+# Log level is Info unless LOG_DEBUG or LOG_TRACE are specified
+LOG_DEBUG = []
+LOG_TRACE = []
+
 [dependencies]
 panic-halt = "0.2.0"
 cantrip-io = { path = "../cantrip-io" }

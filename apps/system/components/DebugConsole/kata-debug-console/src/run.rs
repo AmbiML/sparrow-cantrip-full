@@ -13,6 +13,16 @@
 
 use core::slice;
 use cantrip_os_common::camkes::Camkes;
+use log::LevelFilter;
+
+// NB: this controls filtering log messages from all components because
+//   they are setup to send all log messges to the console.
+#[cfg(feature = "LOG_DEBUG")]
+const INIT_LOG_LEVEL: LevelFilter = LevelFilter::Debug;
+#[cfg(feature = "LOG_TRACE")]
+const INIT_LOG_LEVEL: LevelFilter = LevelFilter::Trace;
+#[cfg(not(any(feature = "LOG_DEBUG", feature = "LOG_TRACE")))]
+const INIT_LOG_LEVEL: LevelFilter = LevelFilter::Info;
 
 extern "C" {
     static cpio_archive: *const u8; // CPIO archive of built-in files
@@ -24,10 +34,7 @@ static mut CAMKES: Camkes = Camkes::new("DebugConsole");
 pub unsafe extern "C" fn pre_init() {
     const HEAP_SIZE: usize = 16 * 1024;
     static mut HEAP_MEMORY: [u8; HEAP_SIZE] = [0; HEAP_SIZE];
-    CAMKES.pre_init(
-        log::LevelFilter::Debug,
-        &mut HEAP_MEMORY,
-    );
+    CAMKES.pre_init(INIT_LOG_LEVEL, &mut HEAP_MEMORY);
 }
 
 /// Entry point for DebugConsole. Runs the shell with UART IO.
