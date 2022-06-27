@@ -1019,14 +1019,12 @@ impl<'a> CantripOsModel<'a> {
             _ => (false, self.get_orig_cap(target_cap_obj)),
         };
         let src_depth = seL4_WordBits as u8;
-        #[cfg(feature = "CONFIG_NOISY_INIT_CNODE")]
-        debug!("cap@{} has type {}", src_index, sel4_sys::cap_identify(src_index));
 
         if mode == InitCnodeCmode::MOVE && move_cap {
             if is_ep_cap || is_irq_handler_cap {
                 #[cfg(feature = "CONFIG_NOISY_INIT_CNODE")]
-                debug!("  Populate slot {} by moving {}:{}:{} -> {}:{}:{}",
-                    cnode_slot.slot,
+                debug!("  Populate {:?} slot {} by moving {}:{}:{} -> {}:{}:{}",
+                    target_cap_type, cnode_slot.slot,
                     src_root, src_index, src_depth,
                     dest_root, dest_index, dest_depth,
                 );
@@ -1037,8 +1035,8 @@ impl<'a> CantripOsModel<'a> {
                 }?
             } else {
                 #[cfg(feature = "CONFIG_NOISY_INIT_CNODE")]
-                debug!("  Populate slot {} by mutating {}:{}:{} -> {}:{}:{}",
-                    cnode_slot.slot,
+                debug!("  Populate {:?} slot {} by mutating {}:{}:{} -> {}:{}:{}",
+                    target_cap_type, cnode_slot.slot,
                     src_root, src_index, src_depth,
                     dest_root, dest_index, dest_depth,
                 );
@@ -1073,8 +1071,8 @@ impl<'a> CantripOsModel<'a> {
                 // NB: the mapped frame cap is stored in the dup table.
                 let mapped_frame_cap = self.get_dup_cap(frame_cap.obj_id);
                 #[cfg(feature = "CONFIG_NOISY_INIT_CNODE")]
-                debug!("  Map slot {} by moving {}:{}:{} -> {}:{}:{}",
-                    cnode_slot.slot,
+                debug!("  Map {:?} slot {} by moving {}:{}:{} -> {}:{}:{}",
+                    target_cap_type, cnode_slot.slot,
                     src_root, mapped_frame_cap, src_depth,
                     dest_root, dest_index, dest_depth,
                 );
@@ -1092,8 +1090,8 @@ impl<'a> CantripOsModel<'a> {
                 }?;
             } else {
                 #[cfg(feature = "CONFIG_NOISY_INIT_CNODE")]
-                debug!("  Populate slot {} by minting {}:{}:{} -> {}:{}:{} {:?} data {:#x}",
-                    cnode_slot.slot,
+                debug!("  Populate {:?} slot {} by minting {}:{}:{} -> {}:{}:{} {:?} data {:#x}",
+                    target_cap_type, cnode_slot.slot,
                     src_root, src_index, src_depth,
                     dest_root, dest_index, dest_depth,
                     target_cap_rights, target_cap_data,
