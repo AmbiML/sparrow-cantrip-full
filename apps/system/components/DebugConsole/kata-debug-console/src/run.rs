@@ -22,8 +22,7 @@ static mut CAMKES: Camkes = Camkes::new("DebugConsole");
 
 #[no_mangle]
 pub unsafe extern "C" fn pre_init() {
-    // TODO(b/200946906): Review per-component heap allocations, including this one.
-    const HEAP_SIZE: usize = 1 << 20;
+    const HEAP_SIZE: usize = 16 * 1024;
     static mut HEAP_MEMORY: [u8; HEAP_SIZE] = [0; HEAP_SIZE];
     CAMKES.pre_init(
         log::LevelFilter::Debug,
