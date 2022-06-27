@@ -202,7 +202,6 @@ impl<'a> CantripOsModel<'a> {
 
         self.create_irq_caps()?;
         self.init_sched_ctrl()?; // scheduler::init_sched_ctrl
-        self.duplicate_caps()?;
         self.init_irqs()?;
         self.init_pd_asids()?;
 
@@ -409,20 +408,6 @@ impl<'a> CantripOsModel<'a> {
             arch::create_irq_cap(irq, self.get_object(*irq_num), free_slot)?;
             self.set_irq_cap(irq, free_slot);
             self.next_free_slot();
-        }
-        Ok(())
-    }
-
-    // Duplicate CNode & TCB capabilities.
-    // XXX why?
-    pub fn duplicate_caps(&mut self) -> seL4_Result {
-        for (obj_id, obj) in self.spec.obj_slice().iter().enumerate() {
-            match obj.r#type() {
-                CDL_CNode | CDL_TCB => {
-                    self.dup_cap(obj_id)?;
-                }
-                _ => {}
-            }
         }
         Ok(())
     }
@@ -764,9 +749,9 @@ impl<'a> CantripOsModel<'a> {
     pub fn init_tcbs(&mut self) -> seL4_Result {
         let iter = self.spec.obj_slice().iter();
         for (obj_id, obj) in iter.enumerate().filter(|(_, obj)| obj.r#type() == CDL_TCB) {
-            self.init_tcb(obj, self.get_orig_cap(obj_id))?;
-            // XXX why dup?
-            self.configure_tcb(obj, self.get_dup_cap(obj_id))?;
+            let sel4_tcb = self.get_orig_cap(obj_id);
+            self.init_tcb(obj, sel4_tcb)?;
+            self.configure_tcb(obj, sel4_tcb)?;
         }
         Ok(())
     }
@@ -893,7 +878,7 @@ impl<'a> CantripOsModel<'a> {
         #[cfg(feature = "CONFIG_NOISY_INIT_CNODE")]
         trace!("Init {}: {} slots, orig {} dup {}", cdl_cnode.name(),
             cdl_cnode.num_slots(), self.get_orig_cap(cnode),
-            self.get_dup_cap(cnode));
+            self.get_orig_cap(cnode));
         for slot_index in 0..cdl_cnode.num_slots() {
             self.init_cnode_slot(mode, cnode, &cdl_cnode.slot(slot_index))?;
         }
@@ -935,8 +920,7 @@ impl<'a> CantripOsModel<'a> {
         let src_root = seL4_CapInitThreadCNode;
         let src_depth = seL4_WordBits as u8;
 
-        // Blindly use the dup'd cap a la init_cnode_slot.
-        let dest_root = self.get_dup_cap(cnode_obj_id);
+        let dest_root = self.get_orig_cap(cnode_obj_id);
         let dest_depth: u8 = cnode.size_bits.try_into().unwrap();
 
         unsafe {
@@ -982,10 +966,7 @@ impl<'a> CantripOsModel<'a> {
         let dest_obj = self.get_object(cnode_id);
         let dest_size = dest_obj.size_bits;
 
-        // Use a copy of the cap to reference the CNode in case
-        // the original has already been moved.
-        // XXX when does this happen?
-        let dest_root = self.get_dup_cap(cnode_id);
+        let dest_root = self.get_orig_cap(cnode_id);
         let dest_index = cnode_slot.slot;
         let dest_depth: u8 = dest_size.try_into().unwrap();
 
