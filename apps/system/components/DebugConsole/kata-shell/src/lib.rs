@@ -44,6 +44,8 @@ mod test_panic;
 mod test_security_coordinator;
 #[cfg(feature = "TEST_TIMER_SERVICE")]
 mod test_timer_service;
+#[cfg(feature = "TEST_UART")]
+mod test_uart;
 
 extern "C" {
     static SELF_CNODE: seL4_CPtr;
@@ -144,6 +146,8 @@ pub fn repl<T: io::BufRead>(
     test_security_coordinator::add_cmds(&mut cmds);
     #[cfg(feature = "TEST_TIMER_SERVICE")]
     test_timer_service::add_cmds(&mut cmds);
+    #[cfg(feature = "TEST_UART")]
+    test_uart::add_cmds(&mut cmds);
 
     let mut line_reader = LineReader::new();
     loop {

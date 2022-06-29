@@ -226,6 +226,7 @@ int write_write(size_t available) {
   while (cursor < cursor_limit) {
     LOCK(tx_mutex);
     if (circular_buffer_remaining(&tx_buf) == 0) {
+      UNLOCK(tx_mutex);
       break;
     }
     for (; cursor < cursor_limit; ++cursor) {

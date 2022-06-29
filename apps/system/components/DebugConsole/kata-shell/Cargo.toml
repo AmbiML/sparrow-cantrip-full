@@ -30,6 +30,7 @@ TEST_ML_COORDINATOR = []
 TEST_PANIC = []
 TEST_SECURITY_COORDINATOR = []
 TEST_TIMER_SERVICE = []
+TEST_UART = []
 
 [dependencies]
 crc = { version = "1.4.0", default_features = false }
