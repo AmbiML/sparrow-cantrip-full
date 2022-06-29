@@ -1,5 +1,3 @@
-cargo-features = ["edition2021"]
-
 [package]
 name = "opentitan-timer"
 version = "0.1.0"
