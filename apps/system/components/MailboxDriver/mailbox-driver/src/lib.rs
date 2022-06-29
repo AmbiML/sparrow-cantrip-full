@@ -2,6 +2,7 @@
 // We want to keep all mailbox constants here even if they're currently unused.
 #![allow(dead_code)]
 #![allow(non_snake_case)]
+#![allow(clippy::missing_safety_doc)]
 
 use cantrip_os_common::logger::CantripLogger;
 use log::{error, trace};
@@ -158,7 +159,7 @@ fn enqueue_u32(x: u32) {
 fn dequeue_u32() -> u32 {
     unsafe {
         while (get_STATUS() & STATUS_BIT_EMPTY) == STATUS_BIT_EMPTY {}
-        return get_MBOXR();
+        get_MBOXR()
     }
 }
 
