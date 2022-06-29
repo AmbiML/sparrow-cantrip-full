@@ -4,7 +4,6 @@
 #![allow(non_snake_case)]
 
 use cantrip_os_common::logger::CantripLogger;
-use cantrip_os_common::sel4_sys::seL4_CPtr;
 use log::{error, trace};
 
 //------------------------------------------------------------------------------
@@ -78,10 +77,6 @@ extern "C" {
     fn wtirq_acknowledge() -> u32;
     fn rtirq_acknowledge() -> u32;
     fn eirq_acknowledge() -> u32;
-
-    // Enable CantripOS CAmkES support.
-    static SELF_CNODE: seL4_CPtr;
-    static SELF_VSPACE_ROOT: seL4_CPtr;
 }
 
 //------------------------------------------------------------------------------

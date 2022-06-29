@@ -6,7 +6,6 @@
  */
 
 import <MailboxInterface.camkes>;
-import <MemoryInterface.camkes>;
 import <LoggerInterface.camkes>;
 
 component MailboxDriver {
@@ -25,9 +24,6 @@ component MailboxDriver {
   consumes Interrupt wtirq;
   consumes Interrupt rtirq;
   consumes Interrupt eirq;
-
-  // Enable CantripOS CAmkES support.
-  attribute int cantripos = true;
 
   uses LoggerInterface logger;
 }

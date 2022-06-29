@@ -10,7 +10,6 @@ default = []
 cantrip-os-common = { path = "../../cantrip-os-common" }
 log = "0.4"
 cty = "0.2.1"
-cantrip-memory-interface = { path = "../../MemoryManager/cantrip-memory-interface" }
 
 [lib]
 name = "mailbox_driver"
