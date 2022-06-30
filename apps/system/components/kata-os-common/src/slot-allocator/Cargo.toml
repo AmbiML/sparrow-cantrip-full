@@ -9,7 +9,6 @@ default = []
 TRACE_OPS = []
 
 [dependencies]
-# TODO(sleffler): v1.0 requires rust edition2021
-bitvec = { version = "0.22", default-features = false, features = ["alloc"] }
+bitvec = { version = "1.0", default-features = false, features = ["alloc"] }
 log = "0.4"
 spin = "0.9"

@@ -12,7 +12,7 @@ use log::trace;
 use spin::Mutex;
 
 struct Slots {
-    bits: Option<BitBox<Lsb0, u8>>,
+    bits: Option<BitBox<u8, Lsb0>>,
     used: usize,
     name: &'static str, // Component name
     // TODO(sleffler): maybe track last alloc for O(1) sequential allocations
@@ -20,7 +20,7 @@ struct Slots {
 impl Slots {
     fn new(name: &'static str, size: usize) -> Self {
         Slots {
-            bits: Some(bitvec![Lsb0, u8; 0; size].into_boxed_bitslice()),
+            bits: Some(bitvec![u8, Lsb0; 0; size].into_boxed_bitslice()),
             used: 0,
             name,
         }
@@ -33,7 +33,7 @@ impl Slots {
         }
     }
     fn init(&mut self, name: &'static str, size: usize) {
-        self.bits = Some(bitvec![Lsb0, u8; 0; size].into_boxed_bitslice());
+        self.bits = Some(bitvec![u8, Lsb0; 0; size].into_boxed_bitslice());
         self.name = name;
     }
     fn used_slots(&self) -> usize { self.used }
@@ -57,11 +57,11 @@ impl Slots {
         let bslice = &mut bits.as_mut_bitslice()[range];
         if value {
             assert!(bslice.not_any());
-            bslice.set_all(true);
+            bslice.fill(true);
             self.used = self.used + count;
         } else {
             assert!(bslice.all());
-            bslice.set_all(false);
+            bslice.fill(false);
             self.used = self.used - count;
         }
     }
