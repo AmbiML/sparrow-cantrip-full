@@ -9,15 +9,14 @@ use core::mem::size_of;
 use core::slice;
 use cantrip_memory_interface::ObjDescBundle;
 use cantrip_ml_shared::{ModelSections, Window, WMMU_PAGE_SIZE};
-use cantrip_ml_shared::{ITCM_SIZE, ITCM_PADDR, DTCM_SIZE, DTCM_PADDR};
+use cantrip_ml_shared::{TCM_SIZE, TCM_PADDR};
 use cantrip_proc_interface::BundleImage;
 
 use io::Read;
 use cantrip_io as io;
 
 extern "C" {
-    static itcm: *mut u32;
-    static dtcm: *mut u32;
+    static TCM: *mut u32;
 }
 
 fn round_up(a: usize, b: usize) -> usize {
@@ -38,16 +37,13 @@ pub fn enable_interrupts(enable: bool) {
 }
 
 pub fn set_wmmu(sections: &ModelSections) {
+    // XXX: Support multiple sections.
     // The length of the window is not the size of the window, but rather
     // the last address of the window. This saves us a bit in hardware:
     // 0x400000 is 23 bits vs. 0x3FFFFF 22 bits.
-    vc_top::set_immu_window_offset(0, sections.instructions.addr);
-    vc_top::set_immu_window_length(0, sections.instructions.size - 1);
-    vc_top::set_immu_window_permission(0, vc_top::Permission::Read);
-
-    vc_top::set_dmmu_window_offset(0, sections.data.addr);
-    vc_top::set_dmmu_window_length(0, sections.data.size - 1);
-    vc_top::set_dmmu_window_permission(0, vc_top::Permission::ReadAndWrite);
+    vc_top::set_mmu_window_offset(0, sections.tcm.addr);
+    vc_top::set_mmu_window_length(0, sections.tcm.size - 1);
+    vc_top::set_mmu_window_permission(0, vc_top::Permission::ReadWriteExecute);
 }
 
 pub fn run() {
@@ -61,44 +57,27 @@ pub fn run() {
 // Loads the model into the TCM.
 pub fn load_image(frames: &ObjDescBundle) -> Result<ModelSections, &'static str> {
     let mut image = BundleImage::new(frames);
-    let mut itcm_found = false;
-    let mut dtcm_found = false;
-    // Size of windows is filled in below.
-    let mut iwindow = Window {
-        addr: ITCM_PADDR,
-        size: 0,
-    };
-    let mut dwindow = Window {
-        addr: DTCM_PADDR,
+    let mut tcm_found = false;
+    // Size of window is filled in below.
+    let mut window = Window {
+        addr: TCM_PADDR,
         size: 0,
     };
 
     clear_tcm();
-    // NB: we require both ITCM & DTCM sections and that only one
-    //   instance of each is present
+    // NB: we require a TCM section and that only one is present
     while let Some(section) = image.next_section() {
-        let slice = if section.vaddr == ITCM_PADDR {
-            if itcm_found {
-                return Err("dup ITCM");
+        let slice = if section.vaddr == TCM_PADDR {
+            if tcm_found {
+                return Err("dup TCM section");
             }
-            itcm_found = true;
+            tcm_found = true;
 
-            if section.fsize > ITCM_SIZE {
-                return Err("ITCM too big");
+            if section.fsize > TCM_SIZE {
+                return Err("TCM section too big");
             }
-            iwindow.size = round_up(section.msize, WMMU_PAGE_SIZE);
-            unsafe { slice::from_raw_parts_mut(itcm as *mut u8, ITCM_SIZE) }
-        } else if section.vaddr == DTCM_PADDR {
-            if dtcm_found {
-                return Err("dup DTCM");
-            }
-            dtcm_found = true;
-
-            if section.fsize > DTCM_SIZE {
-                return Err("DTCM section too big");
-            }
-            dwindow.size = round_up(section.msize, WMMU_PAGE_SIZE);
-            unsafe { slice::from_raw_parts_mut(dtcm as *mut u8, DTCM_SIZE) }
+            window.size = round_up(section.msize, WMMU_PAGE_SIZE);
+            unsafe { slice::from_raw_parts_mut(TCM as *mut u8, TCM_SIZE) }
         } else {
             return Err("Unexpected section");
         };
@@ -108,12 +87,11 @@ pub fn load_image(frames: &ObjDescBundle) -> Result<ModelSections, &'static str>
         // TODO(jesionowski): Remove when clear_tcm is fully implemented.
         slice[section.zero_range()].fill(0x00);
     }
-    if !itcm_found || !dtcm_found {
+    if !tcm_found {
         return Err("Incomplete");
     }
     Ok(ModelSections {
-        instructions: iwindow,
-        data: dwindow,
+        tcm: window,
     })
 }
 
@@ -142,10 +120,11 @@ pub fn clear_data_fault() {
     vc_top::set_intr_state(intr_state);
 }
 
-fn clear_section(start: u32, end: u32, is_itcm: bool) {
+// TODO(jesionowski): Remove dead_code when TCM_SIZE fits into INIT_END.
+#[allow(dead_code)]
+fn clear_section(start: u32, end: u32) {
     let init_start = vc_top::InitStart::new()
-        .with_address(start)
-        .with_imem_dmem_sel(is_itcm);
+        .with_address(start);
     vc_top::set_init_start(init_start);
 
     let init_end = vc_top::InitEnd::new().with_address(end).with_valid(true);
@@ -155,24 +134,23 @@ fn clear_section(start: u32, end: u32, is_itcm: bool) {
 }
 
 pub fn clear_tcm() {
-    clear_section(0, ITCM_SIZE as u32, true);
-    // TODO(jesionowski): Enable when DTCM_SIZE fits into INIT_END.
-    // clear_section(0, DTCM_SIZE as u32, false);
+    // TODO(jesionowski): Enable when TCM_SIZE fits into INIT_END.
+    // clear_section(0, TCM_SIZE as u32, false);
 }
 
 // TODO(jesionowski): Remove these when error handling is refactored.
 // The status will be faulty iff the interrupt line is raised, and
 // we won't have the fault registers on Springbok.
-fn get_dtcm_slice() -> &'static mut [u32] {
-    unsafe { slice::from_raw_parts_mut(dtcm, DTCM_SIZE / size_of::<u32>()) }
+fn get_tcm_slice() -> &'static mut [u32] {
+    unsafe { slice::from_raw_parts_mut(TCM, TCM_SIZE / size_of::<u32>()) }
 }
 
 pub fn get_return_code() -> u32 {
     const RC_OFFSET: usize = 0x3FFFEE;
-    get_dtcm_slice()[RC_OFFSET]
+    get_tcm_slice()[RC_OFFSET]
 }
 
 pub fn get_fault_register() -> u32 {
     const FAULT_OFFSET: usize = 0x3FFFEF;
-    get_dtcm_slice()[FAULT_OFFSET]
+    get_tcm_slice()[FAULT_OFFSET]
 }

@@ -15,9 +15,8 @@ component MlCoordinator {
   consumes Interrupt instruction_fault;
   consumes Interrupt data_fault;
 
-  dataport Buf csr;
-  dataport Buf(0x100000) itcm;
-  dataport Buf(0x1000000) dtcm;
+  dataport Buf CSR;
+  dataport Buf(0x1000000) TCM;
 
   uses LoggerInterface logger;
   uses MemoryInterface memory;

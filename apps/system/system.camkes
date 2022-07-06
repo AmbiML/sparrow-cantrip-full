@@ -41,9 +41,9 @@ component OpenTitanTimer {
 
 component VectorCoreHw {
     hardware;
-    dataport Buf csr;
-    dataport Buf(0x100000) itcm;
-    dataport Buf(0x1000000) dtcm;
+    dataport Buf CSR;
+    // TODO(jesionowski): Export TCM_SIZE in cbindgen.
+    dataport Buf(0x1000000) TCM;
 
     emits Interrupt host_req;
     emits Interrupt finish;
@@ -110,7 +110,7 @@ assembly {
                                                        to uart_driver.tx_empty);
 
         // VectorCoreDriver
-        connection seL4HardwareMMIO vc_csr(from ml_coordinator.csr, to vctop.csr);
+        connection seL4HardwareMMIO vc_csr(from ml_coordinator.CSR, to vctop.CSR);
         connection seL4HardwareInterrupt vctop_host_req(from vctop.host_req,
                                                       to ml_coordinator.host_req);
         connection seL4HardwareInterrupt vctop_finish(from vctop.finish,
@@ -119,10 +119,8 @@ assembly {
                                                       to ml_coordinator.instruction_fault);
         connection seL4HardwareInterrupt vctop_data_fault(from vctop.data_fault,
                                                       to ml_coordinator.data_fault);
-        connection seL4HardwareMMIO vc_itcm(from ml_coordinator.itcm,
-                                            to vctop.itcm);
-        connection seL4HardwareMMIO vc_dtcm(from ml_coordinator.dtcm,
-                                            to vctop.dtcm);
+        connection seL4HardwareMMIO vc_tcm(from ml_coordinator.TCM,
+                                            to vctop.TCM);
 
 
         // TimerService
@@ -210,12 +208,10 @@ assembly {
         uart.rx_watermark_irq_number = 2;
         uart.tx_empty_irq_number = 3;
 
-        vctop.csr_paddr = 0x47000000;
-        vctop.csr_size = 0x1000;
-        vctop.itcm_paddr = 0x32000000;
-        vctop.itcm_size = 0x100000;
-        vctop.dtcm_paddr = 0x34000000;
-        vctop.dtcm_size = 0x1000000;
+        vctop.CSR_paddr = 0x47000000;
+        vctop.CSR_size = 0x1000;
+        vctop.TCM_paddr = 0x34000000;
+        vctop.TCM_size = 0x1000000;
         vctop.host_req_irq_number = 13;          // kTopMatchaPlicIrqIdVcTopHostReq @ top_matcha.h
         vctop.finish_irq_number = 14;            // kTopMatchaPlicIrqIdVcTopFinish @ top_matcha.h
         vctop.instruction_fault_irq_number = 15; // kTopMatchaPlicIrqIdVcTopInstructionFault @ top_matcha.h

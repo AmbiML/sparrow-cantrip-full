@@ -6,7 +6,7 @@ use core::ptr;
 use modular_bitfield::prelude::*;
 
 extern "C" {
-    static csr: *mut [u32; 9];
+    static CSR: *mut [u32; 9];
 }
 
 #[bitfield]
@@ -91,98 +91,97 @@ pub struct InitStatus {
 }
 
 pub fn get_intr_state() -> IntrState {
-    unsafe { IntrState::from_bytes(ptr::read_volatile(csr)[0].to_ne_bytes()) }
+    unsafe { IntrState::from_bytes(ptr::read_volatile(CSR)[0].to_ne_bytes()) }
 }
 
 pub fn set_intr_state(intr_state: IntrState) {
     unsafe {
-        (*csr)[0] = u32::from_ne_bytes(intr_state.into_bytes());
+        (*CSR)[0] = u32::from_ne_bytes(intr_state.into_bytes());
     }
 }
 
 pub fn get_intr_enable() -> IntrEnable {
-    unsafe { IntrEnable::from_bytes(ptr::read_volatile(csr)[1].to_ne_bytes()) }
+    unsafe { IntrEnable::from_bytes(ptr::read_volatile(CSR)[1].to_ne_bytes()) }
 }
 
 pub fn set_intr_enable(intr_enable: IntrEnable) {
     unsafe {
-        (*csr)[1] = u32::from_ne_bytes(intr_enable.into_bytes());
+        (*CSR)[1] = u32::from_ne_bytes(intr_enable.into_bytes());
     }
 }
 
 pub fn get_intr_test() -> IntrTest {
-    unsafe { IntrTest::from_bytes(ptr::read_volatile(csr)[2].to_ne_bytes()) }
+    unsafe { IntrTest::from_bytes(ptr::read_volatile(CSR)[2].to_ne_bytes()) }
 }
 
 pub fn set_intr_test(intr_test: IntrTest) {
     unsafe {
-        (*csr)[2] = u32::from_ne_bytes(intr_test.into_bytes());
+        (*CSR)[2] = u32::from_ne_bytes(intr_test.into_bytes());
     }
 }
 
 pub fn get_ctrl() -> Ctrl {
-    unsafe { Ctrl::from_bytes(ptr::read_volatile(csr)[3].to_ne_bytes()) }
+    unsafe { Ctrl::from_bytes(ptr::read_volatile(CSR)[3].to_ne_bytes()) }
 }
 
 pub fn set_ctrl(ctrl: Ctrl) {
     unsafe {
-        (*csr)[3] = u32::from_ne_bytes(ctrl.into_bytes());
+        (*CSR)[3] = u32::from_ne_bytes(ctrl.into_bytes());
     }
 }
 
 pub fn get_memory_bank_ctrl() -> MemoryBankCtrl {
-    unsafe { MemoryBankCtrl::from_bytes(ptr::read_volatile(csr)[4].to_ne_bytes()) }
+    unsafe { MemoryBankCtrl::from_bytes(ptr::read_volatile(CSR)[4].to_ne_bytes()) }
 }
 
 pub fn set_memory_bank_ctrl(memory_bank_ctrl: MemoryBankCtrl) {
     unsafe {
-        (*csr)[4] = u32::from_ne_bytes(memory_bank_ctrl.into_bytes());
+        (*CSR)[4] = u32::from_ne_bytes(memory_bank_ctrl.into_bytes());
     }
 }
 
 pub fn get_error_status() -> ErrorStatus {
-    unsafe { ErrorStatus::from_bytes(ptr::read_volatile(csr)[5].to_ne_bytes()) }
+    unsafe { ErrorStatus::from_bytes(ptr::read_volatile(CSR)[5].to_ne_bytes()) }
 }
 
 pub fn set_error_status(error_status: ErrorStatus) {
     unsafe {
-        (*csr)[5] = u32::from_ne_bytes(error_status.into_bytes());
+        (*CSR)[5] = u32::from_ne_bytes(error_status.into_bytes());
     }
 }
 
 pub fn get_init_start() -> InitStart {
-    unsafe { InitStart::from_bytes(ptr::read_volatile(csr)[6].to_ne_bytes()) }
+    unsafe { InitStart::from_bytes(ptr::read_volatile(CSR)[6].to_ne_bytes()) }
 }
 
 pub fn set_init_start(init_start: InitStart) {
     unsafe {
-        (*csr)[6] = u32::from_ne_bytes(init_start.into_bytes());
+        (*CSR)[6] = u32::from_ne_bytes(init_start.into_bytes());
     }
 }
 
 pub fn get_init_end() -> InitEnd {
-    unsafe { InitEnd::from_bytes(ptr::read_volatile(csr)[7].to_ne_bytes()) }
+    unsafe { InitEnd::from_bytes(ptr::read_volatile(CSR)[7].to_ne_bytes()) }
 }
 
 pub fn set_init_end(init_end: InitEnd) {
     unsafe {
-        (*csr)[7] = u32::from_ne_bytes(init_end.into_bytes());
+        (*CSR)[7] = u32::from_ne_bytes(init_end.into_bytes());
     }
 }
 
 pub fn get_init_status() -> InitStatus {
-    unsafe { InitStatus::from_bytes(ptr::read_volatile(csr)[8].to_ne_bytes()) }
+    unsafe { InitStatus::from_bytes(ptr::read_volatile(CSR)[8].to_ne_bytes()) }
 }
 
 pub fn set_init_status(init_status: InitStatus) {
     unsafe {
-        (*csr)[8] = u32::from_ne_bytes(init_status.into_bytes());
+        (*CSR)[8] = u32::from_ne_bytes(init_status.into_bytes());
     }
 }
 
-// The WMMU registers start at 0x400 past the vector core CSRs. There are two
-// blocks, one for the DMMU and one for the IMMU, each 0x400 long. Within the
-// block, the registers are arranged like this:
+// The WMMU registers start at 0x400 past the vector core CSRs and are 0x400
+// long. Within the block, the registers are arranged like this:
 // 0x0000: Window 0 Offset
 // 0x0004: Window 0 Length
 // 0x0008: Window 0 Permissions
@@ -193,7 +192,6 @@ pub fn set_init_status(init_status: InitStatus) {
 // 0x001C: Unused
 // And so on.
 const WMMU_OFFSET: usize = 0x400; // From base CSR.
-const DMMU_OFFSET: usize = 0x400; // From IMMU CSRs.
 
 const OFFSET_ADDR: usize = 0;
 const LENGTH_ADDR: usize = 4;
@@ -202,64 +200,38 @@ const BYTES_PER_WINDOW: usize = 0x10;
 
 const MAX_WINDOW: usize = 0x40;
 
-fn window_addr(window: usize, is_immu: bool) -> usize {
+fn window_addr(window: usize) -> usize {
     assert!(window < MAX_WINDOW, "Window out of range of WMMU");
-    let mut addr: usize = unsafe { WMMU_OFFSET + csr as usize };
-
-    if (!is_immu) {
-        addr += DMMU_OFFSET;
-    }
+    let mut addr: usize = unsafe { WMMU_OFFSET + CSR as usize };
 
     addr + window * BYTES_PER_WINDOW
 }
 
-fn set_window_offset(window: usize, offset: usize, is_immu: bool) {
-    let addr = window_addr(window, is_immu) + OFFSET_ADDR;
+pub fn set_mmu_window_offset(window: usize, offset: usize) {
+    let addr = window_addr(window) + OFFSET_ADDR;
     unsafe {
         core::ptr::write_volatile(addr as *mut usize, offset);
     }
 }
 
-pub fn set_immu_window_offset(window: usize, offset: usize) {
-    set_window_offset(window, offset, true);
-}
-
-pub fn set_dmmu_window_offset(window: usize, offset: usize) {
-    set_window_offset(window, offset, false);
-}
-
-fn set_window_length(window: usize, length: usize, is_immu: bool) {
-    let addr = window_addr(window, is_immu) + LENGTH_ADDR;
+pub fn set_mmu_window_length(window: usize, length: usize) {
+    let addr = window_addr(window) + LENGTH_ADDR;
     unsafe {
         core::ptr::write_volatile(addr as *mut usize, length);
     }
 }
 
-pub fn set_immu_window_length(window: usize, length: usize) {
-    set_window_length(window, length, true);
-}
-
-pub fn set_dmmu_window_length(window: usize, length: usize) {
-    set_window_length(window, length, false);
-}
-
 pub enum Permission {
     Read = 1,
     Write = 2,
-    ReadAndWrite = 3,
+    ReadWrite = 3,
+    Execute = 4,
+    ReadWriteExecute = 7,
 }
 
-pub fn set_window_permission(window: usize, permission: Permission, is_immu: bool) {
-    let addr = window_addr(window, is_immu) + PERMISSIONS_ADDR;
+pub fn set_mmu_window_permission(window: usize, permission: Permission) {
+    let addr = window_addr(window) + PERMISSIONS_ADDR;
     unsafe {
         core::ptr::write_volatile(addr as *mut usize, permission as usize);
     }
-}
-
-pub fn set_immu_window_permission(window: usize, permission: Permission) {
-    set_window_permission(window, permission, true);
-}
-
-pub fn set_dmmu_window_permission(window: usize, permission: Permission) {
-    set_window_permission(window, permission, false);
 }

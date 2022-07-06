@@ -35,7 +35,8 @@ impl ImageSizes {
     }
 }
 
-// XXX: Out-dated and should use ImageSizes. Fix in merge.
+// XXX: Out-dated and should use ImageSizes. Refactor when multiple sections
+// are enabled.
 /// The Vector Core uses a Windowed MMU (go/sparrow-wmmu) in order to prevent
 /// models from interferring with each other. Before executing a model,
 /// windows to only that model's code and data are opened.
@@ -45,11 +46,11 @@ pub struct Window {
     pub size: usize,
 }
 
+// XXX: Out-dated. Refactor when multiple sections are enabled.
 /// When a model is loaded onto the Vector Core, the ML Coordinator needs to
 /// track where each window is.
 pub struct ModelSections {
-    pub instructions: Window,
-    pub data: Window,
+    pub tcm: Window,
 }
 
 /// The page size of the WMMU.
@@ -60,13 +61,8 @@ pub const WMMU_PAGE_SIZE: usize = 0x1000;
 /// memory contstraints.
 pub const MAX_MODELS: usize = 32;
 
-// TODO(b/214092253): ITCM size blow-up needs to be addressed.
-pub const ITCM_SIZE: usize = 0x100000;
-pub const ITCM_PADDR: usize = 0x32000000;
-pub const DTCM_SIZE: usize = 0x1000000;
-pub const DTCM_PADDR: usize = 0x34000000;
-
-// XXX: Only TCM variables should remain after TCM merge. Temporarily keeping
-// both until further merge work is complete.
+/// The size of the Vector Core's Tightly Coupled Memory (TCM).
 pub const TCM_SIZE: usize = 0x1000000;
+
+/// The address of the Vector Core's TCM, viewed from the SMC.
 pub const TCM_PADDR: usize = 0x34000000;
