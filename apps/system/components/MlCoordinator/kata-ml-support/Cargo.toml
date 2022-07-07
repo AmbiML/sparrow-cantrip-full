@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 log = "0.4"
+cantrip-io = { path = "../../DebugConsole/cantrip-io" }
 cantrip-ml-shared = { path = "../cantrip-ml-shared" }
 # XXX: Re-integrate when it does not depend on cantrip-os-common.
 # cantrip-vec-core = { path = "../cantrip-vec-core" }

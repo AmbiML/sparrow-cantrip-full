@@ -3,13 +3,16 @@
 // cantrip-vec-core is the vector core driver. It is responsible for providing
 // convenient methods for interacting with the hardware.
 
+extern crate alloc;
+
 mod vc_top;
 
+use alloc::boxed::Box;
 use core::mem::size_of;
 use core::slice;
 use cantrip_memory_interface::ObjDescBundle;
 use cantrip_ml_shared::{ModelSections, Window, WMMU_PAGE_SIZE};
-use cantrip_ml_shared::{TCM_SIZE, TCM_PADDR};
+use cantrip_ml_shared::{TCM_PADDR, TCM_SIZE};
 use cantrip_proc_interface::BundleImage;
 
 use io::Read;
@@ -54,6 +57,29 @@ pub fn run() {
     vc_top::set_ctrl(ctrl);
 }
 
+// Writes the section of the image from |start_address| to
+// |start_address + on_flash_size| into the TCM. Zeroes the section from
+// |on_flash_size| to |unpacked_size|.
+#[allow(dead_code)] // XXX: Remove when integrated.
+pub fn write_image_part(
+    image: &mut Box<dyn Read>,
+    start_address: usize,
+    on_flash_size: usize,
+    unpacked_size: usize,
+) -> Result<(), &'static str> {
+    let start = start_address - TCM_PADDR;
+
+    let tcm_slice = unsafe { slice::from_raw_parts_mut(TCM as *mut u8, TCM_SIZE) };
+    image
+        .read_exact(&mut tcm_slice[start..on_flash_size])
+        .map_err(|_| "section read error")?;
+    // TODO(jesionowski): Use hardware clear when TCM_SIZE fits into INIT_END.
+    tcm_slice[on_flash_size..unpacked_size].fill(0x00);
+
+    Ok(())
+}
+
+// XXX: Remove when write_image is integrated.
 // Loads the model into the TCM.
 pub fn load_image(frames: &ObjDescBundle) -> Result<ModelSections, &'static str> {
     let mut image = BundleImage::new(frames);
@@ -90,9 +116,7 @@ pub fn load_image(frames: &ObjDescBundle) -> Result<ModelSections, &'static str>
     if !tcm_found {
         return Err("Incomplete");
     }
-    Ok(ModelSections {
-        tcm: window,
-    })
+    Ok(ModelSections { tcm: window })
 }
 
 // Interrupts are write 1 to clear.
@@ -123,8 +147,7 @@ pub fn clear_data_fault() {
 // TODO(jesionowski): Remove dead_code when TCM_SIZE fits into INIT_END.
 #[allow(dead_code)]
 fn clear_section(start: u32, end: u32) {
-    let init_start = vc_top::InitStart::new()
-        .with_address(start);
+    let init_start = vc_top::InitStart::new().with_address(start);
     vc_top::set_init_start(init_start);
 
     let init_end = vc_top::InitEnd::new().with_address(end).with_valid(true);

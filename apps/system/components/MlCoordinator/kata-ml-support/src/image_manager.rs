@@ -28,11 +28,14 @@
 
 extern crate alloc;
 
+use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::cmp;
 use cantrip_ml_shared::{ImageId, ImageSizes};
 use cantrip_ml_shared::{MAX_MODELS, TCM_PADDR, TCM_SIZE, WMMU_PAGE_SIZE};
-use log::trace;
+use log::{info, trace};
+
+use cantrip_io::Read;
 
 // XXX: Enable configuration when cantrip_vec_core does not depend on
 // cantrip-os-common.
@@ -61,6 +64,7 @@ use fake_vec_core as MlCore;
 //               +---------------+
 // Each segment is page aligned.
 
+#[derive(Debug)]
 struct Image {
     id: ImageId,
     data_top_addr: usize,
@@ -203,6 +207,7 @@ impl ImageManager {
     // Removes images in FILO order until the top TCM and temp TCM
     // constraints are satisfied.
     fn make_space(&mut self, top_tcm_needed: usize, temp_tcm_needed: usize) {
+        assert!(top_tcm_needed + temp_tcm_needed <= TCM_SIZE);
         let mut available_tcm = self.tcm_free_space();
         let mut space_needed_for_temp =
             space_needed(self.required_temporary_data(), temp_tcm_needed);
@@ -265,17 +270,57 @@ impl ImageManager {
         self.get_image_index(id).is_some()
     }
 
-    // XXX: Implement load_image.
-    pub fn load_image(&mut self, id: ImageId, sizes: ImageSizes) {
-        self.make_space(sizes.data_top_size(), sizes.temporary_data);
+    // Loads an |image| onto the Vector Core's TCM, evicting models as
+    // necessary. |on_flash_sizes| represents the on-disk sizes (ie fsize)
+    // for each section, while |unpacked_sizes| represents the aligned memory
+    // needed for execution (ie msize).
+    pub fn load_image(
+        &mut self,
+        image: &mut Box<dyn Read>,
+        id: ImageId,
+        on_flash_sizes: ImageSizes,
+        unpacked_sizes: ImageSizes,
+    ) -> Result<(), &'static str> {
+        self.make_space(
+            unpacked_sizes.data_top_size(),
+            unpacked_sizes.temporary_data,
+        );
+        let mut temp_top = self.tcm_top;
 
-        // XXX: Do the write thing.
+        MlCore::write_image_part(image, temp_top, on_flash_sizes.text, unpacked_sizes.text)?;
+        temp_top += unpacked_sizes.text;
 
+        MlCore::write_image_part(
+            image,
+            temp_top,
+            on_flash_sizes.constant_data,
+            unpacked_sizes.constant_data,
+        )?;
+        temp_top += unpacked_sizes.constant_data;
+
+        MlCore::write_image_part(
+            image,
+            temp_top,
+            on_flash_sizes.model_output,
+            unpacked_sizes.model_output,
+        )?;
+        temp_top += unpacked_sizes.model_output;
+
+        MlCore::write_image_part(
+            image,
+            temp_top,
+            on_flash_sizes.static_data,
+            unpacked_sizes.static_data,
+        )?;
+
+        // Commit the image and update pointers.
         self.update_image_bookkeeping(Image {
             id,
-            sizes,
+            sizes: unpacked_sizes,
             data_top_addr: self.tcm_top,
         });
+
+        Ok(())
     }
 
     // Unloads image |id| if loaded. Returns true if an image was unloaded.
@@ -290,7 +335,29 @@ impl ImageManager {
         false
     }
 
-    // XXX: Add debug_state fn, similar to MLCoordinator.
+    fn ids_at(&self, idx: ImageIdx) -> (&str, &str) {
+        match self.images[idx].as_ref() {
+            Some(image) => (&image.id.bundle_id, &image.id.model_id),
+            None => ("None", "None"),
+        }
+    }
+
+    pub fn debug_state(&self) {
+        info!("Loaded Images:");
+        for image in self.images.as_ref().iter().flatten() {
+            info!("  {:?}", image);
+        }
+
+        info!("Image Queue:");
+        for idx in &self.image_queue {
+            let (bundle, model) = self.ids_at(*idx);
+            info!("  {}:{}", bundle, model);
+        }
+
+        info!("Sensor Top: {}", self.sensor_top);
+        info!("TCM Top: {}", self.tcm_top);
+        info!("TCM Bottom: {}", self.tcm_bottom);
+    }
 }
 
 #[cfg(test)]
@@ -307,6 +374,25 @@ mod test {
         assert_eq_hex!(image_manager.allocate_sensor_input(0x1000), TCM_PADDR);
 
         assert_eq_hex!(image_manager.tcm_top_size(), 0x1000);
+    }
+
+    // Stub out the Read trait to enable fake images.
+    struct FakeImage;
+
+    impl Read for FakeImage {
+        fn read(&mut self, _buf: &mut [u8]) -> Result<usize, cantrip_io::Error> {
+            Ok(0)
+        }
+    }
+
+    fn fake_image() -> Box<dyn Read> {
+        Box::new(FakeImage {})
+    }
+
+    // The on_flash_sizes are only used when writing the image to memory. For
+    // these tests we want to ignore this, so just use zeroed sizes.
+    fn ignore_on_flash_sizes() -> ImageSizes {
+        ImageSizes::default()
     }
 
     fn constant_image_size(size: usize) -> ImageSizes {
@@ -331,11 +417,25 @@ mod test {
         make_id(1)
     }
 
+    fn load_image(image_manager: &mut ImageManager, id: ImageId, unpacked_sizes: ImageSizes) {
+        // fake_vec_core can't fail to load.
+        let _ = image_manager.load_image(
+            &mut fake_image(),
+            id,
+            ignore_on_flash_sizes(),
+            unpacked_sizes,
+        );
+    }
+
     // Load a model and see that is_loaded returns true. Unload and see false.
     #[test]
     fn load_unload() {
         let mut image_manager = ImageManager::default();
-        image_manager.load_image(default_id(), constant_image_size(0x1000));
+        load_image(
+            &mut image_manager,
+            default_id(),
+            constant_image_size(0x1000),
+        );
 
         let id = default_id();
 
@@ -393,19 +493,19 @@ mod test {
         let id2 = make_id(2);
         let id3 = make_id(3);
 
-        image_manager.load_image(id1.clone(), half_image());
-        image_manager.load_image(id2.clone(), half_image());
+        load_image(&mut image_manager, id1.clone(), half_image());
+        load_image(&mut image_manager, id2.clone(), half_image());
 
         assert!(image_manager.is_loaded(&id1));
         assert!(image_manager.is_loaded(&id2));
 
-        image_manager.load_image(id3.clone(), half_image());
+        load_image(&mut image_manager, id3.clone(), half_image());
 
         assert!(image_manager.is_loaded(&id1));
         assert!(image_manager.is_loaded(&id3));
 
         let id4 = make_id(4);
-        image_manager.load_image(id4.clone(), full_image());
+        load_image(&mut image_manager, id4.clone(), full_image());
         assert!(image_manager.is_loaded(&id4));
     }
 
@@ -447,9 +547,9 @@ mod test {
             temporary_data: 0x3000, // This will be the largest post unload
         };
 
-        image_manager.load_image(id1.clone(), sizes1.clone());
-        image_manager.load_image(id2.clone(), sizes2.clone());
-        image_manager.load_image(id3.clone(), sizes3.clone());
+        load_image(&mut image_manager, id1.clone(), sizes1.clone());
+        load_image(&mut image_manager, id2.clone(), sizes2.clone());
+        load_image(&mut image_manager, id3.clone(), sizes3.clone());
 
         // The third image will be available at images[2]. Before unloading we
         // validate that it's past the first two models.

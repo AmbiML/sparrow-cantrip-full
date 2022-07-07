@@ -10,7 +10,7 @@ use alloc::string::String;
 
 /// An image is uniquely identified by the bundle that owns it and the
 /// particular model id in that bundle.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ImageId {
     pub bundle_id: String,
     pub model_id: String,
@@ -18,7 +18,7 @@ pub struct ImageId {
 
 /// An image consists of five sections. See go/sparrow-vc-memory for a
 /// description of each section. Sizes are in bytes.
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct ImageSizes {
     pub text: usize,
     pub model_input: usize,
