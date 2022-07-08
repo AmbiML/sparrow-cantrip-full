@@ -108,6 +108,8 @@ impl MemoryManager {
             out_of_memory: 0,
         };
         for (ut_index, ut) in untypeds.iter().enumerate() {
+            #[cfg(feature = "CONFIG_NOISY_UNTYPEDS")]
+            log::info!("slot {} {:?}", slots.start + ut_index, ut);
             if ut.is_device() {
                 m._device_untypeds.push(UntypedSlab::new(ut, slots.start + ut_index));
             } else {

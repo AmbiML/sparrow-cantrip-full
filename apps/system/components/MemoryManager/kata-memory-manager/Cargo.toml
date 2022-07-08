@@ -4,6 +4,11 @@ version = "0.1.0"
 description = "Cantrip OS MemoryManager service"
 edition = "2021"
 
+[features]
+default = []
+# Log UntypedMemory slabs at startup.
+CONFIG_NOISY_UNTYPEDS = []
+
 [dependencies]
 cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-memory-interface = { path = "../cantrip-memory-interface" }
