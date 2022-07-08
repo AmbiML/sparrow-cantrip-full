@@ -8,15 +8,21 @@ use cantrip_memory_interface::MemoryError;
 use cantrip_memory_interface::MemoryManagerInterface;
 use cantrip_memory_interface::MemoryManagerStats;
 use cantrip_os_common::sel4_sys;
-use log::{debug, error, warn, trace};
+use log::{debug, error, info, warn, trace};
+use smallvec::SmallVec;
+
 use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_CNode_Delete;
 use sel4_sys::seL4_Error;
 use sel4_sys::seL4_Result;
 use sel4_sys::seL4_Word;
 use sel4_sys::seL4_UntypedDesc;
+use sel4_sys::seL4_Untyped_Describe;
 use sel4_sys::seL4_Untyped_Retype;
-use smallvec::SmallVec;
+
+fn untyped_describe(cptr: seL4_CPtr) -> seL4_Untyped_Describe {
+    unsafe { seL4_Untyped_Describe(cptr) }
+}
 
 // SmallVec capacity for untyped memory slabs. There are two instances;
 // one for anonymous memory and one for device-backed memory. The memory
@@ -63,6 +69,7 @@ pub struct MemoryManager {
     total_bytes: usize,   // Total available space
     allocated_bytes: usize,   // Amount of space currently allocated
     requested_bytes: usize,  // Amount of space allocated over all time
+    overhead_bytes: usize,
 
     allocated_objs: usize,   // # seL4 objects currently allocated
     requested_objs: usize,  // # seL4 objects allocated over all time
@@ -100,6 +107,7 @@ impl MemoryManager {
             total_bytes: 0,
             allocated_bytes: 0,
             requested_bytes: 0,
+            overhead_bytes: 0,
 
             allocated_objs: 0,
             requested_objs: 0,
@@ -114,7 +122,15 @@ impl MemoryManager {
                 m._device_untypeds.push(UntypedSlab::new(ut, slots.start + ut_index));
             } else {
                 m.untypeds.push(UntypedSlab::new(ut, slots.start + ut_index));
-                m.total_bytes += l2tob(ut.size_bits());
+                // NB: must get current state of ut as it will reflect resources
+                //   allocated before we run.
+                let info = untyped_describe(slots.start + ut_index);
+                assert_eq!(info.sizeBits, ut.size_bits());
+                let size = l2tob(info.sizeBits);
+                // We only have the remainder available for allocations.
+                m.total_bytes += info.remainingBytes;
+                // Use overhead to track memory allocated out of our control.
+                m.overhead_bytes += size - info.remainingBytes;
             }
         }
         // Sort non-device slabs by descending size.
@@ -137,6 +153,10 @@ impl MemoryManager {
     // Total space allocated over time
     pub fn total_requested_space(&self) -> usize {
         self.requested_bytes
+    }
+    // Current allocated space out of our control.
+    pub fn overhead_space(&self) -> usize {
+        self.overhead_bytes
     }
 
     // Current allocated objects
@@ -254,7 +274,7 @@ impl MemoryManagerInterface for MemoryManager {
                     self.allocated_bytes -= size_bytes;
                     self.allocated_objs -= od.retype_count();
                 } else {
-                    debug!("Undeflow on free of {:?}", od);
+                    debug!("Underflow on free of {:?}", od);
                 }
             }
         }
@@ -265,9 +285,7 @@ impl MemoryManagerInterface for MemoryManager {
             allocated_bytes: self.allocated_space(),
             free_bytes: self.free_space(),
             total_requested_bytes: self.total_requested_space(),
-            // TODO(sleffler): track fragmentation
-            // NB: assumes all heap usage is for the buddy allocator
-            overhead_bytes: 0,
+            overhead_bytes: self.overhead_space(),
 
             allocated_objs: self.allocated_objs(),
             total_requested_objs: self.total_requested_objs(),
@@ -275,5 +293,17 @@ impl MemoryManagerInterface for MemoryManager {
             untyped_slab_too_small: self.untyped_slab_too_small(),
             out_of_memory: self.out_of_memory(),
         })
+    }
+    fn debug(&self) -> Result<(), MemoryError> {
+        // TODO(sleffler): only shows !device slabs
+        for ut in &self.untypeds {
+            let info = untyped_describe(ut.cptr);
+            let size = l2tob(info.sizeBits);
+            info!("[{}] allocated {} free {}", ut.cptr,
+                  size - info.remainingBytes,
+                  info.remainingBytes,
+            );
+        }
+        Ok(())
     }
 }

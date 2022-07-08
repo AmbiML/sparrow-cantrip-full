@@ -153,3 +153,13 @@ pub unsafe extern "C" fn memory_stats(
         Err(e) => e.into(),
     }
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn memory_debug() -> MemoryManagerError {
+    let recv_path = CAMKES.get_current_recv_path();
+    // NB: make sure noone clobbers the setup done in memory__init
+    CAMKES.assert_recv_path();
+    Camkes::debug_assert_slot_empty("memory_debug", &recv_path);
+
+    CANTRIP_MEMORY.debug().into()
+}

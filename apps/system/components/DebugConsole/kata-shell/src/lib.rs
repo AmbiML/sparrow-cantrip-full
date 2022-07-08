@@ -124,6 +124,7 @@ pub fn repl<T: io::BufRead>(
         ("kvwrite",             kvwrite_command as CmdFn),
         ("install",             install_command as CmdFn),
         ("loglevel",            loglevel_command as CmdFn),
+        ("mdebug",              mdebug_command as CmdFn),
         ("mstats",              mstats_command as CmdFn),
         ("ps",                  ps_command as CmdFn),
         ("start",               start_command as CmdFn),
@@ -458,6 +459,18 @@ fn kvwrite_command(
         Err(status) => {
             writeln!(output, "Write key \"{}\" failed: {:?}", key, status)?;
         }
+    }
+    Ok(())
+}
+
+fn mdebug_command(
+    _args: &mut dyn Iterator<Item = &str>,
+    _input: &mut dyn io::BufRead,
+    output: &mut dyn io::Write,
+    _builtin_cpio: &[u8],
+) -> Result<(), CommandError> {
+    if let Err(status) = cantrip_memory_debug() {
+        writeln!(output, "stats failed: {:?}", status)?;
     }
     Ok(())
 }

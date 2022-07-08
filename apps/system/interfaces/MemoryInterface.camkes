@@ -4,4 +4,6 @@ procedure MemoryInterface {
   MemoryManagerError alloc(in char request[]);
   MemoryManagerError free(in char request[]);
   MemoryManagerError stats(out RawMemoryStatsData data);
+
+  void debug();
 };

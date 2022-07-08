@@ -317,6 +317,7 @@ pub trait MemoryManagerInterface {
     fn alloc(&mut self, bundle: &ObjDescBundle) -> Result<(), MemoryError>;
     fn free(&mut self, bundle: &ObjDescBundle) -> Result<(), MemoryError>;
     fn stats(&self) -> Result<MemoryManagerStats, MemoryError>;
+    fn debug(&self) -> Result<(), MemoryError>;
 }
 
 // Public version of MemoryError presented over rpc interface.
@@ -691,4 +692,14 @@ pub fn cantrip_memory_stats() -> Result<MemoryManagerStats, MemoryManagerError> 
         }
         status => Err(status),
     }
+}
+
+#[inline]
+pub fn cantrip_memory_debug() -> Result<(), MemoryManagerError> {
+    extern "C" {
+        // NB: this assumes the MemoryManager component is named "memory".
+        fn memory_debug();
+    }
+    unsafe { memory_debug() };
+    Ok(())
 }
