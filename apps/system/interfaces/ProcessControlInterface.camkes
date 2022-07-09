@@ -4,4 +4,7 @@ procedure ProcessControlInterface {
   ProcessManagerError start(in string bundleId);
   ProcessManagerError stop(in string bundleId);
   ProcessManagerError get_running_bundles(out RawBundleIdData raw_data);
+
+  void capscan();
+  ProcessManagerError capscan_bundle(in string bundleId);
 };

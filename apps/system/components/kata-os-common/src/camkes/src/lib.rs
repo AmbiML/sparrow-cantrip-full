@@ -12,6 +12,7 @@ use sel4_sys;
 use sel4_sys::seL4_CNode_Delete;
 use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_GetCapReceivePath;
+use sel4_sys::seL4_Result;
 use sel4_sys::seL4_SetCap;
 use sel4_sys::seL4_SetCapReceivePath;
 use sel4_sys::seL4_Word;
@@ -172,5 +173,14 @@ impl Camkes {
         sel4_sys::debug_assert_slot_cnode!(path.1,
             "{}: expected cnode in slot {:?} but found cap type {:?}",
             tag, path, sel4_sys::cap_identify(path.1));
+    }
+
+    // Dumps the contents of the toplevel CNode to the serial console.
+    pub fn capscan() -> seL4_Result {
+        // TODO(sleffler): requires CONFIG_PRINTING in the kernel
+        #[cfg(feature = "CONFIG_PRINTING")]
+        unsafe { sel4_sys::seL4_DebugDumpCNode(SELF_CNODE); }
+        // XXX until seL4_Error is correctly returned
+        Ok(())
     }
 }

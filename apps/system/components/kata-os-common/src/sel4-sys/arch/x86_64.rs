@@ -1123,6 +1123,21 @@ pub unsafe fn seL4_DebugCapIdentify(mut cap: seL4_CPtr) -> u32 {
     cap as _
 }
 
+#[cfg(feature = "CONFIG_PRINTING")]
+#[inline(always)]
+pub unsafe fn seL4_DebugDumpCNode(mut cap: seL4_CPtr) {
+    asm!("mov r14, rsp
+          syscall
+          mov rsp, r14",
+        in("rdx") swinum!(SyscallId::DebugDumpCNode),
+        inout("rdi") cap,
+        lateout("rcx") _,
+        lateout("r11") _,
+        lateout("r14") _,
+        options(nomem, nostack),
+    );
+}
+
 // Note: name MUST be NUL-terminated.
 #[cfg(feature = "CONFIG_DEBUG_BUILD")]
 #[inline(always)]

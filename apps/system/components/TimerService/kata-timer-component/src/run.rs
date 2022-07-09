@@ -87,3 +87,8 @@ pub unsafe extern "C" fn timer_interrupt_handle() {
     TIMER_SRV.lock().service_interrupt();
     assert!(timer_interrupt_acknowledge() == 0);
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn timer_capscan() {
+    let _ = Camkes::capscan();
+}

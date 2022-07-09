@@ -4,4 +4,6 @@ procedure StorageInterface {
   StorageManagerError read(in string key, out KeyValueData value);
   StorageManagerError write(in string key, in char value[]);
   StorageManagerError delete(in string key);
+
+  void capscan();
 };

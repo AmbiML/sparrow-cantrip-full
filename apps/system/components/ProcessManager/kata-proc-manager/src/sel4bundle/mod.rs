@@ -608,4 +608,9 @@ impl BundleImplInterface for seL4BundleImpl {
         unsafe { seL4_TCB_Suspend(self.cap_tcb.slot) }
             .map_err(|_| ProcessManagerError::SuspendFailed)
     }
+    fn capscan(&self) -> Result<(), ProcessManagerError> {
+        #[cfg(feature = "CONFIG_PRINTING")]
+        unsafe { sel4_sys::seL4_DebugDumpCNode(self.cspace_root.objs[0].cptr); }
+        Ok(())
+    }
 }

@@ -703,3 +703,13 @@ pub fn cantrip_memory_debug() -> Result<(), MemoryManagerError> {
     unsafe { memory_debug() };
     Ok(())
 }
+
+#[inline]
+pub fn cantrip_memory_capscan() -> Result<(), MemoryManagerError> {
+    extern "C" {
+        // NB: this assumes the MemoryManager component is named "memory".
+        fn memory_capscan();
+    }
+    unsafe { memory_capscan() };
+    Ok(())
+}

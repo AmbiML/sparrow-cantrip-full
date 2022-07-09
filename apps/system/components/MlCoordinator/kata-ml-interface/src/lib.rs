@@ -79,3 +79,12 @@ pub fn cantrip_mlcoord_debug_state() {
     }
     unsafe { mlcoord_debug_state() };
 }
+
+#[inline]
+pub fn cantrip_mlcoord_capscan() -> Result<(), MlCoordError> {
+    extern "C" {
+        fn mlcoord_capscan();
+    }
+    unsafe { mlcoord_capscan() };
+    Ok(())
+}

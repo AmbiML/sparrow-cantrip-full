@@ -167,6 +167,21 @@ impl ProcessControlInterface for ProcessManager {
         }
         Ok(result)
     }
+
+    fn capscan(&self, bundle_id: &str) -> Result<(), ProcessManagerError> {
+        trace!("capscan bundle_id {}", bundle_id);
+        let bid = BundleId::from_str(bundle_id);
+        if let Some(bundle) = self.bundles.get(&bid) {
+            trace!("capscan state {:?}", bundle.state);
+            if bundle.state != BundleState::Running {
+                return Err(ProcessManagerError::BundleNotRunning)
+            }
+            self.manager.capscan(bundle.bundle_impl.as_deref().unwrap())
+        } else {
+            trace!("capscan {} not found", bundle_id);
+            Err(ProcessManagerError::BundleNotFound)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -192,6 +207,7 @@ mod tests {
         fn stop(&mut self) -> Result<(), ProcessManagerError> { Ok(()) }
         fn resume(&self) -> Result<(), ProcessManagerError> { Ok(()) }
         fn suspend(&self) -> Result<(), ProcessManagerError> { Ok(()) }
+        fn capscan(&self) -> Result<(), ProcessManagerError> { Ok(()) }
     }
     impl ProcessManagerInterface for FakeManager {
         fn install(&mut self, pkg_buffer: *const u8, pkg_buffer_size: u32) -> Result<String, pme> {
@@ -213,6 +229,9 @@ mod tests {
             Ok(Box::new(FakeBundleImpl))
         }
         fn stop(&mut self, bundle_impl: &mut dyn BundleImplInterface) -> Result<(), pme> {
+            Ok(())
+        }
+        fn capscan(&mut self, bundle_impl: &mut dyn BundleImplInterface) -> Result<(), pme> {
             Ok(())
         }
     }

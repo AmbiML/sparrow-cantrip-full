@@ -57,6 +57,7 @@ pub trait BundleImplInterface {
     fn stop(&mut self) -> Result<(), ProcessManagerError>;
     fn suspend(&self) -> Result<(), ProcessManagerError>;
     fn resume(&self) -> Result<(), ProcessManagerError>;
+    fn capscan(&self) -> Result<(), ProcessManagerError>;
 }
 
 // NB: struct's marked repr(C) are processed by cbindgen to get a .h file
@@ -71,6 +72,7 @@ pub enum ProcessManagerError {
     BundleNotFound,
     BundleFound,
     BundleRunning,
+    BundleNotRunning,
     UnknownError,
     DeserializeError,
     SerializeError,
@@ -83,6 +85,7 @@ pub enum ProcessManagerError {
     // TODO(sleffler): for use if/when ProcessManagerInterface grows
     SuspendFailed,
     ResumeFailed,
+    CapScanFailed,
 }
 
 // Interface to underlying facilities (StorageManager, seL4); also
@@ -95,6 +98,7 @@ pub trait ProcessManagerInterface {
     fn uninstall(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError>;
     fn start(&mut self, bundle: &Bundle) -> Result<Box<dyn BundleImplInterface>, ProcessManagerError>;
     fn stop(&mut self, bundle_impl: &mut dyn BundleImplInterface) -> Result<(), ProcessManagerError>;
+    fn capscan(&self, bundle_impl: &dyn BundleImplInterface) -> Result<(), ProcessManagerError>;
 }
 
 // NB: bundle_id comes across the C interface as *const cstr_core::c_char
@@ -112,6 +116,7 @@ pub trait ProcessControlInterface {
     fn start(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError>;
     fn stop(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError>;
     fn get_running_bundles(&self) -> Result<BundleIdArray, ProcessManagerError>;
+    fn capscan(&self, bundle_id: &str) -> Result<(), ProcessManagerError>;
 }
 
 impl From<postcard::Error> for ProcessManagerError {
@@ -229,6 +234,26 @@ pub fn cantrip_proc_ctrl_stop(bundle_id: &str) -> Result<(), ProcessManagerError
     }
     let cstr = CString::new(bundle_id)?;
     unsafe { proc_ctrl_stop(cstr.as_ptr()) }.into()
+}
+
+#[inline]
+#[allow(dead_code)]
+pub fn cantrip_proc_ctrl_capscan() -> Result<(), ProcessManagerError> {
+    extern "C" {
+        fn proc_ctrl_capscan();
+    }
+    unsafe { proc_ctrl_capscan() }
+    Ok(())
+}
+
+#[inline]
+#[allow(dead_code)]
+pub fn cantrip_proc_ctrl_capscan_bundle(bundle_id: &str) -> Result<(), ProcessManagerError> {
+    extern "C" {
+        fn proc_ctrl_capscan_bundle(c_bundle_id: *const cstr_core::c_char) -> ProcessManagerError;
+    }
+    let cstr = CString::new(bundle_id)?;
+    unsafe { proc_ctrl_capscan_bundle(cstr.as_ptr()) }.into()
 }
 
 // TODO(sleffler): move out of interface?

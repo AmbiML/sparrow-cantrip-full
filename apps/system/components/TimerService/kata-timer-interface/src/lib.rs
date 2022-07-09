@@ -81,3 +81,13 @@ pub fn timer_service_wait() -> seL4_Word {
 
     notification_badge
 }
+
+#[inline]
+#[allow(dead_code)]
+pub fn timer_service_capscan() -> Result<(), TimerServiceError> {
+    extern "C" {
+        fn timer_capscan();
+    }
+    unsafe { timer_capscan() }
+    Ok(())
+}

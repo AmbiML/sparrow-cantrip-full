@@ -75,3 +75,8 @@ pub unsafe extern "C" fn storage_delete(
         Err(_) => StorageManagerError::SmeKeyInvalid,
     }
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn storage_capscan() {
+    let _ = Camkes::capscan();
+}

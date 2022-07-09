@@ -132,3 +132,8 @@ pub unsafe extern "C" fn data_fault_handle() {
 pub unsafe extern "C" fn mlcoord_debug_state() {
     ML_COORD.lock().debug_state();
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn mlcoord_capscan() {
+    let _ = Camkes::capscan();
+}

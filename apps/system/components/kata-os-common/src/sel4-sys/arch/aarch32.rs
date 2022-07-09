@@ -990,6 +990,16 @@ pub unsafe fn seL4_DebugCapIdentify(mut cap: seL4_CPtr) -> u32 {
     cap as _
 }
 
+#[cfg(feature = "CONFIG_PRINTING")]
+#[inline(always)]
+pub unsafe fn seL4_DebugDumpCNode(mut cap: seL4_CPtr) {
+    asm!("swi 0",
+        in("r7") swinum!(SyscallId::DebugDumpCNode),
+        inout("r0") cap,
+        options(nomem, nostack),
+    );
+}
+
 // Note: name MUST be NUL-terminated.
 #[cfg(feature = "CONFIG_DEBUG_BUILD")]
 #[inline(always)]

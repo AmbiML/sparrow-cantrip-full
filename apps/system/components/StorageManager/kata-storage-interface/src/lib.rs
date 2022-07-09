@@ -139,3 +139,13 @@ pub fn cantrip_storage_write(key: &str, value: &[u8]) -> Result<(), StorageManag
     let cstr = CString::new(key)?;
     unsafe { storage_write(cstr.as_ptr(), value.len(), value.as_ptr()) }.into()
 }
+
+#[inline]
+#[allow(dead_code)]
+pub fn cantrip_storage_capscan() -> Result<(), StorageManagerError> {
+    extern "C" {
+        fn storage_capscan();
+    }
+    unsafe { storage_capscan() }
+    Ok(())
+}

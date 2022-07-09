@@ -2,6 +2,13 @@
 name = "camkes"
 version = "0.1.0"
 edition = "2021"
+build = "build.rs"
+
+[build-dependencies]
+sel4-config = { path = "../sel4-config" }
+
+[features]
+CONFIG_PRINTING = []
 
 [dependencies]
 log = "0.4"

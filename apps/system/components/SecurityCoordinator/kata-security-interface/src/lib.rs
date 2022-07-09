@@ -168,9 +168,13 @@ impl<'a> SecurityCapability for DeleteKeyRequest<'a> {}
 
 // SecurityRequestTestMailbox
 #[derive(Debug, Serialize, Deserialize)]
-pub struct TestMailboxRequest {
-}
+pub struct TestMailboxRequest {}
 impl SecurityCapability for TestMailboxRequest {}
+
+// SecurityRequestCapScan
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CapScanRequest {}
+impl SecurityCapability for CapScanRequest {}
 
 // NB: this is the union of InstallInterface & StorageInterface because
 //   the camkes-generated interface code uses basic C which does not
@@ -241,6 +245,7 @@ pub enum SecurityRequest {
     SrDeleteKey, // Delete key [bundle_id, key]
 
     SrTestMailbox, // Run mailbox tests
+    SrCapScan, // Dump contents CNode to console
 }
 
 // Interface to underlying facilities; also used to inject fakes for unit tests.
@@ -486,6 +491,16 @@ pub fn cantrip_security_test_mailbox() -> Result<(), SecurityRequestError> {
     cantrip_security_request(
         SecurityRequest::SrTestMailbox,
         &TestMailboxRequest {},
+        &mut [0u8; SECURITY_REPLY_DATA_SIZE],
+    )
+}
+
+#[inline]
+#[allow(dead_code)]
+pub fn cantrip_security_capscan() -> Result<(), SecurityRequestError> {
+    cantrip_security_request(
+        SecurityRequest::SrCapScan,
+        &CapScanRequest {},
         &mut [0u8; SECURITY_REPLY_DATA_SIZE],
     )
 }

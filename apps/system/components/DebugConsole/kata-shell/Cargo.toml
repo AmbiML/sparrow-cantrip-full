@@ -19,6 +19,7 @@ default = [
     "TEST_TIMER_SERVICE",
 ]
 CONFIG_DEBUG_BUILD = []
+CONFIG_PRINTING = []
 CONFIG_KERNEL_MCS = []
 # Commands that are likely not useful
 FRINGE_CMDS = []

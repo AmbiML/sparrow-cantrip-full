@@ -579,9 +579,19 @@ pub unsafe fn seL4_DebugCapIdentify(mut cap: seL4_CPtr) -> u32 {
     let mut unused0 = 0;
     let mut unused1 = 0;
     let mut unused2 = 0;
-    x86_sys_send_recv(SyscallId::DebugCapIdentify as seL4_Word, 
+    x86_sys_send_recv(SyscallId::DebugCapIdentify as seL4_Word,
                       cap, &mut cap, 0, &mut unused0, &mut unused1, &mut unused2);
     cap as _
+}
+
+#[cfg(feature = "CONFIG_PRINTING")]
+#[inline(always)]
+pub unsafe fn seL4_DebugDumpCNode(mut cap: seL4_CPtr) {
+    let mut unused0 = 0;
+    let mut unused1 = 0;
+    let mut unused2 = 0;
+    x86_sys_send_recv(SyscallId::DebugDumpCNode as seL4_Word,
+                      cap, &mut cap, 0, &mut unused0, &mut unused1, &mut unused2);
 }
 
 /// Note: name MUST be NUL-terminated.
@@ -631,7 +641,7 @@ pub unsafe fn seL4_BenchmarkSetLogBuffer(mut frame_cptr: seL4_Word) -> seL4_Word
     let mut unused0 = 0;
     let mut unused1 = 0;
     let mut unused2 = 0;
-    x86_sys_send_recv(SyscallId::BenchmarkSetLogBuffer as seL4_Word, 
+    x86_sys_send_recv(SyscallId::BenchmarkSetLogBuffer as seL4_Word,
                       frame_cptr, &mut cap, 0, &mut unused0 as *mut _ as usize as seL4_Word, &mut unused1 as *mut _ as usize as seL4_Word, &mut unused2 as *mut _ as usize as seL4_Word);
     frame_cptr
 }

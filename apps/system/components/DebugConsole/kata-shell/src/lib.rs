@@ -119,6 +119,7 @@ pub fn repl<T: io::BufRead>(
     cmds.extend([
         ("builtins",            builtins_command as CmdFn),
         ("bundles",             bundles_command as CmdFn),
+        ("capscan",             capscan_command as CmdFn),
         ("kvdelete",            kvdelete_command as CmdFn),
         ("kvread",              kvread_command as CmdFn),
         ("kvwrite",             kvwrite_command as CmdFn),
@@ -231,12 +232,12 @@ fn ps_command(
 ) -> Result<(), CommandError> {
     #[cfg(feature = "CONFIG_DEBUG_BUILD")]
     unsafe {
-        cantrip_os_common::sel4_sys::seL4_DebugDumpScheduler();
+        sel4_sys::seL4_DebugDumpScheduler();
         Ok(())
     }
 
     #[cfg(not(feature = "CONFIG_DEBUG_BUILD"))]
-    Ok(writeln!(output, "Kernel support not configured!")?)
+    Ok(writeln!(output, "Kernel support not configured with CONFIG_DEBUG_BUILD!")?)
 }
 
 fn bundles_command(
@@ -255,6 +256,47 @@ fn bundles_command(
             writeln!(output, "get_running_bundles failed: {:?}", status)?;
         }
     }
+    Ok(())
+}
+
+/// Implements a "capscan" command that dumps seL4 capabilities to the console.
+#[allow(unused_variables)]
+fn capscan_command(
+    args: &mut dyn Iterator<Item = &str>,
+    _input: &mut dyn io::BufRead,
+    output: &mut dyn io::Write,
+    _builtin_cpio: &[u8],
+) -> Result<(), CommandError> {
+    #[cfg(feature = "CONFIG_PRINTING")]
+    match args.next() {
+        Some("console") => unsafe { sel4_sys::seL4_DebugDumpCNode(SELF_CNODE); }
+        Some("memory") => { let _ = cantrip_memory_interface::cantrip_memory_capscan(); }
+        Some("process") => { let _ = cantrip_proc_interface::cantrip_proc_ctrl_capscan(); }
+        Some("mlcoord") => { let _ = cantrip_mlcoord_capscan(); }
+        Some("security") => { let _ = cantrip_security_interface::cantrip_security_capscan(); }
+        Some("storage") => { let _ = cantrip_storage_interface::cantrip_storage_capscan(); }
+        Some("timer") => { let _ = cantrip_timer_interface::timer_service_capscan(); }
+        Some(bundle_id) => {
+            if let Err(e) = cantrip_proc_interface::cantrip_proc_ctrl_capscan_bundle(bundle_id) {
+                writeln!(output, "{}: {:?}", bundle_id, e)?;
+            }
+        }
+        None => {
+            writeln!(output, "capscan <target>, where <target> is one of:")?;
+            writeln!(output, "  console (DebugConsole)")?;
+            writeln!(output, "  memory (MemoryManager)")?;
+            writeln!(output, "  process (ProcessManager)")?;
+            writeln!(output, "  mlcoord (MlCoordinator)")?;
+            writeln!(output, "  securiy (SecurityCoordinator)")?;
+            writeln!(output, "  storage (StorageManager)")?;
+            writeln!(output, "  timer (TimerService)")?;
+            writeln!(output, "anything else is treated as a bundle_id")?;
+        }
+    }
+
+    #[cfg(not(feature = "CONFIG_PRINTING"))]
+    writeln!(output, "Kernel not configured with CONFIG_PRINTING!")?;
+
     Ok(())
 }
 

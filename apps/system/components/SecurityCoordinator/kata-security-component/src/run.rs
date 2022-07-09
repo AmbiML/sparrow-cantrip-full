@@ -239,6 +239,11 @@ fn test_mailbox_request(
     unsafe { CANTRIP_SECURITY.test_mailbox() }
 }
 
+fn capscan_request() -> Result<(), SecurityRequestError> {
+    let _ = Camkes::capscan();
+    Ok(())
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn security_request(
     c_request: SecurityRequest,
@@ -272,5 +277,7 @@ pub unsafe extern "C" fn security_request(
             delete_key_request(request_buffer, reply_buffer),
         SecurityRequest::SrTestMailbox =>
             test_mailbox_request(),
+        SecurityRequest::SrCapScan =>
+            capscan_request(),
     }.map_or_else(|e| e, |_v| SecurityRequestError::SreSuccess)
 }

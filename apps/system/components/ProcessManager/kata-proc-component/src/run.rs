@@ -138,3 +138,21 @@ pub unsafe extern "C" fn proc_ctrl_get_running_bundles(
         Err(e) => e,
     }
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn proc_ctrl_capscan() {
+    let _ = Camkes::capscan();
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn proc_ctrl_capscan_bundle(
+    c_bundle_id: *const cstr_core::c_char
+) -> ProcessManagerError {
+    match CStr::from_ptr(c_bundle_id).to_str() {
+        Ok(str) => match CANTRIP_PROC.capscan(str) {
+            Ok(_) => ProcessManagerError::Success,
+            Err(e) => e,
+        },
+        Err(_) => ProcessManagerError::BundleIdInvalid,
+    }
+}

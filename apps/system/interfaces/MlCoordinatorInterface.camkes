@@ -6,4 +6,5 @@ procedure MlCoordinatorInterface {
   MlCoordError cancel(in string bundle_id, in string model_id);
 
   void debug_state();
+  void capscan();
 };
