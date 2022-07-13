@@ -10,11 +10,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <kernel/gen_config.h>
+#include <sel4/arch/syscalls.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <stdarg.h>
-
-#include <sel4/arch/syscalls.h>
 
 __thread seL4_IPCBuffer *__sel4_ipc_buffer;
 
@@ -45,6 +45,7 @@ __attribute__((naked)) void _start() {
 
 // only prints 32-bit "%x" hex values
 void minisel_printf(const char *fmt, ...) {
+#if CONFIG_PRINTING
   va_list args;
   va_start(args, fmt);
   for (; *fmt; fmt++) {
@@ -74,6 +75,7 @@ void minisel_printf(const char *fmt, ...) {
     }
   }
   va_end(args);
+#endif
 }
 
 typedef uint64_t interrupt_count_t;

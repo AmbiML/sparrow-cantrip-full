@@ -9,10 +9,10 @@
 // using the seL4_DebugPutChar syscall and is intended as a starting
 // point for low-level tests.
 
-#include <stdint.h>
-#include <stdarg.h>
-
+#include <kernel/gen_config.h>
 #include <sel4/arch/syscalls.h>
+#include <stdarg.h>
+#include <stdint.h>
 
 __thread seL4_IPCBuffer *__sel4_ipc_buffer;
 
@@ -36,6 +36,7 @@ __attribute__((naked)) void _start() {
 
 // only prints 32-bit "%x" hex values
 void minisel_printf(const char *fmt, ...) {
+#if CONFIG_PRINTING
   va_list args;
   va_start(args, fmt);
   for (; *fmt; fmt++) {
@@ -53,6 +54,7 @@ void minisel_printf(const char *fmt, ...) {
     }
   }
   va_end(args);
+#endif
 }
 
 int main(int a0, int a1, int a2, int a3) {
