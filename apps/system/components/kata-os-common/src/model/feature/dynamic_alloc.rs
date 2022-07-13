@@ -5,7 +5,7 @@ use capdl::CDL_FrameFill_BootInfoEnum_t::*;
 use capdl::CDL_FrameFillType_t::*;
 use capdl::CDL_ObjectType::*;
 use crate::CantripOsModel;
-use log::{debug, info, trace};
+use log::{debug, trace};
 use smallvec::SmallVec;
 
 use sel4_sys::seL4_ASIDControl_MakePool;
@@ -72,12 +72,9 @@ impl<'a> CantripOsModel<'a> {
         {
             let free_slot = self.free_slot_start + free_slot_index;
 
-            //            trace!(
-            //                "Creating object {} in slot {} from untyped {:#x}...",
-            //                obj.name(),
-            //                free_slot,
-            //                self.state.get_untyped_cptr(ut_index)
-            //            );
+            #[cfg(feature = "CONFIG_NOISY_CREATE_OBJECT")]
+            trace!("Creating object {} in slot {} from untyped {:#x}...",
+                   obj.name(), free_slot, self.state.get_untyped_cptr(ut_index));
 
             // NB: create_object may use free_slot + 1 and free_slot + 2
             while let Err(e) =
@@ -112,18 +109,18 @@ impl<'a> CantripOsModel<'a> {
                         // NB: can instantiate multiple frames but only one
                         // CNode can receive the untypeds since we must move
                         // 'em from the rootserver (since they are "derived").
-                        // XXX maybe just complain & ignore
-                        trace!("Found bootinfo Frame at {}", obj_id);
-                        assert!(!is_objid_valid(bootinfo_frame));
+                        assert!(!is_objid_valid(bootinfo_frame),
+                                "Duplicate bootinfo Frame at {}, prev {}",
+                                obj_id, bootinfo_frame);
                         bootinfo_frame = obj_id;
                     }
                 }
                 // Look for a CNode associated with any bootinfo frame.
                 CDL_CNode => {
                     if obj.cnode_has_untyped_memory() {
-                        if is_objid_valid(untyped_cnode) {
-                            info!("Duplicate bootinfo cnode at {}, prev {}", obj_id, untyped_cnode);
-                        }
+                        assert!(!is_objid_valid(untyped_cnode),
+                                "Duplicate bootinfo cnode at {}, prev {}",
+                                obj_id, untyped_cnode);
                         untyped_cnode = obj_id;
                     }
                 }
@@ -216,16 +213,18 @@ impl<'a> CantripOsModel<'a> {
             if !ut.is_device() {
                 let index = ut.size_bits();
 
-                //                trace!("Untyped {:3} (cptr={:#x}) (addr={:#x}) is of size {:2}. Placing in slot {}...",
-                //                       untyped_index, untyped_start + untyped_index, ut.paddr, index, count[index]);
+                #[cfg(feature = "CONFIG_NOISY_UNTYPEDS")]
+                trace!("Untyped {:3} (cptr={:#x}) (addr={:#x}) is of size {:2}. Placing in slot {}...",
+                       untyped_index, untyped_start + untyped_index, ut.paddr, index, count[index]);
 
                 self.state
                     .set_untyped_cptr(count[index], untyped_start + untyped_index);
                 count[index] += 1;
                 num_normal_untypes += 1;
             } else {
-                //                trace!("Untyped {:3} (cptr={:#x}) (addr={:#x}) is of size {:2}. Skipping as it is device",
-                //                       untyped_index, untyped_start + untyped_index, ut.paddr, ut.size_bits());
+                #[cfg(feature = "CONFIG_NOISY_UNTYPEDS")]
+                trace!("Untyped {:3} (cptr={:#x}) (addr={:#x}) is of size {:2}. Skipping as it is device",
+                       untyped_index, untyped_start + untyped_index, ut.paddr, ut.size_bits());
             }
         }
         num_normal_untypes
@@ -292,7 +291,7 @@ impl<'a> CantripOsModel<'a> {
                 obj_size_bits: usize,
                 ut: &seL4_UntypedDesc,
             ) -> bool {
-                ut.paddr <= obj_addr && obj_addr + obj_size_bits <= ut.paddr + BIT(ut.size_bits())
+                ut.paddr <= obj_addr && obj_addr + BIT(obj_size_bits) <= ut.paddr + BIT(ut.size_bits())
             }
             fn get_address(ut_slot: seL4_CPtr) -> Result<seL4_Page_GetAddress, seL4_Error> {
                 // Create a temporary frame to get the address. We load this at slot + 2
@@ -316,7 +315,7 @@ impl<'a> CantripOsModel<'a> {
                 }
             }
 
-            if is_obj_inside_untyped(paddr, BIT(obj_size_bits), &untypedList[i]) {
+            if is_obj_inside_untyped(paddr, obj_size_bits, &untypedList[i]) {
                 // See above, loop looking for a Frame in the untyped object
                 // that matches our object's address. If we run out of space
                 // in the untyped the kernel will return seL4_NotEnoughMemory

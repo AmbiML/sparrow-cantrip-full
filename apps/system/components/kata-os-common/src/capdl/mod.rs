@@ -649,6 +649,15 @@ impl<'a> CDL_Object {
     pub fn num_slots(&self) -> seL4_Word {
         self.slots.num
     }
+    // Returns the next available slot past those specified in the spec.
+    // Note we cannot use num_slots since there may be gaps in the
+    // numbering due to empty slots.
+    #[inline]
+    pub fn next_free_slot(&self) -> seL4_Word {
+        self.slots_slice().iter()
+            .max_by_key(|slot| slot.slot)
+            .map_or(0, |slot| slot.slot + 1)
+    }
     #[inline]
     pub fn slot(&self, index: seL4_Word) -> CDL_CapSlot {
         #[allow(unaligned_references)]
