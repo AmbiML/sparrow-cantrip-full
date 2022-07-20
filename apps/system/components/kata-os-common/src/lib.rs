@@ -11,5 +11,6 @@ pub extern crate cspace_slot;
 pub extern crate logger;
 pub extern crate model;
 pub extern crate panic;
+pub extern crate scheduling;
 pub extern crate sel4_sys;
 pub extern crate slot_allocator;

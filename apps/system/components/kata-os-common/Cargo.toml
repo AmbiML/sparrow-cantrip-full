@@ -16,5 +16,6 @@ cspace-slot = { path = "src/cspace-slot" }
 logger = { path = "src/logger" }
 model = { path = "src/model" }
 panic = { path = "src/panic" }
+scheduling = { path = "src/scheduling" }
 sel4-sys = { path = "src/sel4-sys" }
 slot-allocator = { path = "src/slot-allocator" }

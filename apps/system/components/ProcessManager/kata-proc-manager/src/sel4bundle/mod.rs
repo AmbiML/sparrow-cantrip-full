@@ -18,6 +18,7 @@ use cantrip_memory_interface::ObjDesc;
 use cantrip_memory_interface::ObjDescBundle;
 use cantrip_os_common::copyregion::CopyRegion;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
+use cantrip_os_common::scheduling::Domain;
 use cantrip_os_common::sel4_sys;
 use cantrip_proc_interface::Bundle;
 use cantrip_proc_interface::BundleImage;
@@ -174,7 +175,7 @@ pub struct seL4BundleImpl {
     cap_tcb: CSpaceSlot,
 
     affinity: seL4_Word, // CPU affinity
-    domain: seL4_Word,   // Scheduling domain
+    domain: Domain,      // Scheduling domain
 
     tcb_name: String,
     tcb_max_priority: seL4_Word,
@@ -292,7 +293,7 @@ impl seL4BundleImpl {
             first_page: first_vaddr / PAGE_SIZE,
 
             affinity: 0, // CPU 0
-            domain: 0,   // XXX share scheduling domain with system services for now
+            domain: Domain::AppSandbox,
 
             tcb_name: bundle.app_id.clone(),
             tcb_max_priority: 254, // TODO(sleffler): guess
