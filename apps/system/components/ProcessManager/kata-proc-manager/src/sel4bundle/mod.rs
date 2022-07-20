@@ -5,10 +5,10 @@
 #![allow(non_camel_case_types)]
 
 extern crate alloc;
-use alloc::vec;
 use alloc::string::String;
-use core::mem::size_of;
+use alloc::vec;
 use core::cmp;
+use core::mem::size_of;
 use core::ptr;
 use cantrip_memory_interface::cantrip_cnode_alloc;
 use cantrip_memory_interface::cantrip_object_alloc_in_toplevel;
@@ -25,13 +25,13 @@ use cantrip_proc_interface::BundleImplInterface;
 use cantrip_proc_interface::ProcessManagerError;
 use log::{debug, error, info, trace};
 
-use cantrip_io as io;
 use io::Read;
+use cantrip_io as io;
 
 use sel4_sys::seL4_ASIDPool_Assign;
-use sel4_sys::seL4_CapRights;
 use sel4_sys::seL4_CNode_Move;
 use sel4_sys::seL4_CPtr;
+use sel4_sys::seL4_CapRights;
 use sel4_sys::seL4_Default_VMAttributes;
 use sel4_sys::seL4_DomainSet_Set;
 use sel4_sys::seL4_EndpointObject;
@@ -105,7 +105,7 @@ const_assert!(seL4_WordBits == 32 || seL4_WordBits == 64);
 // for an explanation of how this is used).
 // TODO(sleffler): move to sel4-sys because it exposes internals
 fn make_guard(guard_bits: seL4_Word, guard_size: seL4_Word) -> seL4_Word {
-    ((guard_bits) & ((1 << 18) -1)) | ((guard_size << 18) | ((1 << 4) - 1))
+    ((guard_bits) & ((1 << 18) - 1)) | ((guard_size << 18) | ((1 << 4) - 1))
 }
 
 fn roundup(a: usize, b: usize) -> usize {
@@ -138,19 +138,19 @@ const NOCAP: seL4_CPtr = 0;
 // Layout of the CNode holding dynamic_objs.  All entries are singletons
 // except for STACK_COUNT so symbols up to STACK_SLOT can also be used to
 // index into dynamic_objs. Perhaps too fragile...
-const TCB_SLOT:           usize = 0;
-const FAULT_EP_SLOT:      usize = TCB_SLOT + 1;
-const SDK_EP_SLOT:        usize = FAULT_EP_SLOT + 1;
-const SDK_REPLY_SLOT:     usize = SDK_EP_SLOT + 1;
+const TCB_SLOT: usize = 0;
+const FAULT_EP_SLOT: usize = TCB_SLOT + 1;
+const SDK_EP_SLOT: usize = FAULT_EP_SLOT + 1;
+const SDK_REPLY_SLOT: usize = SDK_EP_SLOT + 1;
 const SCHED_CONTEXT_SLOT: usize = SDK_REPLY_SLOT + 1;
 // TODO(sleffler): VSpace layout is arch-specific
-const PD_SLOT:            usize = SCHED_CONTEXT_SLOT + 1;
-const PT_SLOT:            usize = PD_SLOT + 1;
-const IPCBUFFER_SLOT:     usize = PT_SLOT + 1;
+const PD_SLOT: usize = SCHED_CONTEXT_SLOT + 1;
+const PT_SLOT: usize = PD_SLOT + 1;
+const IPCBUFFER_SLOT: usize = PT_SLOT + 1;
 const SDK_RPC_FRAME_SLOT: usize = IPCBUFFER_SLOT + 1;
-const STACK_SLOT:         usize = SDK_RPC_FRAME_SLOT + 1;
+const STACK_SLOT: usize = SDK_RPC_FRAME_SLOT + 1;
 const STACK_COUNT: usize = 4; // 16K for stack (XXX get from manifest)
-const FRAME_SLOT:         usize = STACK_SLOT + STACK_COUNT;
+const FRAME_SLOT: usize = STACK_SLOT + STACK_COUNT;
 // NB: FRAME_SLOT count is based on the BundleImage
 
 pub struct seL4BundleImpl {
@@ -174,15 +174,15 @@ pub struct seL4BundleImpl {
     cap_tcb: CSpaceSlot,
 
     affinity: seL4_Word, // CPU affinity
-    domain: seL4_Word, // Scheduling domain
+    domain: seL4_Word,   // Scheduling domain
 
     tcb_name: String,
     tcb_max_priority: seL4_Word,
     tcb_priority: seL4_Word,
     tcb_ipcbuffer_addr: seL4_Word, // Address of IPCBuffer in app's VSpace
-    tcb_pc: seL4_Word, // Initial pc in app's VSpace
-    tcb_sp: seL4_Word, // Initial stack pointer in app's VSpace
-    stack_base: seL4_Word, // Base address of stack in app's VSpace
+    tcb_pc: seL4_Word,             // Initial pc in app's VSpace
+    tcb_sp: seL4_Word,             // Initial stack pointer in app's VSpace
+    stack_base: seL4_Word,         // Base address of stack in app's VSpace
 
     cspace_root_data: seL4_Word,
     cspace_root_depth: u8,
@@ -198,8 +198,11 @@ impl seL4BundleImpl {
         bundle: &Bundle,
         bundle_frames: &ObjDescBundle,
     ) -> Result<Self, ProcessManagerError> {
-        trace!("seL4BundleImpl::new {:?} bundle_frames {}",
-                bundle, bundle_frames);
+        trace!(
+            "seL4BundleImpl::new {:?} bundle_frames {}",
+            bundle,
+            bundle_frames
+        );
 
         sel4_sys::debug_assert_slot_cnode!(bundle_frames.cnode);
 
@@ -210,8 +213,10 @@ impl seL4BundleImpl {
         let (nframes, first_vaddr, entry_point) =
             seL4BundleImpl::preprocess_bundle_image(bundle_frames);
         if entry_point.is_none() {
-            info!("Bundle {} has no entry point, using 0x{:x}",
-                  &bundle.app_id, first_vaddr);
+            info!(
+                "Bundle {} has no entry point, using 0x{:x}",
+                &bundle.app_id, first_vaddr
+            );
         }
         // TODO(sleffler): reject empty image or no entry point?
         // TODO(sleffler): could sanity check memory requirements but
@@ -232,32 +237,34 @@ impl seL4BundleImpl {
         //
         // NB: beware the order of this must match *_SLOT above
         // TODO(sleffler): maybe construct the vec to avoid mismatches
-        let dynamic_objs = cantrip_object_alloc_in_toplevel(
-            vec![
-                // control/main-thread TCB
-                ObjDesc::new(seL4_TCBObject, 1, TCB_SLOT),
-                // fault redirect to SDK/ProcessManager
-                ObjDesc::new(seL4_EndpointObject, 1, FAULT_EP_SLOT),
-                // interface to SDK
-                ObjDesc::new(seL4_EndpointObject, 1, SDK_EP_SLOT),
-                ObjDesc::new(seL4_ReplyObject, 1, SDK_REPLY_SLOT),
-                // SchedContext for main thread
-                ObjDesc::new(seL4_SchedContextObject,
-                             seL4_MinSchedContextBits, SCHED_CONTEXT_SLOT),
-                // VSpace root (PD)
-                ObjDesc::new(seL4_PageTableObject, 1, PD_SLOT),
-                // VSpace page table (PT)
-                ObjDesc::new(seL4_PageTableObject, 1, PT_SLOT),
-                // IPC buffer frame
-                ObjDesc::new(seL4_SmallPageObject, 1, IPCBUFFER_SLOT),
-                // RPC to SDK frame?
-                ObjDesc::new(seL4_SmallPageObject, 1, SDK_RPC_FRAME_SLOT),
-                // Stack frames (guard frames are unpopulated PT slots)
-                ObjDesc::new(seL4_SmallPageObject, STACK_COUNT, STACK_SLOT),
-                // Page frames for application binary.
-                ObjDesc::new(seL4_SmallPageObject, nframes, FRAME_SLOT),
-            ],
-        ).map_err(|_| ProcessManagerError::StartFailed)?;
+        let dynamic_objs = cantrip_object_alloc_in_toplevel(vec![
+            // control/main-thread TCB
+            ObjDesc::new(seL4_TCBObject, 1, TCB_SLOT),
+            // fault redirect to SDK/ProcessManager
+            ObjDesc::new(seL4_EndpointObject, 1, FAULT_EP_SLOT),
+            // interface to SDK
+            ObjDesc::new(seL4_EndpointObject, 1, SDK_EP_SLOT),
+            ObjDesc::new(seL4_ReplyObject, 1, SDK_REPLY_SLOT),
+            // SchedContext for main thread
+            ObjDesc::new(
+                seL4_SchedContextObject,
+                seL4_MinSchedContextBits,
+                SCHED_CONTEXT_SLOT,
+            ),
+            // VSpace root (PD)
+            ObjDesc::new(seL4_PageTableObject, 1, PD_SLOT),
+            // VSpace page table (PT)
+            ObjDesc::new(seL4_PageTableObject, 1, PT_SLOT),
+            // IPC buffer frame
+            ObjDesc::new(seL4_SmallPageObject, 1, IPCBUFFER_SLOT),
+            // RPC to SDK frame?
+            ObjDesc::new(seL4_SmallPageObject, 1, SDK_RPC_FRAME_SLOT),
+            // Stack frames (guard frames are unpopulated PT slots)
+            ObjDesc::new(seL4_SmallPageObject, STACK_COUNT, STACK_SLOT),
+            // Page frames for application binary.
+            ObjDesc::new(seL4_SmallPageObject, nframes, FRAME_SLOT),
+        ])
+        .map_err(|_| ProcessManagerError::StartFailed)?;
 
         // Allocate the top-level CNode that will hold |dynamic_objs|.
         let cspace_root_depth = dynamic_objs.count_log2();
@@ -281,15 +288,15 @@ impl seL4BundleImpl {
             bundle_frames: bundle_frames.clone(),
             dynamic_objs,
             cspace_root,
-            cap_tcb: CSpaceSlot::new(),  // Top-level dup for suspend/resume
+            cap_tcb: CSpaceSlot::new(), // Top-level dup for suspend/resume
             first_page: first_vaddr / PAGE_SIZE,
 
             affinity: 0, // CPU 0
-            domain: 0, // XXX share scheduling domain with system services for now
+            domain: 0,   // XXX share scheduling domain with system services for now
 
             tcb_name: bundle.app_id.clone(),
             tcb_max_priority: 254, // TODO(sleffler): guess
-            tcb_priority: 254, // TODO(sleffler): guess
+            tcb_priority: 254,     // TODO(sleffler): guess
             // NB: next fields are filled in by init_vspace
             tcb_ipcbuffer_addr: 0,
             tcb_pc: entry_point.unwrap_or(first_vaddr), // NB: filled in from BundleImage
@@ -304,15 +311,13 @@ impl seL4BundleImpl {
 
             sc_period: 10000, // TODO(sleffler): guess
             sc_budget: 10000, // TODO(sleffler): guess
-            sc_data: 0, // TODO(sleffler): guess
+            sc_data: 0,       // TODO(sleffler): guess
         })
     }
 
     // Calculate how many pages are needed and (while we're here)
     // identify an entry point.
-    fn preprocess_bundle_image(bundle_frames: &ObjDescBundle)
-        -> (usize, usize, Option<usize>)
-    {
+    fn preprocess_bundle_image(bundle_frames: &ObjDescBundle) -> (usize, usize, Option<usize>) {
         let mut nframes = 0;
         let mut entry_point = None;
         let mut first_vaddr = usize::MAX;
@@ -352,10 +357,8 @@ impl seL4BundleImpl {
         // to fill from the |bundle_frames| and/or zero-fill.
         let mut image = BundleImage::new(bundle_frames);
 
-        let mut copy_region = CopyRegion::new(
-            unsafe { ptr::addr_of_mut!(LOAD_APPLICATION[0])},
-            PAGE_SIZE
-        );
+        let mut copy_region =
+            CopyRegion::new(unsafe { ptr::addr_of_mut!(LOAD_APPLICATION[0]) }, PAGE_SIZE);
 
         let mut vaddr_top = 0;
         while let Some(section) = image.next_section() {
@@ -390,16 +393,26 @@ impl seL4BundleImpl {
                 copy_region.map(frame.cptr)?;
                 copy_region.as_mut()[..].fill(0);
                 if data_range.contains(&vaddr) {
-                    let start = if index > 0 { 0 } else { vaddr - data_range.start };
+                    let start = if index > 0 {
+                        0
+                    } else {
+                        vaddr - data_range.start
+                    };
                     let end = cmp::min(data_range.end - vaddr, copy_region.size());
-                    image.read_exact(&mut copy_region.as_mut()[start..end])
+                    image
+                        .read_exact(&mut copy_region.as_mut()[start..end])
                         .map_err(|_| seL4_Error::seL4_NoError)?; // XXX
                 }
                 copy_region.unmap()?;
 
                 // Frame is now setup, map it into the VSpace at the
                 // page-aligned virtual address.
-                trace!("map slot {} vaddr 0x{:x} {:?}", frame.cptr, frame_vaddr, rights);
+                trace!(
+                    "map slot {} vaddr 0x{:x} {:?}",
+                    frame.cptr,
+                    frame_vaddr,
+                    rights
+                );
                 arch::map_page(frame, pd, frame_vaddr, *rights, vm_attribs)?;
                 vaddr += frame.size_bytes().unwrap();
             }
@@ -421,7 +434,8 @@ impl seL4BundleImpl {
     fn init_vspace(&mut self) -> seL4_Result {
         let rights_rwn = seL4_CapRights::new(
             // NB: grant =>'s X on ARM+RISCV
-            /*grant_reply=*/ 0, /*grant=*/ 0, /*read=*/ 1, /*write=*/ 1,
+            /*grant_reply=*/ 0,
+            /*grant=*/ 0, /*read=*/ 1, /*write=*/ 1,
         );
         let vm_attribs = seL4_Default_VMAttributes;
 
@@ -453,18 +467,28 @@ impl seL4BundleImpl {
         self.stack_base = vaddr;
         for index in 0..stack_frames.retype_count() {
             let frame = &stack_frames.new_at(index);
-            trace!("map stack slot {} vaddr 0x{:x} {:?}", frame.cptr, vaddr, rights_rwn);
+            trace!(
+                "map stack slot {} vaddr 0x{:x} {:?}",
+                frame.cptr,
+                vaddr,
+                rights_rwn
+            );
             arch::map_page(frame, pd, vaddr, rights_rwn, vm_attribs)?;
             vaddr += frame.size_bytes().unwrap();
         }
         // TODO(sleffler): sp points to the guard page, do we need - size_of::<seL4_Word>()?
-        self.tcb_sp = vaddr;  // NB: stack grows down (maybe arch-dependent?)
+        self.tcb_sp = vaddr; // NB: stack grows down (maybe arch-dependent?)
         trace!("guard page vaddr 0x{:x}", vaddr);
         vaddr += PAGE_SIZE; // Guard page between stack & ipc buffer
 
         // Map IPC buffer.
         self.tcb_ipcbuffer_addr = vaddr;
-        trace!("map ipcbuffer slot {} vaddr 0x{:x} {:?}", ipcbuffer_frame.cptr, vaddr, rights_rwn);
+        trace!(
+            "map ipcbuffer slot {} vaddr 0x{:x} {:?}",
+            ipcbuffer_frame.cptr,
+            vaddr,
+            rights_rwn
+        );
         arch::map_page(ipcbuffer_frame, pd, vaddr, rights_rwn, vm_attribs)
     }
 
@@ -510,7 +534,7 @@ impl seL4BundleImpl {
             self.tcb_max_priority,
             self.tcb_priority,
             cap_sc,
-            cap_fault_ep
+            cap_fault_ep,
         )?;
         scheduler::TCB_SetTimeoutEndpoint(cap_tcb, cap_tempfault_ep)?;
 
@@ -524,7 +548,11 @@ impl seL4BundleImpl {
         }
 
         let mut sp = self.tcb_sp;
-        assert_eq!(sp % arch::STACK_ALIGNMENT_BYTES, 0, "TCB stack pointer mis-aligned");
+        assert_eq!(
+            sp % arch::STACK_ALIGNMENT_BYTES,
+            0,
+            "TCB stack pointer mis-aligned"
+        );
 
         // XXX nonsense values for testing
         let argv: &[seL4_Word] = &[0x11112222, 0x22223333, 0x44445555];
@@ -532,7 +560,11 @@ impl seL4BundleImpl {
         // NB: tcb_args::maybe_spill_tcb_args may write arg data to the
         // stack causing the stack pointer to be adjusted.
         sp = self.maybe_spill_tcb_args(sp, argv)?;
-        assert_eq!(sp % arch::STACK_ALIGNMENT_BYTES, 0, "Spilled TCB stack pointer mis-aligned");
+        assert_eq!(
+            sp % arch::STACK_ALIGNMENT_BYTES,
+            0,
+            "Spilled TCB stack pointer mis-aligned"
+        );
 
         unsafe {
             seL4_TCB_WriteRegisters(
@@ -555,16 +587,14 @@ impl seL4BundleImpl {
         // XXX should we remove the TCB from the CNode?
         // XXX verify no self-ref to the top-level CNode (so
         //   frames etc cannot be modified)
-        self.dynamic_objs.move_objects_from_toplevel(
-            self.cspace_root.objs[0].cptr,
-            self.cspace_root_depth,
-        )?;
+        self.dynamic_objs
+            .move_objects_from_toplevel(self.cspace_root.objs[0].cptr, self.cspace_root_depth)?;
         // Keep a dup of the TCB in the top-level CNode for suspend/resume.
         // We do this after the bulk move to insure there's a free slot.
         self.cap_tcb.copy_to(
             self.dynamic_objs.cnode,
             self.dynamic_objs.objs[TCB_SLOT].cptr,
-            self.dynamic_objs.depth
+            self.dynamic_objs.depth,
         )?;
         Ok(())
     }
@@ -573,20 +603,22 @@ impl seL4BundleImpl {
     // This is used when doing argv spillover to the stack.
     // NB: cannot be called before init_vspace sets up the stack
     fn get_stack_frame_obj(&self, vaddr: usize) -> &ObjDesc {
-        assert!(self.stack_base <= vaddr && vaddr <= self.tcb_sp,
-                "Invalid stack address {:x} not in range [{:x}:{:x}]",
-                vaddr, self.stack_base, self.tcb_sp);
+        assert!(
+            self.stack_base <= vaddr && vaddr <= self.tcb_sp,
+            "Invalid stack address {:x} not in range [{:x}:{:x}]",
+            vaddr,
+            self.stack_base,
+            self.tcb_sp
+        );
         &self.dynamic_objs.objs[STACK_SLOT + arch::PT_SLOT(vaddr - self.stack_base)]
     }
 }
 impl BundleImplInterface for seL4BundleImpl {
     fn start(&mut self) -> Result<(), ProcessManagerError> {
         self.init_vspace()
-        .and_then(
-            |_| self.init_tcb()
-        ).and_then(
-            |_| self.init_cspace()
-        ).map_err(|_| ProcessManagerError::StartFailed)?;
+            .and_then(|_| self.init_tcb())
+            .and_then(|_| self.init_cspace())
+            .map_err(|_| ProcessManagerError::StartFailed)?;
 
         self.resume() // XXX maybe map_err StartFailed
     }
@@ -597,12 +629,11 @@ impl BundleImplInterface for seL4BundleImpl {
         cantrip_object_free_in_cnode(&self.dynamic_objs)
             .map_err(|_| ProcessManagerError::StopFailed)?;
         self.cap_tcb = CSpaceSlot::new(); // NB: force drop
-        // XXX delete any other local caps
+                                          // XXX delete any other local caps
         Ok(())
     }
     fn resume(&self) -> Result<(), ProcessManagerError> {
-        unsafe { seL4_TCB_Resume(self.cap_tcb.slot) }
-            .map_err(|_| ProcessManagerError::ResumeFailed)
+        unsafe { seL4_TCB_Resume(self.cap_tcb.slot) }.map_err(|_| ProcessManagerError::ResumeFailed)
     }
     fn suspend(&self) -> Result<(), ProcessManagerError> {
         unsafe { seL4_TCB_Suspend(self.cap_tcb.slot) }
@@ -610,7 +641,9 @@ impl BundleImplInterface for seL4BundleImpl {
     }
     fn capscan(&self) -> Result<(), ProcessManagerError> {
         #[cfg(feature = "CONFIG_PRINTING")]
-        unsafe { sel4_sys::seL4_DebugDumpCNode(self.cspace_root.objs[0].cptr); }
+        unsafe {
+            sel4_sys::seL4_DebugDumpCNode(self.cspace_root.objs[0].cptr);
+        }
         Ok(())
     }
 }

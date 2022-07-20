@@ -13,10 +13,7 @@ static mut CAMKES: Camkes = Camkes::new("TimerService");
 #[no_mangle]
 pub unsafe extern "C" fn pre_init() {
     static mut HEAP_MEMORY: [u8; 4 * 1024] = [0; 4 * 1024];
-    CAMKES.pre_init(
-        log::LevelFilter::Debug,
-        &mut HEAP_MEMORY,
-    );
+    CAMKES.pre_init(log::LevelFilter::Debug, &mut HEAP_MEMORY);
 }
 
 #[no_mangle]
@@ -35,10 +32,7 @@ pub unsafe extern "C" fn timer_completed_timers() -> u32 {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn timer_oneshot(
-    timer_id: TimerId,
-    duration_ms: u32
-) -> TimerServiceError {
+pub unsafe extern "C" fn timer_oneshot(timer_id: TimerId, duration_ms: u32) -> TimerServiceError {
     let duration = Duration::from_millis(duration_ms as u64);
     let is_periodic = false;
     let client_id = timer_get_sender_id();
@@ -52,10 +46,7 @@ pub unsafe extern "C" fn timer_oneshot(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn timer_periodic(
-    timer_id: TimerId,
-    duration_ms: u32
-) -> TimerServiceError {
+pub unsafe extern "C" fn timer_periodic(timer_id: TimerId, duration_ms: u32) -> TimerServiceError {
     let duration = Duration::from_millis(duration_ms as u64);
     let is_periodic = true;
     let client_id = timer_get_sender_id();
@@ -69,9 +60,7 @@ pub unsafe extern "C" fn timer_periodic(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn timer_cancel(
-    timer_id: TimerId
-) -> TimerServiceError {
+pub unsafe extern "C" fn timer_cancel(timer_id: TimerId) -> TimerServiceError {
     let client_id = timer_get_sender_id();
     match TIMER_SRV.lock().cancel(client_id, timer_id) {
         Err(e) => e,

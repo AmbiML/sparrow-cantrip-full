@@ -58,7 +58,10 @@ impl MLCoordinator {
             loaded_model: None,
             models: [INIT_NONE; MAX_MODELS],
             execution_queue: Vec::new(),
-            statistics: Statistics{load_failures: 0, already_queued: 0},
+            statistics: Statistics {
+                load_failures: 0,
+                already_queued: 0,
+            },
         }
     }
 
@@ -90,7 +93,7 @@ impl MLCoordinator {
         let mut container_slot = CSpaceSlot::new();
         match cantrip_security_load_model(&model.bundle_id, &model.model_id, &container_slot) {
             Ok(model_frames) => {
-                container_slot.release();  // NB: take ownership
+                container_slot.release(); // NB: take ownership
                 let ret_status = match MlCore::load_image(&model_frames) {
                     Err(e) => {
                         error!(
@@ -328,7 +331,7 @@ impl MLCoordinator {
                 let (bundle, model) = self.ids_at(idx);
                 info!("Running model: {}:{}", bundle, model);
             }
-            None => info!("No running model.")
+            None => info!("No running model."),
         }
 
         match self.loaded_model {
@@ -336,7 +339,7 @@ impl MLCoordinator {
                 let (bundle, model) = self.ids_at(idx);
                 info!("Loaded model: {}:{}", bundle, model);
             }
-            None => info!("No loaded model.")
+            None => info!("No loaded model."),
         }
 
         info!("Loadable Models:");

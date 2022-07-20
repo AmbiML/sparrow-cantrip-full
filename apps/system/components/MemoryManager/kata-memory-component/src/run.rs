@@ -45,14 +45,16 @@ pub unsafe extern "C" fn pre_init() {
     // it to complete initialization of the MemoryManager interface.
     let bootinfo = &*sel4runtime_bootinfo();
     CANTRIP_MEMORY.init(
-        /*slots=*/Range::<seL4_CPtr> {
+        /*slots=*/
+        Range::<seL4_CPtr> {
             start: bootinfo.untyped.start,
-            end: bootinfo.untyped.end
+            end: bootinfo.untyped.end,
         },
         /*untypeds=*/ bootinfo.untyped_descs(),
     );
     if let Ok(stats) = CANTRIP_MEMORY.stats() {
-        trace!("Global memory: {} allocated {} free",
+        trace!(
+            "Global memory: {} allocated {} free",
             stats.allocated_bytes,
             stats.free_bytes,
         );

@@ -9,17 +9,17 @@ use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_os_common::sel4_sys;
 use log::{error, trace};
 
-use sel4_sys::seL4_CapRights;
 use sel4_sys::seL4_CPtr;
+use sel4_sys::seL4_CapRights;
 use sel4_sys::seL4_Default_VMAttributes;
 use sel4_sys::seL4_Error;
 use sel4_sys::seL4_PageBits;
 use sel4_sys::seL4_Page_Map;
 use sel4_sys::seL4_Page_Unmap;
 
-use cantrip_io as io;
 use io::Read;
 use io::Seek;
+use cantrip_io as io;
 
 // TODO(sleffler): use ObjDesc::size_bytes and support multiple page sizes
 const PAGE_SIZE: usize = 1 << seL4_PageBits;
@@ -57,7 +57,7 @@ struct SectionHeader {
     fsize: u32, // Length of data that follows (bytes)
     msize: u32, // Size of memory region (bytes)
     align: u32, // Section data alignment (bytes)
-    pad: u32, // <ignore, reserved for future use>
+    pad: u32,   // <ignore, reserved for future use>
     crc32: u32, // CRC32 of the data that follows
 }
 const SECTION_MAGIC: u64 = 0x0405_1957_1014_1955;
@@ -79,9 +79,15 @@ pub struct BundleImageSection {
     pub vaddr: usize,
 }
 impl BundleImageSection {
-    pub fn is_read(&self) -> bool { (self.flags & SECTION_READ) != 0 }
-    pub fn is_write(&self) -> bool { (self.flags & SECTION_WRITE) != 0 }
-    pub fn is_exec(&self) -> bool { (self.flags & SECTION_EXEC) != 0 }
+    pub fn is_read(&self) -> bool {
+        (self.flags & SECTION_READ) != 0
+    }
+    pub fn is_write(&self) -> bool {
+        (self.flags & SECTION_WRITE) != 0
+    }
+    pub fn is_exec(&self) -> bool {
+        (self.flags & SECTION_EXEC) != 0
+    }
     pub fn get_rights(&self) -> seL4_CapRights {
         seL4_CapRights::new(
             /*grantreply=*/ 0,
@@ -90,8 +96,12 @@ impl BundleImageSection {
             /*write=*/ self.is_write() as usize,
         )
     }
-    pub fn data_range(&self) -> Range<usize> { 0..self.fsize }
-    pub fn zero_range(&self) -> Range<usize> { self.fsize..self.msize }
+    pub fn data_range(&self) -> Range<usize> {
+        0..self.fsize
+    }
+    pub fn zero_range(&self) -> Range<usize> {
+        self.fsize..self.msize
+    }
 }
 
 // BundleImage is a loadable image that backs a Bundle. There are images
@@ -107,11 +117,11 @@ pub struct BundleImage<'a> {
     frames: &'a ObjDescBundle,
     cur_frame: Option<seL4_CPtr>,
     last_frame: Option<seL4_CPtr>,
-    cur_pos: u64, // Current position in i/o stream
-    bounce: CSpaceSlot, // Top-level CNode slot for doing map
+    cur_pos: u64,         // Current position in i/o stream
+    bounce: CSpaceSlot,   // Top-level CNode slot for doing map
     mapped_page: *mut u8, // Currently mapped page frame
-    mapped_bytes: usize, // Bytes in mapped frame, 0 when no frame mapped
-    bytes_read: usize, // Bytes read from mapped frame
+    mapped_bytes: usize,  // Bytes in mapped frame, 0 when no frame mapped
+    bytes_read: usize,    // Bytes read from mapped frame
 
     // Section iterator state.
     next_section: usize, // Byte offset to next section
@@ -141,7 +151,8 @@ impl<'a> BundleImage<'a> {
     // avoid BundleImage borrow issues.
     // XXX change to Result so errors are visible
     pub fn next_section(&mut self) -> Option<BundleImageSection> {
-        self.seek(io::SeekFrom::Start(self.next_section as u64)).ok()?;
+        self.seek(io::SeekFrom::Start(self.next_section as u64))
+            .ok()?;
         let raw_data = &mut [0u8; size_of::<SectionHeader>()];
         self.read_exact(raw_data).ok()?;
         let magic = u64::from_be_bytes(raw_data[0..8].try_into().unwrap());
@@ -149,8 +160,10 @@ impl<'a> BundleImage<'a> {
             // NB: happens when the image does not end on a page boundary,
             //   check magic as a hack to detect this
             if magic != 0 {
-                error!("Invalid magic number at offset {} expected 0x{:x} got 0x{:x}",
-                      self.next_section, SECTION_MAGIC, magic);
+                error!(
+                    "Invalid magic number at offset {} expected 0x{:x} got 0x{:x}",
+                    self.next_section, SECTION_MAGIC, magic
+                );
             }
             return None;
         }
@@ -177,7 +190,8 @@ impl<'a> BundleImage<'a> {
             // XXX if unmap fails bounce is cleaned up on drop but we probably want it moved instead
             unsafe { seL4_Page_Unmap(self.bounce.slot) }
                 .map_err(|_| BundleImageError::PageUnmapFailed)?;
-            self.bounce.move_from(self.frames.cnode, cptr, self.frames.depth)
+            self.bounce
+                .move_from(self.frames.cnode, cptr, self.frames.depth)
                 .map_err(|_| BundleImageError::CapMoveFailed)?;
         }
         self.last_frame = self.cur_frame;
@@ -191,7 +205,7 @@ impl<'a> BundleImage<'a> {
     fn map_next_frame(&mut self) -> Result<(), BundleImageError> {
         assert_eq!(self.cur_frame, None);
         let mut od_off: u64 = 0; // Running byte offset to start of current ObjDesc
-        // n^2 in ObjDesc, track last frame
+                                 // n^2 in ObjDesc, track last frame
         for od in &self.frames.objs {
             // TODO(sleffler): maybe move page index logic to ObjDesc
             let size_bytes = od.size_bytes().unwrap() as u64;
@@ -201,37 +215,43 @@ impl<'a> BundleImage<'a> {
                 assert!(index < od.retype_count());
 
                 // Bounce through the top-level CNode.
-                sel4_sys::debug_assert_slot_empty!(self.bounce.slot,
+                sel4_sys::debug_assert_slot_empty!(
+                    self.bounce.slot,
                     "{}: expected slot {:?} empty but has cap type {:?}",
-                    "map_next_frame", self.bounce.slot,
-                    sel4_sys::cap_identify(self.bounce.slot));
-                self.bounce.move_to(
-                    self.frames.cnode,
-                    od.cptr + index,
-                    self.frames.depth
-                ).map_err(|_| BundleImageError::CapMoveFailed)?;
+                    "map_next_frame",
+                    self.bounce.slot,
+                    sel4_sys::cap_identify(self.bounce.slot)
+                );
+                self.bounce
+                    .move_to(self.frames.cnode, od.cptr + index, self.frames.depth)
+                    .map_err(|_| BundleImageError::CapMoveFailed)?;
 
                 // Map the page into our VSpace
                 // TODO(sleffler): if this fails maybe undo move_to
-                sel4_sys::debug_assert_slot_frame!(self.bounce.slot,
+                sel4_sys::debug_assert_slot_frame!(
+                    self.bounce.slot,
                     "{}: expected frame in slot {:?} but has cap type {:?}",
-                    "map_next_frame", self.bounce.slot,
-                    sel4_sys::cap_identify(self.bounce.slot));
+                    "map_next_frame",
+                    self.bounce.slot,
+                    sel4_sys::cap_identify(self.bounce.slot)
+                );
                 unsafe {
                     seL4_Page_Map(
                         /*sel4_page=*/ self.bounce.slot,
                         /*seL4_pd=*/ SELF_VSPACE_ROOT,
                         /*vaddr=*/ self.mapped_page as usize,
                         seL4_CapRights::new(
-                            /*grant_reply=*/0, /*grant=*/0, /*read=1*/1, /*write=*/0,
+                            /*grant_reply=*/ 0, /*grant=*/ 0, /*read=1*/ 1,
+                            /*write=*/ 0,
                         ),
                         seL4_Default_VMAttributes,
                     )
-                }.map_err(|_| BundleImageError::PageMapFailed)?;
+                }
+                .map_err(|_| BundleImageError::PageMapFailed)?;
                 self.cur_frame = Some(od.cptr + index);
                 self.mapped_bytes = PAGE_SIZE;
                 self.bytes_read = ((self.cur_pos - od_off) % (PAGE_SIZE as u64)) as usize;
-                return Ok(())
+                return Ok(());
             }
             od_off += size_bytes;
         }
@@ -249,19 +269,23 @@ impl<'a> io::Seek for BundleImage<'a> {
         let new_pos = match pos {
             io::SeekFrom::Current(p) => {
                 let ipos = (self.cur_pos as i64) + p;
-                if ipos < 0 { return Err(io::Error) }
+                if ipos < 0 {
+                    return Err(io::Error);
+                }
                 ipos as u64
             }
             io::SeekFrom::End(p) => {
                 // NB: potentially expensive to calculate
                 let ipos = (self.frames.size_bytes() as i64) + p;
-                if ipos < 0 { return Err(io::Error) }
+                if ipos < 0 {
+                    return Err(io::Error);
+                }
                 ipos as u64
             }
             io::SeekFrom::Start(p) => p,
         };
         if new_pos != self.cur_pos {
-        trace!("SEEK: cur {} new {}", self.cur_pos, new_pos);
+            trace!("SEEK: cur {} new {}", self.cur_pos, new_pos);
             // TODO(sleffler): handle seek within same page
             self.unmap_current_frame().map_err(|_| io::Error)?;
             self.cur_pos = new_pos;
@@ -276,15 +300,14 @@ impl<'a> io::Read for BundleImage<'a> {
             let available_bytes = self.mapped_bytes - self.bytes_read;
             if available_bytes > 0 {
                 // Fill from the current frame (as space permits).
-                let region = unsafe {
-                    core::slice::from_raw_parts_mut(self.mapped_page, self.mapped_bytes)
-                };
+                let region =
+                    unsafe { core::slice::from_raw_parts_mut(self.mapped_page, self.mapped_bytes) };
                 let bytes_to_read = cmp::min(available_bytes, cursor.len());
                 unsafe {
                     ptr::copy_nonoverlapping(
                         region[self.bytes_read..].as_ptr(),
                         cursor.as_mut_ptr(),
-                        bytes_to_read
+                        bytes_to_read,
                     )
                 };
                 self.bytes_read += bytes_to_read;
@@ -297,7 +320,9 @@ impl<'a> io::Read for BundleImage<'a> {
                     self.unmap_current_frame().map_err(|_| io::Error)?;
                 }
             }
-            if cursor.is_empty() { break }
+            if cursor.is_empty() {
+                break;
+            }
 
             // Map the next frame for read.
             self.map_next_frame().map_err(|_| io::Error)?;

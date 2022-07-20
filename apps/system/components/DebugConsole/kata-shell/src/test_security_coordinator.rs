@@ -1,11 +1,11 @@
 // SecurityCoordinator shell test commands
 
 extern crate alloc;
-use alloc::vec::Vec;
-use core::fmt::Write;
 use crate::CmdFn;
 use crate::CommandError;
 use crate::HashMap;
+use alloc::vec::Vec;
+use core::fmt::Write;
 
 use cantrip_io as io;
 use cantrip_memory_interface::cantrip_object_free_in_cnode;
@@ -13,17 +13,17 @@ use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_security_interface::*;
 use cantrip_storage_interface::KEY_VALUE_DATA_SIZE;
 
-pub fn add_cmds(cmds: &mut HashMap::<&str, CmdFn>) {
+pub fn add_cmds(cmds: &mut HashMap<&str, CmdFn>) {
     cmds.extend([
-        ("scecho",              scecho_command as CmdFn),
-        ("size_buffer",         size_buffer_command as CmdFn),
-        ("get_manifest",        get_manifest_command as CmdFn),
-        ("load_application",    load_application_command as CmdFn),
-        ("load_model",          load_model_command as CmdFn),
-        ("delete_key",          delete_key_command as CmdFn),
-        ("read_key",            read_key_command as CmdFn),
-        ("write_key",           write_key_command as CmdFn),
-        ("test_mailbox",        test_mailbox_command as CmdFn),
+        ("scecho", scecho_command as CmdFn),
+        ("size_buffer", size_buffer_command as CmdFn),
+        ("get_manifest", get_manifest_command as CmdFn),
+        ("load_application", load_application_command as CmdFn),
+        ("load_model", load_model_command as CmdFn),
+        ("delete_key", delete_key_command as CmdFn),
+        ("read_key", read_key_command as CmdFn),
+        ("write_key", write_key_command as CmdFn),
+        ("test_mailbox", test_mailbox_command as CmdFn),
     ]);
 }
 
@@ -83,7 +83,7 @@ fn load_application_command(
             container_slot.release(); // NB: take ownership
             writeln!(output, "{:?}", &frames)?;
             let _ = cantrip_object_free_in_cnode(&frames);
-        },
+        }
         Err(status) => writeln!(output, "LoadApplication failed: {:?}", status)?,
     }
     Ok(())

@@ -1,20 +1,20 @@
 // Infrequently used shell commands
 
 extern crate alloc;
-use alloc::vec::Vec;
-use core::fmt::Write;
+use crate::rz;
 use crate::CmdFn;
 use crate::CommandError;
-use crate::rz;
+use alloc::vec::Vec;
+use core::fmt::Write;
 
 use cantrip_io as io;
 
-pub fn add_cmds(cmds: &mut HashMap::<&str, CmdFn>) {
+pub fn add_cmds(cmds: &mut HashMap<&str, CmdFn>) {
     cmds.extend([
-        ("add",                 add_command as CmdFn),
-        ("echo",                echo_command as CmdFn),
-        ("clear",               clear_command as CmdFn),
-        ("rz",                  rz_command as CmdFn),
+        ("add", add_command as CmdFn),
+        ("echo", echo_command as CmdFn),
+        ("clear", clear_command as CmdFn),
+        ("rz", rz_command as CmdFn),
     ]);
 }
 

@@ -36,7 +36,9 @@ pub type SecurityReplyData = [u8; SECURITY_REPLY_DATA_SIZE];
 
 // Interface to any seL4 caapbility associated with the request.
 pub trait SecurityCapability {
-    fn get_container_cap(&self) -> Option<seL4_CPtr> { None }
+    fn get_container_cap(&self) -> Option<seL4_CPtr> {
+        None
+    }
     // TODO(sleffler): assert/log where no cap
     fn set_container_cap(&mut self, _cap: seL4_CPtr) {}
 }
@@ -55,8 +57,12 @@ pub struct InstallRequest {
     pub pkg_contents: ObjDescBundle,
 }
 impl SecurityCapability for InstallRequest {
-    fn get_container_cap(&self) -> Option<seL4_CPtr> { Some(self.pkg_contents.cnode) }
-    fn set_container_cap(&mut self, cap: seL4_CPtr) { self.pkg_contents.cnode = cap; }
+    fn get_container_cap(&self) -> Option<seL4_CPtr> {
+        Some(self.pkg_contents.cnode)
+    }
+    fn set_container_cap(&mut self, cap: seL4_CPtr) {
+        self.pkg_contents.cnode = cap;
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -112,8 +118,12 @@ pub struct LoadApplicationResponse {
     pub bundle_frames: ObjDescBundle,
 }
 impl SecurityCapability for LoadApplicationResponse {
-    fn get_container_cap(&self) -> Option<seL4_CPtr> { Some(self.bundle_frames.cnode) }
-    fn set_container_cap(&mut self, cap: seL4_CPtr) { self.bundle_frames.cnode = cap; }
+    fn get_container_cap(&self) -> Option<seL4_CPtr> {
+        Some(self.bundle_frames.cnode)
+    }
+    fn set_container_cap(&mut self, cap: seL4_CPtr) {
+        self.bundle_frames.cnode = cap;
+    }
 }
 
 // SecurityRequestLoadModel
@@ -131,8 +141,12 @@ pub struct LoadModelResponse {
     pub model_frames: ObjDescBundle,
 }
 impl SecurityCapability for LoadModelResponse {
-    fn get_container_cap(&self) -> Option<seL4_CPtr> { Some(self.model_frames.cnode) }
-    fn set_container_cap(&mut self, cap: seL4_CPtr) { self.model_frames.cnode = cap; }
+    fn get_container_cap(&self) -> Option<seL4_CPtr> {
+        Some(self.model_frames.cnode)
+    }
+    fn set_container_cap(&mut self, cap: seL4_CPtr) {
+        self.model_frames.cnode = cap;
+    }
 }
 
 // SecurityRequestReadKey
@@ -245,7 +259,7 @@ pub enum SecurityRequest {
     SrDeleteKey, // Delete key [bundle_id, key]
 
     SrTestMailbox, // Run mailbox tests
-    SrCapScan, // Dump contents CNode to console
+    SrCapScan,     // Dump contents CNode to console
 }
 
 // Interface to underlying facilities; also used to inject fakes for unit tests.
@@ -255,9 +269,18 @@ pub trait SecurityCoordinatorInterface {
     fn size_buffer(&self, bundle_id: &str) -> Result<usize, SecurityRequestError>;
     fn get_manifest(&self, bundle_id: &str) -> Result<String, SecurityRequestError>;
     fn load_application(&self, bundle_id: &str) -> Result<ObjDescBundle, SecurityRequestError>;
-    fn load_model(&self, bundle_id: &str, model_id: &str) -> Result<ObjDescBundle, SecurityRequestError>;
+    fn load_model(
+        &self,
+        bundle_id: &str,
+        model_id: &str,
+    ) -> Result<ObjDescBundle, SecurityRequestError>;
     fn read_key(&self, bundle_id: &str, key: &str) -> Result<&KeyValueData, SecurityRequestError>;
-    fn write_key(&mut self, bundle_id: &str, key: &str, value: &KeyValueData) -> Result<(), SecurityRequestError>;
+    fn write_key(
+        &mut self,
+        bundle_id: &str,
+        key: &str,
+        value: &KeyValueData,
+    ) -> Result<(), SecurityRequestError>;
     fn delete_key(&mut self, bundle_id: &str, key: &str) -> Result<(), SecurityRequestError>;
     fn test_mailbox(&mut self) -> Result<(), SecurityRequestError>;
 }
@@ -278,8 +301,11 @@ pub fn cantrip_security_request<T: Serialize + SecurityCapability>(
             c_reply_buffer: *mut SecurityReplyData,
         ) -> SecurityRequestError;
     }
-    trace!("cantrip_security_request {:?} cap {:?}",
-           &request, request_args.get_container_cap());
+    trace!(
+        "cantrip_security_request {:?} cap {:?}",
+        &request,
+        request_args.get_container_cap()
+    );
     let mut request_buffer = [0u8; SECURITY_REQUEST_DATA_SIZE];
     let _ = postcard::to_slice(request_args, &mut request_buffer[..])
         .map_err(|_| SecurityRequestError::SreSerializeFailed)?;
@@ -308,53 +334,49 @@ pub fn cantrip_security_request<T: Serialize + SecurityCapability>(
 
 #[inline]
 #[allow(dead_code)]
-pub fn cantrip_security_echo(request: &str)
-    -> Result<String, SecurityRequestError>
-{
+pub fn cantrip_security_echo(request: &str) -> Result<String, SecurityRequestError> {
     let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
     cantrip_security_request(
         SecurityRequest::SrEcho,
-        &EchoRequest { value: request.as_bytes(), },
+        &EchoRequest {
+            value: request.as_bytes(),
+        },
         reply,
-    ).map(|_| String::from_utf8_lossy(&reply[..request.len()]).into_owned())
+    )
+    .map(|_| String::from_utf8_lossy(&reply[..request.len()]).into_owned())
 }
 
 #[inline]
 #[allow(dead_code)]
-pub fn cantrip_security_install(pkg_contents: &ObjDescBundle)
-    -> Result<String, SecurityRequestError>
-{
+pub fn cantrip_security_install(pkg_contents: &ObjDescBundle) -> Result<String, SecurityRequestError> {
     let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
     cantrip_security_request(
         SecurityRequest::SrInstall,
-        &InstallRequest { pkg_contents: pkg_contents.clone(), },
+        &InstallRequest {
+            pkg_contents: pkg_contents.clone(),
+        },
         reply,
     )?;
-    postcard::from_bytes::<String>(reply)
-        .map_err(|_| SecurityRequestError::SreDeserializeFailed)
+    postcard::from_bytes::<String>(reply).map_err(|_| SecurityRequestError::SreDeserializeFailed)
 }
 
 #[inline]
 #[allow(dead_code)]
-pub fn cantrip_security_uninstall(bundle_id: &str)
-    -> Result<(), SecurityRequestError>
-{
+pub fn cantrip_security_uninstall(bundle_id: &str) -> Result<(), SecurityRequestError> {
     cantrip_security_request(
         SecurityRequest::SrUninstall,
-        &UninstallRequest { bundle_id, },
+        &UninstallRequest { bundle_id },
         &mut [0u8; SECURITY_REPLY_DATA_SIZE],
     )
 }
 
 #[inline]
 #[allow(dead_code)]
-pub fn cantrip_security_size_buffer(bundle_id: &str)
-    -> Result<usize, SecurityRequestError>
-{
+pub fn cantrip_security_size_buffer(bundle_id: &str) -> Result<usize, SecurityRequestError> {
     let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
     cantrip_security_request(
         SecurityRequest::SrSizeBuffer,
-        &SizeBufferRequest { bundle_id, },
+        &SizeBufferRequest { bundle_id },
         reply,
     )?;
     let response = postcard::from_bytes::<SizeBufferResponse>(reply)
@@ -364,13 +386,11 @@ pub fn cantrip_security_size_buffer(bundle_id: &str)
 
 #[inline]
 #[allow(dead_code)]
-pub fn cantrip_security_get_manifest(bundle_id: &str)
-    -> Result<String, SecurityRequestError>
-{
+pub fn cantrip_security_get_manifest(bundle_id: &str) -> Result<String, SecurityRequestError> {
     let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
     cantrip_security_request(
         SecurityRequest::SrGetManifest,
-        &GetManifestRequest { bundle_id, },
+        &GetManifestRequest { bundle_id },
         reply,
     )?;
     let response = postcard::from_bytes::<GetManifestResponse>(reply)
@@ -388,15 +408,17 @@ pub fn cantrip_security_load_application(
     // NB: SrLoadApplication returns a CNode with the application
     //   contents, make sure the receive slot is empty or it can
     //   silently fail.
-    sel4_sys::debug_assert_slot_empty!(container_slot.slot,
+    sel4_sys::debug_assert_slot_empty!(
+        container_slot.slot,
         "Expected slot {:?} empty but has cap type {:?}",
         &container_slot.get_path(),
-        sel4_sys::cap_identify(container_slot.slot));
+        sel4_sys::cap_identify(container_slot.slot)
+    );
 
     let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
     cantrip_security_request(
         SecurityRequest::SrLoadApplication,
-        &LoadApplicationRequest { bundle_id, },
+        &LoadApplicationRequest { bundle_id },
         reply,
     )?;
     if let Ok(mut response) = postcard::from_bytes::<LoadApplicationResponse>(reply) {
@@ -419,15 +441,20 @@ pub fn cantrip_security_load_model(
     // NB: SrLoadApplication returns a CNode with the application
     //   contents, make sure the receive slot is empty or it can
     //   silently fail.
-    sel4_sys::debug_assert_slot_empty!(container_slot.slot,
+    sel4_sys::debug_assert_slot_empty!(
+        container_slot.slot,
         "Expected slot {:?} empty but has cap type {:?}",
         &container_slot.get_path(),
-        sel4_sys::cap_identify(container_slot.slot));
+        sel4_sys::cap_identify(container_slot.slot)
+    );
 
     let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
     cantrip_security_request(
         SecurityRequest::SrLoadModel,
-        &LoadModelRequest { bundle_id, model_id, },
+        &LoadModelRequest {
+            bundle_id,
+            model_id,
+        },
         reply,
     )?;
     if let Ok(mut response) = postcard::from_bytes::<LoadModelResponse>(reply) {
@@ -449,7 +476,7 @@ pub fn cantrip_security_read_key(
     let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
     cantrip_security_request(
         SecurityRequest::SrReadKey,
-        &ReadKeyRequest { bundle_id, key, },
+        &ReadKeyRequest { bundle_id, key },
         reply,
     )?;
     let response = postcard::from_bytes::<ReadKeyResponse>(reply)
@@ -467,20 +494,21 @@ pub fn cantrip_security_write_key(
 ) -> Result<(), SecurityRequestError> {
     cantrip_security_request(
         SecurityRequest::SrWriteKey,
-        &WriteKeyRequest { bundle_id, key, value, },
+        &WriteKeyRequest {
+            bundle_id,
+            key,
+            value,
+        },
         &mut [0u8; SECURITY_REPLY_DATA_SIZE],
     )
 }
 
 #[inline]
 #[allow(dead_code)]
-pub fn cantrip_security_delete_key(
-    bundle_id: &str,
-    key: &str,
-) -> Result<(), SecurityRequestError> {
+pub fn cantrip_security_delete_key(bundle_id: &str, key: &str) -> Result<(), SecurityRequestError> {
     cantrip_security_request(
         SecurityRequest::SrDeleteKey,
-        &DeleteKeyRequest { bundle_id, key, },
+        &DeleteKeyRequest { bundle_id, key },
         &mut [0u8; SECURITY_REPLY_DATA_SIZE],
     )
 }

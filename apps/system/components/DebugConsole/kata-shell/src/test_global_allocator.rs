@@ -1,19 +1,19 @@
 // Global allocator shell test commands
 
 extern crate alloc;
-use alloc::vec;
-use alloc::vec::Vec;
-use core::fmt::Write;
 use crate::CmdFn;
 use crate::CommandError;
 use crate::HashMap;
+use alloc::vec;
+use alloc::vec::Vec;
+use core::fmt::Write;
 
 use cantrip_io as io;
 
-pub fn add_cmds(cmds: &mut HashMap::<&str, CmdFn>) {
+pub fn add_cmds(cmds: &mut HashMap<&str, CmdFn>) {
     cmds.extend([
-        ("test_alloc",          alloc_command as CmdFn),
-        ("test_alloc_error",    alloc_error_command as CmdFn),
+        ("test_alloc", alloc_command as CmdFn),
+        ("test_alloc_error", alloc_error_command as CmdFn),
     ]);
 }
 

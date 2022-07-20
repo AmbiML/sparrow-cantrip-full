@@ -3,10 +3,10 @@
 #![cfg_attr(not(test), no_std)]
 
 use core::ops::Range;
-use cantrip_memory_interface::ObjDescBundle;
 use cantrip_memory_interface::MemoryError;
 use cantrip_memory_interface::MemoryManagerInterface;
 use cantrip_memory_interface::MemoryManagerStats;
+use cantrip_memory_interface::ObjDescBundle;
 use cantrip_os_common::sel4_sys;
 use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_UntypedDesc;

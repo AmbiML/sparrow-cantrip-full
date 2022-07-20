@@ -8,16 +8,16 @@ use alloc::vec;
 use alloc::vec::Vec;
 use core::fmt;
 use cantrip_os_common::camkes::Camkes;
-use cantrip_os_common::slot_allocator;
 use cantrip_os_common::sel4_sys;
+use cantrip_os_common::slot_allocator;
 use log::trace;
 use serde::{Deserialize, Serialize};
 
 use sel4_sys::seL4_CNode_Move;
 use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_Error;
-use sel4_sys::seL4_ObjectType::*;
 use sel4_sys::seL4_ObjectType;
+use sel4_sys::seL4_ObjectType::*;
 use sel4_sys::seL4_PageBits;
 use sel4_sys::seL4_Result;
 use sel4_sys::seL4_WordBits;
@@ -62,7 +62,7 @@ pub struct ObjDesc {
     // objects the log2 number of slots to use in sizing the object,
     // or for untyped objects the log2 size in bytes, or for scheduler
     // context objects the size in bits. See seL4_ObjectType::size_bits().
-    count: usize,  // XXX oversized (except for untyped use)
+    count: usize, // XXX oversized (except for untyped use)
 
     // CSpace address for realized objects requested. If |count| is >1
     // this descriptor describes objects with |cptr|'s [0..|count|).
@@ -77,11 +77,7 @@ pub struct ObjDesc {
     pub cptr: seL4_CPtr,
 }
 impl ObjDesc {
-    pub fn new(
-        type_: seL4_ObjectType,
-        count: usize,
-        cptr: seL4_CPtr,
-    ) -> Self {
+    pub fn new(type_: seL4_ObjectType, count: usize, cptr: seL4_CPtr) -> Self {
         ObjDesc { type_, count, cptr }
     }
 
@@ -104,9 +100,7 @@ impl ObjDesc {
         match self.type_ {
             // NB: we don't support creating multiple instances of the same
             //   size; the caller must supply multiple object descriptors.
-              seL4_UntypedObject
-            | seL4_CapTableObject
-            | seL4_SchedContextObject => 1,
+            seL4_UntypedObject | seL4_CapTableObject | seL4_SchedContextObject => 1,
             _ => self.count,
         }
     }
@@ -114,10 +108,8 @@ impl ObjDesc {
     // Memory occupied by objects. Used mainly for bookkeeping and statistics.
     pub fn size_bytes(&self) -> Option<usize> {
         match self.type_ {
-            seL4_UntypedObject
-            | seL4_SchedContextObject => Some(1 << self.count),
-            seL4_CapTableObject =>
-                self.type_.size_bits().map(|x| (1 << (x + self.count))),
+            seL4_UntypedObject | seL4_SchedContextObject => Some(1 << self.count),
+            seL4_CapTableObject => self.type_.size_bits().map(|x| (1 << (x + self.count))),
             _ => self.type_.size_bits().map(|x| self.count * (1 << x)),
         }
     }
@@ -140,29 +132,37 @@ pub struct ObjDescBundle {
     pub objs: Vec<ObjDesc>,
 }
 impl ObjDescBundle {
-    pub fn new(
-        cnode: seL4_CPtr,
-        depth: u8,
-        objs: Vec<ObjDesc>,
-    ) -> Self {
+    pub fn new(cnode: seL4_CPtr, depth: u8, objs: Vec<ObjDesc>) -> Self {
         // TODO(sleffler): assert the largest cptr fits in the container
         ObjDescBundle { cnode, depth, objs }
     }
 
     // Returns whether there are any object descriptors.
-    pub fn is_empty(&self) -> bool { self.objs.len() == 0 }
+    pub fn is_empty(&self) -> bool {
+        self.objs.len() == 0
+    }
 
     // Returns the number of object descriptors.
-    pub fn len(&self) -> usize { self.objs.len() }
+    pub fn len(&self) -> usize {
+        self.objs.len()
+    }
 
     // Returns the count of objects specified by the object descriptors.
     pub fn count(&self) -> usize {
-        self.objs.as_slice().iter().map(|od| od.retype_count()).sum()
+        self.objs
+            .as_slice()
+            .iter()
+            .map(|od| od.retype_count())
+            .sum()
     }
 
     // Returns the total bytes specified by the object descriptors.
     pub fn size_bytes(&self) -> usize {
-        self.objs.as_slice().iter().map(|od| od.size_bytes().unwrap()).sum()
+        self.objs
+            .as_slice()
+            .iter()
+            .map(|od| od.size_bytes().unwrap())
+            .sum()
     }
 
     // Returns the log2 size that holds all the objects. This is typically
@@ -186,15 +186,15 @@ impl ObjDescBundle {
 
     // Returns an iterator that enumerates each object's seL4_CPtr.
     pub fn cptr_iter(&self) -> impl Iterator<Item = seL4_CPtr> + '_ {
-        self.objs.iter().flat_map(|od| od.cptr..(od.cptr + od.retype_count()))
+        self.objs
+            .iter()
+            .flat_map(|od| od.cptr..(od.cptr + od.retype_count()))
     }
 
     // Move objects to dynamically-allocated slots in the top-level
     // CNode and mutate the Object Descriptor with the new cptr's.
     // TODO(sleffler) make generic (requires supplying slot allocator)?
-    pub fn move_objects_to_toplevel(
-        &mut self,
-    ) -> seL4_Result {
+    pub fn move_objects_to_toplevel(&mut self) -> seL4_Result {
         let dest_cnode = unsafe { SELF_CNODE };
         let dest_depth = seL4_WordBits as u8;
         for od in &mut self.objs {
@@ -255,24 +255,27 @@ impl ObjDescBundle {
 }
 impl fmt::Display for ObjDescBundle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.cnode == unsafe { SELF_CNODE} {
+        if self.cnode == unsafe { SELF_CNODE } {
             assert_eq!(self.depth as usize, seL4_WordBits);
             write!(f, "{{ SELF,  {:?} }}", &self.objs)
-        } else if self.cnode == unsafe { MEMORY_RECV_CNODE} {
+        } else if self.cnode == unsafe { MEMORY_RECV_CNODE } {
             assert_eq!(self.depth, unsafe { MEMORY_RECV_CNODE_DEPTH });
             write!(f, "{{ MEMORY_RECV, {:?} }}", &self.objs)
         } else {
-            write!(f, "{{ cnode: {}, depth: {}, {:?} }}",
-                       self.cnode, self.depth, &self.objs)
+            write!(
+                f,
+                "{{ cnode: {}, depth: {}, {:?} }}",
+                self.cnode, self.depth, &self.objs
+            )
         }
     }
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum MemoryError {
-    ObjCountInvalid = 0,   // Too many objects requested
-    ObjTypeInvalid,        // Request with invalid object type
-    ObjCapInvalid,         // Request with invalid cptr XXX
+    ObjCountInvalid = 0, // Too many objects requested
+    ObjTypeInvalid,      // Request with invalid object type
+    ObjCapInvalid,       // Request with invalid cptr XXX
     CapAllocFailed,
     UnknownMemoryError,
     // Generic errors.
@@ -354,10 +357,9 @@ impl From<MemoryError> for MemoryManagerError {
 }
 impl From<Result<(), MemoryError>> for MemoryManagerError {
     fn from(result: Result<(), MemoryError>) -> MemoryManagerError {
-        result.map_or_else(
-            MemoryManagerError::from,
-            |_v| MemoryManagerError::MmeSuccess,
-        )
+        result.map_or_else(MemoryManagerError::from, |_v| {
+            MemoryManagerError::MmeSuccess
+        })
     }
 }
 impl From<MemoryManagerError> for Result<(), MemoryManagerError> {
@@ -375,13 +377,10 @@ impl From<MemoryManagerError> for Result<(), MemoryManagerError> {
 // Allocates the objects specified in |request|. The capabilities are stored
 // in |request|.cnode which is assumed to be a CNode with sufficient capacity
 #[inline]
-pub fn cantrip_object_alloc(
-    request: &ObjDescBundle,
-) -> Result<(), MemoryManagerError> {
+pub fn cantrip_object_alloc(request: &ObjDescBundle) -> Result<(), MemoryManagerError> {
     extern "C" {
         // NB: this assumes the MemoryManager component is named "memory".
-        fn memory_alloc(c_request_len: u32, c_request_data: *const u8)
-            -> MemoryManagerError;
+        fn memory_alloc(c_request_len: u32, c_request_data: *const u8) -> MemoryManagerError;
     }
     trace!("cantrip_object_alloc {}", request);
     let raw_data = &mut [0u8; RAW_OBJ_DESC_DATA_SIZE];
@@ -426,9 +425,7 @@ pub fn cantrip_object_alloc_in_toplevel(
 // Note the objects' cptr's are assumed to be consecutive and start at zero.
 // Note the returned |ObjDescBundle| has the new CNode marked as the container.
 #[inline]
-pub fn cantrip_object_alloc_in_cnode(
-    objs: Vec<ObjDesc>,
-) -> Result<ObjDescBundle, MemoryManagerError> {
+pub fn cantrip_object_alloc_in_cnode(objs: Vec<ObjDesc>) -> Result<ObjDescBundle, MemoryManagerError> {
     fn next_log2(value: usize) -> usize {
         // NB: BITS & leading_zeros return u32
         (1 + usize::BITS - usize::leading_zeros(value)) as usize
@@ -440,9 +437,7 @@ pub fn cantrip_object_alloc_in_cnode(
     let cnode = cantrip_cnode_alloc(cnode_depth)?;
 
     // Now construct the request for |objs| with |cnode| as the container.
-    let request = ObjDescBundle::new(
-        cnode.objs[0].cptr, cnode_depth as u8, objs,
-    );
+    let request = ObjDescBundle::new(cnode.objs[0].cptr, cnode_depth as u8, objs);
     match cantrip_object_alloc(&request) {
         Err(e) => {
             cantrip_object_free_toplevel(&cnode).expect("cnode free");
@@ -455,13 +450,15 @@ pub fn cantrip_object_alloc_in_cnode(
 // TODO(sleffler): remove unused convience wrappers?
 
 #[inline]
-pub fn cantrip_untyped_alloc(space_bytes: usize)
-    -> Result<ObjDescBundle, MemoryManagerError>
-{
+pub fn cantrip_untyped_alloc(space_bytes: usize) -> Result<ObjDescBundle, MemoryManagerError> {
     let mut objs = ObjDescBundle::new(
         unsafe { MEMORY_RECV_CNODE },
         unsafe { MEMORY_RECV_CNODE_DEPTH },
-        vec![ ObjDesc::new(seL4_UntypedObject, space_bytes, /*cptr=*/ 0) ],
+        vec![ObjDesc::new(
+            seL4_UntypedObject,
+            space_bytes,
+            /*cptr=*/ 0,
+        )],
     );
     cantrip_object_alloc(&objs)?;
     objs.move_objects_to_toplevel()
@@ -474,7 +471,7 @@ pub fn cantrip_tcb_alloc() -> Result<ObjDescBundle, MemoryManagerError> {
     let mut objs = ObjDescBundle::new(
         unsafe { MEMORY_RECV_CNODE },
         unsafe { MEMORY_RECV_CNODE_DEPTH },
-        vec![ ObjDesc::new(seL4_TCBObject, 1, /*cptr=*/ 0) ],
+        vec![ObjDesc::new(seL4_TCBObject, 1, /*cptr=*/ 0)],
     );
     cantrip_object_alloc(&objs)?;
     objs.move_objects_to_toplevel()
@@ -487,7 +484,7 @@ pub fn cantrip_endpoint_alloc() -> Result<ObjDescBundle, MemoryManagerError> {
     let mut objs = ObjDescBundle::new(
         unsafe { MEMORY_RECV_CNODE },
         unsafe { MEMORY_RECV_CNODE_DEPTH },
-        vec![ ObjDesc::new(seL4_EndpointObject, 1, /*cptr=*/ 0) ],
+        vec![ObjDesc::new(seL4_EndpointObject, 1, /*cptr=*/ 0)],
     );
     cantrip_object_alloc(&objs)?;
     objs.move_objects_to_toplevel()
@@ -500,7 +497,7 @@ pub fn cantrip_notification_alloc() -> Result<ObjDescBundle, MemoryManagerError>
     let mut objs = ObjDescBundle::new(
         unsafe { MEMORY_RECV_CNODE },
         unsafe { MEMORY_RECV_CNODE_DEPTH },
-        vec![ ObjDesc::new(seL4_NotificationObject, 1, /*cptr=*/ 0) ],
+        vec![ObjDesc::new(seL4_NotificationObject, 1, /*cptr=*/ 0)],
     );
     cantrip_object_alloc(&objs)?;
     objs.move_objects_to_toplevel()
@@ -510,13 +507,15 @@ pub fn cantrip_notification_alloc() -> Result<ObjDescBundle, MemoryManagerError>
 
 #[inline]
 // |size_bits| is the log2 of the #slots to allocate.
-pub fn cantrip_cnode_alloc(size_bits: usize)
-    -> Result<ObjDescBundle, MemoryManagerError>
-{
+pub fn cantrip_cnode_alloc(size_bits: usize) -> Result<ObjDescBundle, MemoryManagerError> {
     let mut objs = ObjDescBundle::new(
         unsafe { MEMORY_RECV_CNODE },
         unsafe { MEMORY_RECV_CNODE_DEPTH },
-        vec![ ObjDesc::new(seL4_CapTableObject, size_bits, /*cptr=*/ 0 )],
+        vec![ObjDesc::new(
+            seL4_CapTableObject,
+            size_bits,
+            /*cptr=*/ 0,
+        )],
     );
     cantrip_object_alloc(&objs)?;
     objs.move_objects_to_toplevel()
@@ -526,13 +525,15 @@ pub fn cantrip_cnode_alloc(size_bits: usize)
 
 #[cfg(feature = "CONFIG_KERNEL_MCS")]
 #[inline]
-pub fn cantrip_sched_context_alloc(size_bits: usize)
-    -> Result<ObjDescBundle, MemoryManagerError>
-{
+pub fn cantrip_sched_context_alloc(size_bits: usize) -> Result<ObjDescBundle, MemoryManagerError> {
     let mut objs = ObjDescBundle::new(
         unsafe { MEMORY_RECV_CNODE },
         unsafe { MEMORY_RECV_CNODE_DEPTH },
-        vec![ ObjDesc::new(seL4_SchedContextObject, size_bits, /*cptr=*/ 0) ],
+        vec![ObjDesc::new(
+            seL4_SchedContextObject,
+            size_bits,
+            /*cptr=*/ 0,
+        )],
     );
     cantrip_object_alloc(&objs)?;
     objs.move_objects_to_toplevel()
@@ -542,12 +543,11 @@ pub fn cantrip_sched_context_alloc(size_bits: usize)
 
 #[cfg(feature = "CONFIG_KERNEL_MCS")]
 #[inline]
-pub fn cantrip_reply_alloc() -> Result<ObjDescBundle, MemoryManagerError>
-{
+pub fn cantrip_reply_alloc() -> Result<ObjDescBundle, MemoryManagerError> {
     let mut objs = ObjDescBundle::new(
         unsafe { MEMORY_RECV_CNODE },
         unsafe { MEMORY_RECV_CNODE_DEPTH },
-        vec![ ObjDesc::new(seL4_ReplyObject, 1, /*cptr=*/ 0) ],
+        vec![ObjDesc::new(seL4_ReplyObject, 1, /*cptr=*/ 0)],
     );
     cantrip_object_alloc(&objs)?;
     objs.move_objects_to_toplevel()
@@ -557,9 +557,7 @@ pub fn cantrip_reply_alloc() -> Result<ObjDescBundle, MemoryManagerError>
 
 // Wrapper for allocating 4K pages.
 #[inline]
-pub fn cantrip_frame_alloc(space_bytes: usize)
-    -> Result<ObjDescBundle, MemoryManagerError>
-{
+pub fn cantrip_frame_alloc(space_bytes: usize) -> Result<ObjDescBundle, MemoryManagerError> {
     fn howmany(value: usize, unit: usize) -> usize {
         (value + (unit - 1)) / unit
     }
@@ -568,7 +566,7 @@ pub fn cantrip_frame_alloc(space_bytes: usize)
         unsafe { MEMORY_RECV_CNODE },
         unsafe { MEMORY_RECV_CNODE_DEPTH },
         // NB: always allocate 4K pages
-        vec![ ObjDesc::new(
+        vec![ObjDesc::new(
             seL4_RISCV_4K_Page,
             howmany(space_bytes, 1 << seL4_PageBits),
             /*cptr=*/ 0,
@@ -582,9 +580,7 @@ pub fn cantrip_frame_alloc(space_bytes: usize)
 
 // Like cantrip_frame_alloc but also create a CNode to hold the frames.
 #[inline]
-pub fn cantrip_frame_alloc_in_cnode(space_bytes: usize)
-    -> Result<ObjDescBundle, MemoryManagerError>
-{
+pub fn cantrip_frame_alloc_in_cnode(space_bytes: usize) -> Result<ObjDescBundle, MemoryManagerError> {
     fn howmany(value: usize, unit: usize) -> usize {
         (value + (unit - 1)) / unit
     }
@@ -596,13 +592,15 @@ pub fn cantrip_frame_alloc_in_cnode(space_bytes: usize)
     assert!(npages <= 512); // XXX 2MB
     if npages > 256 {
         cantrip_object_alloc_in_cnode(vec![
-            ObjDesc::new( seL4_RISCV_4K_Page, 256, /*cptr=*/ 0),
-            ObjDesc::new( seL4_RISCV_4K_Page, npages - 256, /*cptr=*/ 256),
+            ObjDesc::new(seL4_RISCV_4K_Page, 256, /*cptr=*/ 0),
+            ObjDesc::new(seL4_RISCV_4K_Page, npages - 256, /*cptr=*/ 256),
         ])
     } else {
-        cantrip_object_alloc_in_cnode(vec![
-            ObjDesc::new( seL4_RISCV_4K_Page, npages, /*cptr=*/ 0),
-        ])
+        cantrip_object_alloc_in_cnode(vec![ObjDesc::new(
+            seL4_RISCV_4K_Page,
+            npages,
+            /*cptr=*/ 0,
+        )])
     }
 }
 
@@ -611,7 +609,11 @@ pub fn cantrip_page_table_alloc() -> Result<ObjDescBundle, MemoryManagerError> {
     let mut objs = ObjDescBundle::new(
         unsafe { MEMORY_RECV_CNODE },
         unsafe { MEMORY_RECV_CNODE_DEPTH },
-        vec![ ObjDesc::new(seL4_RISCV_PageTableObject, 1, /*cptr=*/ 0) ],
+        vec![ObjDesc::new(
+            seL4_RISCV_PageTableObject,
+            1,
+            /*cptr=*/ 0,
+        )],
     );
     cantrip_object_alloc(&objs)?;
     objs.move_objects_to_toplevel()
@@ -620,9 +622,7 @@ pub fn cantrip_page_table_alloc() -> Result<ObjDescBundle, MemoryManagerError> {
 }
 
 #[inline]
-pub fn cantrip_object_free(
-    request: &ObjDescBundle,
-) -> Result<(), MemoryManagerError> {
+pub fn cantrip_object_free(request: &ObjDescBundle) -> Result<(), MemoryManagerError> {
     extern "C" {
         // NB: this assumes the MemoryManager component is named "memory".
         fn memory_free(c_data_len: u32, c_data: *const u8) -> MemoryManagerError;
@@ -647,15 +647,14 @@ pub fn cantrip_object_free(
 // is expected to be in the top-level CNode (as returned by
 // cantrip_object_alloc_in_cnode).
 #[inline]
-pub fn cantrip_object_free_in_cnode(
-    request: &ObjDescBundle,
-) -> Result<(), MemoryManagerError> {
+pub fn cantrip_object_free_in_cnode(request: &ObjDescBundle) -> Result<(), MemoryManagerError> {
     let cnode_obj = ObjDescBundle::new(
-        unsafe { SELF_CNODE }, seL4_WordBits as u8,
+        unsafe { SELF_CNODE },
+        seL4_WordBits as u8,
         vec![ObjDesc::new(
             /*type=*/ seL4_CapTableObject,
             /*count=*/ request.depth as usize,
-            /*cptr=*/ request.cnode
+            /*cptr=*/ request.cnode,
         )],
     );
     cantrip_object_free(request)?;
@@ -664,16 +663,15 @@ pub fn cantrip_object_free_in_cnode(
 }
 
 #[inline]
-pub fn cantrip_object_free_toplevel(objs: &ObjDescBundle)
-    -> Result<(), MemoryManagerError>
-{
+pub fn cantrip_object_free_toplevel(objs: &ObjDescBundle) -> Result<(), MemoryManagerError> {
     let mut objs_mut = objs.clone();
     // Move ojbects to the pre-allocated container. Note this returns
     // the toplevel slots to the slot allocator.
-    objs_mut.move_objects_from_toplevel(
-        unsafe { MEMORY_RECV_CNODE },
-        unsafe { MEMORY_RECV_CNODE_DEPTH }
-    ).map_err(|_| MemoryManagerError::MmeObjCapInvalid)?;
+    objs_mut
+        .move_objects_from_toplevel(unsafe { MEMORY_RECV_CNODE }, unsafe {
+            MEMORY_RECV_CNODE_DEPTH
+        })
+        .map_err(|_| MemoryManagerError::MmeObjCapInvalid)?;
     cantrip_object_free(&objs_mut)
 }
 

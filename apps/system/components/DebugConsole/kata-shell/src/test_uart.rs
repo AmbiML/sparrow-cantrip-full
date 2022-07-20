@@ -1,19 +1,17 @@
 // UART driver shell test commands
 
-use core::fmt::Write;
 use crate::CmdFn;
 use crate::CommandError;
 use crate::HashMap;
+use core::fmt::Write;
 
 use cantrip_io as io;
 
 // NB: not exported by driver so may diverge
 const CIRCULAR_BUFFER_CAPACITY: usize = 512;
 
-pub fn add_cmds(cmds: &mut HashMap::<&str, CmdFn>) {
-    cmds.extend([
-        ("test_uart",    uart_command as CmdFn),
-    ]);
+pub fn add_cmds(cmds: &mut HashMap<&str, CmdFn>) {
+    cmds.extend([("test_uart", uart_command as CmdFn)]);
 }
 
 /// Exercise the UART driver.

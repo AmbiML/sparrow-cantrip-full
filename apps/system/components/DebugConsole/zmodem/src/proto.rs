@@ -1,6 +1,6 @@
+use alloc::string::ToString;
 use alloc::vec::Vec;
 use alloc::{format, vec};
-use alloc::string::ToString;
 
 use cantrip_io as io;
 use log::Level::Debug;

@@ -106,33 +106,28 @@ type CmdFn = fn(
     args: &mut dyn Iterator<Item = &str>,
     input: &mut dyn io::BufRead,
     output: &mut dyn io::Write,
-    builtin_cpio: &[u8]
+    builtin_cpio: &[u8],
 ) -> Result<(), CommandError>;
 
 /// Read-eval-print loop for the DebugConsole command line interface.
-pub fn repl<T: io::BufRead>(
-    output: &mut dyn io::Write,
-    input: &mut T,
-    builtin_cpio: &[u8],
-) -> ! {
+pub fn repl<T: io::BufRead>(output: &mut dyn io::Write, input: &mut T, builtin_cpio: &[u8]) -> ! {
     let mut cmds = HashMap::<&str, CmdFn>::new();
     cmds.extend([
-        ("builtins",            builtins_command as CmdFn),
-        ("bundles",             bundles_command as CmdFn),
-        ("capscan",             capscan_command as CmdFn),
-        ("kvdelete",            kvdelete_command as CmdFn),
-        ("kvread",              kvread_command as CmdFn),
-        ("kvwrite",             kvwrite_command as CmdFn),
-        ("install",             install_command as CmdFn),
-        ("loglevel",            loglevel_command as CmdFn),
-        ("mdebug",              mdebug_command as CmdFn),
-        ("mstats",              mstats_command as CmdFn),
-        ("ps",                  ps_command as CmdFn),
-        ("start",               start_command as CmdFn),
-        ("stop",                stop_command as CmdFn),
-        ("uninstall",           uninstall_command as CmdFn),
-
-        ("state_mlcoord",       state_mlcoord_command as CmdFn),
+        ("builtins", builtins_command as CmdFn),
+        ("bundles", bundles_command as CmdFn),
+        ("capscan", capscan_command as CmdFn),
+        ("kvdelete", kvdelete_command as CmdFn),
+        ("kvread", kvread_command as CmdFn),
+        ("kvwrite", kvwrite_command as CmdFn),
+        ("install", install_command as CmdFn),
+        ("loglevel", loglevel_command as CmdFn),
+        ("mdebug", mdebug_command as CmdFn),
+        ("mstats", mstats_command as CmdFn),
+        ("ps", ps_command as CmdFn),
+        ("start", start_command as CmdFn),
+        ("stop", stop_command as CmdFn),
+        ("uninstall", uninstall_command as CmdFn),
+        ("state_mlcoord", state_mlcoord_command as CmdFn),
     ]);
     #[cfg(feature = "FRINGE_CMDS")]
     fringe_cmds::add_cmds(&mut cmds);
@@ -169,15 +164,20 @@ pub fn repl<T: io::BufRead>(
                     Some(cmd) => {
                         let result = cmds.get(cmd).map_or_else(
                             || Err(CommandError::UnknownCommand),
-                            |func| func(&mut args, input, output, builtin_cpio));
+                            |func| func(&mut args, input, output, builtin_cpio),
+                        );
                         if let Err(e) = result {
                             let _ = writeln!(output, "{}", e);
                         };
                     }
-                    None => { let _ = output.write_str("\n"); },
+                    None => {
+                        let _ = output.write_str("\n");
+                    }
                 }
             }
-            Err(e) => { let _ = writeln!(output, "\n{}", e); },
+            Err(e) => {
+                let _ = writeln!(output, "\n{}", e);
+            }
         }
     }
 }
@@ -237,7 +237,10 @@ fn ps_command(
     }
 
     #[cfg(not(feature = "CONFIG_DEBUG_BUILD"))]
-    Ok(writeln!(output, "Kernel support not configured with CONFIG_DEBUG_BUILD!")?)
+    Ok(writeln!(
+        output,
+        "Kernel support not configured with CONFIG_DEBUG_BUILD!"
+    )?)
 }
 
 fn bundles_command(
@@ -269,13 +272,27 @@ fn capscan_command(
 ) -> Result<(), CommandError> {
     #[cfg(feature = "CONFIG_PRINTING")]
     match args.next() {
-        Some("console") => unsafe { sel4_sys::seL4_DebugDumpCNode(SELF_CNODE); }
-        Some("memory") => { let _ = cantrip_memory_interface::cantrip_memory_capscan(); }
-        Some("process") => { let _ = cantrip_proc_interface::cantrip_proc_ctrl_capscan(); }
-        Some("mlcoord") => { let _ = cantrip_mlcoord_capscan(); }
-        Some("security") => { let _ = cantrip_security_interface::cantrip_security_capscan(); }
-        Some("storage") => { let _ = cantrip_storage_interface::cantrip_storage_capscan(); }
-        Some("timer") => { let _ = cantrip_timer_interface::timer_service_capscan(); }
+        Some("console") => unsafe {
+            sel4_sys::seL4_DebugDumpCNode(SELF_CNODE);
+        },
+        Some("memory") => {
+            let _ = cantrip_memory_interface::cantrip_memory_capscan();
+        }
+        Some("process") => {
+            let _ = cantrip_proc_interface::cantrip_proc_ctrl_capscan();
+        }
+        Some("mlcoord") => {
+            let _ = cantrip_mlcoord_capscan();
+        }
+        Some("security") => {
+            let _ = cantrip_security_interface::cantrip_security_capscan();
+        }
+        Some("storage") => {
+            let _ = cantrip_storage_interface::cantrip_storage_capscan();
+        }
+        Some("timer") => {
+            let _ = cantrip_timer_interface::timer_service_capscan();
+        }
         Some(bundle_id) => {
             if let Err(e) = cantrip_proc_interface::cantrip_proc_ctrl_capscan_bundle(bundle_id) {
                 writeln!(output, "{}: {:?}", bundle_id, e)?;
@@ -318,8 +335,13 @@ fn collect_from_cpio(
             let mut upload = rz::Upload::new();
             let len = upload.write(entry.data).ok()?;
             upload.finish();
-            writeln!(output, "Collected {} bytes of data, crc32 {}",
-                     len, hex::encode(upload.crc32().to_be_bytes())).ok()?;
+            writeln!(
+                output,
+                "Collected {} bytes of data, crc32 {}",
+                len,
+                hex::encode(upload.crc32().to_be_bytes())
+            )
+            .ok()?;
             return Some(upload.frames().clone());
         }
     }
@@ -331,13 +353,17 @@ fn collect_from_zmodem(
     input: &mut dyn io::BufRead,
     mut output: &mut dyn io::Write,
 ) -> Option<ObjDescBundle> {
-      writeln!(output, "Starting zmodem upload...").ok()?;
-      let mut upload = rz::rz(input, &mut output).ok()?;
-      upload.finish();
-      writeln!(output, "Received {} bytes of data, crc32 {}",
-               upload.len(),
-               hex::encode(upload.crc32().to_be_bytes())).ok()?;
-      Some(upload.frames().clone())
+    writeln!(output, "Starting zmodem upload...").ok()?;
+    let mut upload = rz::rz(input, &mut output).ok()?;
+    upload.finish();
+    writeln!(
+        output,
+        "Received {} bytes of data, crc32 {}",
+        upload.len(),
+        hex::encode(upload.crc32().to_be_bytes())
+    )
+    .ok()?;
+    Some(upload.frames().clone())
 }
 
 fn install_command(
@@ -349,20 +375,16 @@ fn install_command(
     fn clear_slot(slot: seL4_CPtr) {
         unsafe {
             CANTRIP_CSPACE_SLOTS.free(slot, 1);
-            seL4_CNode_Delete(SELF_CNODE, slot, seL4_WordBits as u8)
-                .expect("install");
+            seL4_CNode_Delete(SELF_CNODE, slot, seL4_WordBits as u8).expect("install");
         }
     }
 
     // Collect/setup the package frames. If a -z arg is present a zmodem
     // upload is used; otherwise we use some raw pages (for testing).
     let mut pkg_contents = match args.next() {
-        Some("-z") => {
-            collect_from_zmodem(input, &mut output).ok_or(CommandError::IO)?
-        }
+        Some("-z") => collect_from_zmodem(input, &mut output).ok_or(CommandError::IO)?,
         Some(filename) => {
-            collect_from_cpio(filename, builtin_cpio, output)
-                .ok_or(CommandError::IO)?
+            collect_from_cpio(filename, builtin_cpio, output).ok_or(CommandError::IO)?
         }
         None => {
             // TODO: pattern-fill pages
@@ -374,10 +396,10 @@ fn install_command(
     // CNode (as expected by cantrip_pgk_mgmt_install).
     // TODO(sleffler): useful idiom, add to MemoryManager
     let cnode_depth = pkg_contents.count_log2();
-    let cnode = cantrip_cnode_alloc(cnode_depth)
-                    .map_err(|_| CommandError::Memory)?;  // XXX leaks pkg_contents
-    pkg_contents.move_objects_from_toplevel(cnode.objs[0].cptr, cnode_depth as u8)
-                .map_err(|_| CommandError::Memory)?; // XXX leaks pkg_contents + cnode
+    let cnode = cantrip_cnode_alloc(cnode_depth).map_err(|_| CommandError::Memory)?; // XXX leaks pkg_contents
+    pkg_contents
+        .move_objects_from_toplevel(cnode.objs[0].cptr, cnode_depth as u8)
+        .map_err(|_| CommandError::Memory)?; // XXX leaks pkg_contents + cnode
     match cantrip_pkg_mgmt_install(&pkg_contents) {
         Ok(bundle_id) => {
             writeln!(output, "Bundle \"{}\" installed", bundle_id)?;
@@ -517,17 +539,17 @@ fn mdebug_command(
     Ok(())
 }
 
-fn mstats(output: &mut dyn io::Write, stats: &MemoryManagerStats)
-          -> Result<(), CommandError>
-{
-    writeln!(output, "{} bytes in-use, {} bytes free, {} bytes requested, {} overhead",
-             stats.allocated_bytes,
-             stats.free_bytes,
-             stats.total_requested_bytes,
-             stats.overhead_bytes)?;
-    writeln!(output, "{} objs in-use, {} objs requested",
-             stats.allocated_objs,
-             stats.total_requested_objs)?;
+fn mstats(output: &mut dyn io::Write, stats: &MemoryManagerStats) -> Result<(), CommandError> {
+    writeln!(
+        output,
+        "{} bytes in-use, {} bytes free, {} bytes requested, {} overhead",
+        stats.allocated_bytes, stats.free_bytes, stats.total_requested_bytes, stats.overhead_bytes
+    )?;
+    writeln!(
+        output,
+        "{} objs in-use, {} objs requested",
+        stats.allocated_objs, stats.total_requested_objs
+    )?;
     Ok(())
 }
 
@@ -538,8 +560,12 @@ fn mstats_command(
     _builtin_cpio: &[u8],
 ) -> Result<(), CommandError> {
     match cantrip_memory_stats() {
-        Ok(stats) => { mstats(output, &stats)?; }
-        Err(status) => { writeln!(output, "stats failed: {:?}", status)?; }
+        Ok(stats) => {
+            mstats(output, &stats)?;
+        }
+        Err(status) => {
+            writeln!(output, "stats failed: {:?}", status)?;
+        }
     }
     Ok(())
 }

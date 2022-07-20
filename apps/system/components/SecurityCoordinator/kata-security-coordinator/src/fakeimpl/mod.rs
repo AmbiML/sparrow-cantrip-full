@@ -18,8 +18,8 @@ use cantrip_security_interface::*;
 use cantrip_storage_interface::KeyValueData;
 use log::trace;
 
-use sel4_sys::seL4_Page_GetAddress;
 use sel4_sys::seL4_PageBits;
+use sel4_sys::seL4_Page_GetAddress;
 use sel4_sys::seL4_Word;
 
 const PAGE_SIZE: usize = 1 << seL4_PageBits;
@@ -101,24 +101,22 @@ pub type CantripSecurityCoordinatorInterface = FakeSecurityCoordinator;
 // Returns a deep copy (including seL4 objects) of |src|. The container
 // CNode is in the toplevel (allocated from the slot allocator).
 fn deep_copy(src: &ObjDescBundle) -> ObjDescBundle {
-    let dest = cantrip_frame_alloc_in_cnode(src.size_bytes())
-        .expect("deep_copy:alloc");
+    let dest = cantrip_frame_alloc_in_cnode(src.size_bytes()).expect("deep_copy:alloc");
     // Src top-level slot & copy region
     let src_slot = CSpaceSlot::new();
-    let mut src_region = CopyRegion::new(
-        unsafe { ptr::addr_of_mut!(DEEP_COPY_SRC[0]) }, PAGE_SIZE
-    );
+    let mut src_region = CopyRegion::new(unsafe { ptr::addr_of_mut!(DEEP_COPY_SRC[0]) }, PAGE_SIZE);
     // Dest top-level slot & copy region
     let dest_slot = CSpaceSlot::new();
-    let mut dest_region = CopyRegion::new(
-        unsafe { ptr::addr_of_mut!(DEEP_COPY_DEST[0]) }, PAGE_SIZE
-    );
+    let mut dest_region =
+        CopyRegion::new(unsafe { ptr::addr_of_mut!(DEEP_COPY_DEST[0]) }, PAGE_SIZE);
     for (src_cptr, dest_cptr) in src.cptr_iter().zip(dest.cptr_iter()) {
         // Map src & dest frames and copy data.
-        src_slot.copy_to(src.cnode, src_cptr, src.depth)
+        src_slot
+            .copy_to(src.cnode, src_cptr, src.depth)
             .and_then(|_| src_region.map(src_slot.slot))
             .expect("src_map");
-        dest_slot.copy_to(dest.cnode, dest_cptr, dest.depth)
+        dest_slot
+            .copy_to(dest.cnode, dest_cptr, dest.depth)
             .and_then(|_| dest_region.map(dest_slot.slot))
             .expect("dest_map");
 
@@ -131,9 +129,13 @@ fn deep_copy(src: &ObjDescBundle) -> ObjDescBundle {
         }
 
         // Unmap & clear top-level slot required for mapping.
-        src_region.unmap().and_then(|_| src_slot.delete())
+        src_region
+            .unmap()
+            .and_then(|_| src_slot.delete())
             .expect("src_unmap");
-        dest_region.unmap().and_then(|_| dest_slot.delete())
+        dest_region
+            .unmap()
+            .and_then(|_| dest_slot.delete())
             .expect("dest_unmap");
     }
     dest
@@ -226,11 +228,9 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinator {
         unsafe {
             // Map the message buffer into our copyregion so we can access it.
             // NB: re-use one of the deep_copy copyregions.
-            let mut msg_region = CopyRegion::new(
-                ptr::addr_of_mut!(DEEP_COPY_SRC[0]),
-                PAGE_SIZE
-            );
-            msg_region.map(frame_bundle.objs[0].cptr)
+            let mut msg_region = CopyRegion::new(ptr::addr_of_mut!(DEEP_COPY_SRC[0]), PAGE_SIZE);
+            msg_region
+                .map(frame_bundle.objs[0].cptr)
                 .map_err(|_| SecurityRequestError::SreTestFailed)?;
 
             let message_ptr = msg_region.as_word_mut();
@@ -274,7 +274,8 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinator {
             let dword_a = message_ptr[offset_a];
             let dword_b = message_ptr[offset_b];
 
-            msg_region.unmap()
+            msg_region
+                .unmap()
                 .map_err(|_| SecurityRequestError::SreTestFailed)?;
 
             // Done, free the message buffer.

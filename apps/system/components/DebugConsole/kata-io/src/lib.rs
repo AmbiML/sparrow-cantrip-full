@@ -125,7 +125,7 @@ pub struct BufReader<R> {
 
 impl<R: Read> BufReader<R> {
     pub fn new(inner: R) -> BufReader<R> {
-        const BUFFER_SIZE : usize = 1024;  // free to be changed
+        const BUFFER_SIZE: usize = 1024; // free to be changed
         BufReader {
             inner,
             buf: Box::new([0u8; BUFFER_SIZE]),

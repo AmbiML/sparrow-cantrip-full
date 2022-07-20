@@ -3,8 +3,8 @@
 #![cfg_attr(not(test), no_std)]
 
 extern crate alloc;
-use alloc::string::String;
 use alloc::boxed::Box;
+use alloc::string::String;
 use alloc::vec::Vec;
 use core::str;
 use cstr_core::CString;
@@ -91,13 +91,16 @@ pub enum ProcessManagerError {
 // Interface to underlying facilities (StorageManager, seL4); also
 // used to inject fakes for unit tests.
 pub trait ProcessManagerInterface {
-    fn install(
-        &mut self,
-        pkg_contents: &ObjDescBundle,
-    ) -> Result<String, ProcessManagerError>;
+    fn install(&mut self, pkg_contents: &ObjDescBundle) -> Result<String, ProcessManagerError>;
     fn uninstall(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError>;
-    fn start(&mut self, bundle: &Bundle) -> Result<Box<dyn BundleImplInterface>, ProcessManagerError>;
-    fn stop(&mut self, bundle_impl: &mut dyn BundleImplInterface) -> Result<(), ProcessManagerError>;
+    fn start(
+        &mut self,
+        bundle: &Bundle,
+    ) -> Result<Box<dyn BundleImplInterface>, ProcessManagerError>;
+    fn stop(
+        &mut self,
+        bundle_impl: &mut dyn BundleImplInterface,
+    ) -> Result<(), ProcessManagerError>;
     fn capscan(&self, bundle_impl: &dyn BundleImplInterface) -> Result<(), ProcessManagerError>;
 }
 
@@ -105,10 +108,7 @@ pub trait ProcessManagerInterface {
 // and is converted to a &str using CStr::from_ptr().to_str().
 
 pub trait PackageManagementInterface {
-    fn install(
-        &mut self,
-        pkg_contents: &ObjDescBundle,
-    ) -> Result<String, ProcessManagerError>;
+    fn install(&mut self, pkg_contents: &ObjDescBundle) -> Result<String, ProcessManagerError>;
     fn uninstall(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError>;
 }
 

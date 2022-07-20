@@ -75,10 +75,9 @@ impl From<StorageError> for StorageManagerError {
 
 impl From<Result<(), StorageError>> for StorageManagerError {
     fn from(result: Result<(), StorageError>) -> StorageManagerError {
-        result.map_or_else(
-            StorageManagerError::from,
-            |_| StorageManagerError::SmeSuccess,
-        )
+        result.map_or_else(StorageManagerError::from, |_| {
+            StorageManagerError::SmeSuccess
+        })
     }
 }
 

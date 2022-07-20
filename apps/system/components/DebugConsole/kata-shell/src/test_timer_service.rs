@@ -1,22 +1,22 @@
 // TimerService shell test commands
 
-use core::fmt::Write;
 use crate::CmdFn;
 use crate::CommandError;
 use crate::HashMap;
+use core::fmt::Write;
 
 use cantrip_io as io;
 
 use cantrip_timer_interface::timer_service_completed_timers;
-use cantrip_timer_interface::TimerServiceError;
 use cantrip_timer_interface::timer_service_oneshot;
 use cantrip_timer_interface::timer_service_wait;
+use cantrip_timer_interface::TimerServiceError;
 
-pub fn add_cmds(cmds: &mut HashMap::<&str, CmdFn>) {
+pub fn add_cmds(cmds: &mut HashMap<&str, CmdFn>) {
     cmds.extend([
-        ("test_timer_async",    timer_async_command as CmdFn),
+        ("test_timer_async", timer_async_command as CmdFn),
         ("test_timer_blocking", timer_blocking_command as CmdFn),
-        ("test_timer_completed",timer_completed_command as CmdFn),
+        ("test_timer_completed", timer_completed_command as CmdFn),
     ]);
 }
 
@@ -76,5 +76,9 @@ fn timer_completed_command(
     output: &mut dyn io::Write,
     _builtin_cpio: &[u8],
 ) -> Result<(), CommandError> {
-    return Ok(writeln!(output, "Timers completed: {:#032b}", timer_service_completed_timers())?);
+    return Ok(writeln!(
+        output,
+        "Timers completed: {:#032b}",
+        timer_service_completed_timers()
+    )?);
 }

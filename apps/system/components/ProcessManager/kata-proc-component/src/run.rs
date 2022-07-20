@@ -8,8 +8,8 @@ use core::slice;
 use cstr_core::CStr;
 use cantrip_memory_interface::ObjDescBundle;
 use cantrip_os_common::camkes::Camkes;
-use cantrip_os_common::slot_allocator;
 use cantrip_os_common::sel4_sys;
+use cantrip_os_common::slot_allocator;
 use cantrip_proc_interface::*;
 use cantrip_proc_manager::CANTRIP_PROC;
 use log::trace;
@@ -30,7 +30,10 @@ pub unsafe extern "C" fn pre_init() {
 
     // Complete CANTRIP_PROC setup now that Global allocator is setup.
     CANTRIP_PROC.init();
-    trace!("ProcessManager has capacity for {} bundles", CANTRIP_PROC.capacity());
+    trace!(
+        "ProcessManager has capacity for {} bundles",
+        CANTRIP_PROC.capacity()
+    );
 
     PKG_MGMT_RECV_SLOT = CANTRIP_CSPACE_SLOTS.alloc(1).unwrap();
 }
@@ -78,7 +81,7 @@ pub unsafe extern "C" fn pkg_mgmt_install(
 
 #[no_mangle]
 pub unsafe extern "C" fn pkg_mgmt_uninstall(
-    c_bundle_id: *const cstr_core::c_char
+    c_bundle_id: *const cstr_core::c_char,
 ) -> ProcessManagerError {
     let recv_path = CAMKES.get_current_recv_path();
     CAMKES.assert_recv_path();
@@ -97,7 +100,7 @@ pub unsafe extern "C" fn pkg_mgmt_uninstall(
 // ProcessControlInterface glue stubs.
 #[no_mangle]
 pub unsafe extern "C" fn proc_ctrl_start(
-    c_bundle_id: *const cstr_core::c_char
+    c_bundle_id: *const cstr_core::c_char,
 ) -> ProcessManagerError {
     match CStr::from_ptr(c_bundle_id).to_str() {
         Ok(bundle_id) => match CANTRIP_PROC.start(bundle_id) {
@@ -110,7 +113,7 @@ pub unsafe extern "C" fn proc_ctrl_start(
 
 #[no_mangle]
 pub unsafe extern "C" fn proc_ctrl_stop(
-    c_bundle_id: *const cstr_core::c_char
+    c_bundle_id: *const cstr_core::c_char,
 ) -> ProcessManagerError {
     match CStr::from_ptr(c_bundle_id).to_str() {
         Ok(str) => match CANTRIP_PROC.stop(str) {
@@ -146,7 +149,7 @@ pub unsafe extern "C" fn proc_ctrl_capscan() {
 
 #[no_mangle]
 pub unsafe extern "C" fn proc_ctrl_capscan_bundle(
-    c_bundle_id: *const cstr_core::c_char
+    c_bundle_id: *const cstr_core::c_char,
 ) -> ProcessManagerError {
     match CStr::from_ptr(c_bundle_id).to_str() {
         Ok(str) => match CANTRIP_PROC.capscan(str) {

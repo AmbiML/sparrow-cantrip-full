@@ -6,10 +6,8 @@ use crate::HashMap;
 
 use cantrip_io as io;
 
-pub fn add_cmds(cmds: &mut HashMap::<&str, CmdFn>) {
-    cmds.extend([
-        ("test_panic",          panic_command as CmdFn),
-    ]);
+pub fn add_cmds(cmds: &mut HashMap<&str, CmdFn>) {
+    cmds.extend([("test_panic", panic_command as CmdFn)]);
 }
 
 /// Implements a command that tests panic handling.

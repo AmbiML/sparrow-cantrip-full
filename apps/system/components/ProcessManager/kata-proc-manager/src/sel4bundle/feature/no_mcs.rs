@@ -61,14 +61,7 @@ pub fn TCB_SchedParams(
     _sel4_sc: seL4_Word,
     _sel4_fault_ep: seL4_CPtr,
 ) -> seL4_Result {
-    unsafe {
-        seL4_TCB_SetSchedParams(
-            sel4_tcb,
-            seL4_authority as seL4_TCB,
-            mcp,
-            priority,
-        )
-    }
+    unsafe { seL4_TCB_SetSchedParams(sel4_tcb, seL4_authority as seL4_TCB, mcp, priority) }
 }
 
 pub fn TCB_SetTimeoutEndpoint(_sel4_tcb: seL4_Word, _sel4_tempfault_ep: seL4_CPtr) -> seL4_Result {

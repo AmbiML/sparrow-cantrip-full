@@ -36,7 +36,8 @@ pub fn SchedControl_Configure(
             sc_period,
             /*extra_refills=*/ 0,
             /*badge=*/ sc_data,
-            /*flags=*/ seL4_SchedContext_NoFlag)
+            /*flags=*/ seL4_SchedContext_NoFlag,
+        )
     }
 }
 

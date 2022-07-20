@@ -7,8 +7,8 @@ use core::marker::Sync;
 use hashbrown::HashMap;
 use cantrip_memory_interface::ObjDescBundle;
 use cantrip_proc_interface::Bundle;
-use cantrip_proc_interface::BundleImplInterface;
 use cantrip_proc_interface::BundleIdArray;
+use cantrip_proc_interface::BundleImplInterface;
 use cantrip_proc_interface::PackageManagementInterface;
 use cantrip_proc_interface::ProcessControlInterface;
 use cantrip_proc_interface::ProcessManagerError;
@@ -73,10 +73,7 @@ impl ProcessManager {
 impl PackageManagementInterface for ProcessManager {
     // NB: doc says a bundle may have multiple apps; support one for now
     //   (assume a fixed pathname to the app is used)
-    fn install(
-        &mut self,
-        pkg_contents: &ObjDescBundle,
-    ) -> Result<String, ProcessManagerError> {
+    fn install(&mut self, pkg_contents: &ObjDescBundle) -> Result<String, ProcessManagerError> {
         trace!("install pkg_contents {}", pkg_contents);
 
         // NB: defer to StorageManager for handling an install of a previously
@@ -142,7 +139,8 @@ impl ProcessControlInterface for ProcessManager {
             Some(bundle) => {
                 trace!("stop state {:?}", bundle.state);
                 if bundle.state == BundleState::Running {
-                    self.manager.stop(bundle.bundle_impl.as_deref_mut().unwrap())?;
+                    self.manager
+                        .stop(bundle.bundle_impl.as_deref_mut().unwrap())?;
                 }
                 bundle.state = BundleState::Stopped;
                 bundle.bundle_impl = None;
@@ -174,7 +172,7 @@ impl ProcessControlInterface for ProcessManager {
         if let Some(bundle) = self.bundles.get(&bid) {
             trace!("capscan state {:?}", bundle.state);
             if bundle.state != BundleState::Running {
-                return Err(ProcessManagerError::BundleNotRunning)
+                return Err(ProcessManagerError::BundleNotRunning);
             }
             self.manager.capscan(bundle.bundle_impl.as_deref().unwrap())
         } else {
@@ -200,14 +198,23 @@ mod tests {
             }
         }
     }
-    struct FakeBundleImpl {
-    }
+    struct FakeBundleImpl {}
     impl<'a> BundleImplInterface for FakeBundleImpl<'a> {
-        fn start(&mut self) -> Result<(), ProcessManagerError> { Ok(()) }
-        fn stop(&mut self) -> Result<(), ProcessManagerError> { Ok(()) }
-        fn resume(&self) -> Result<(), ProcessManagerError> { Ok(()) }
-        fn suspend(&self) -> Result<(), ProcessManagerError> { Ok(()) }
-        fn capscan(&self) -> Result<(), ProcessManagerError> { Ok(()) }
+        fn start(&mut self) -> Result<(), ProcessManagerError> {
+            Ok(())
+        }
+        fn stop(&mut self) -> Result<(), ProcessManagerError> {
+            Ok(())
+        }
+        fn resume(&self) -> Result<(), ProcessManagerError> {
+            Ok(())
+        }
+        fn suspend(&self) -> Result<(), ProcessManagerError> {
+            Ok(())
+        }
+        fn capscan(&self) -> Result<(), ProcessManagerError> {
+            Ok(())
+        }
     }
     impl ProcessManagerInterface for FakeManager {
         fn install(&mut self, pkg_buffer: *const u8, pkg_buffer_size: u32) -> Result<String, pme> {

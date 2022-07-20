@@ -2,23 +2,23 @@
 
 extern crate alloc;
 use core::ops::Range;
-use cantrip_memory_interface::ObjDesc;
-use cantrip_memory_interface::ObjDescBundle;
 use cantrip_memory_interface::MemoryError;
 use cantrip_memory_interface::MemoryManagerInterface;
 use cantrip_memory_interface::MemoryManagerStats;
+use cantrip_memory_interface::ObjDesc;
+use cantrip_memory_interface::ObjDescBundle;
 use cantrip_os_common::sel4_sys;
-use log::{debug, error, info, warn, trace};
+use log::{debug, error, info, trace, warn};
 use smallvec::SmallVec;
 
-use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_CNode_Delete;
+use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_Error;
 use sel4_sys::seL4_Result;
-use sel4_sys::seL4_Word;
 use sel4_sys::seL4_UntypedDesc;
 use sel4_sys::seL4_Untyped_Describe;
 use sel4_sys::seL4_Untyped_Retype;
+use sel4_sys::seL4_Word;
 
 fn untyped_describe(cptr: seL4_CPtr) -> seL4_Untyped_Describe {
     unsafe { seL4_Untyped_Describe(cptr) }
@@ -29,7 +29,7 @@ fn untyped_describe(cptr: seL4_CPtr) -> seL4_Untyped_Describe {
 // manager is expected to be setup as a static global so these data
 // structures will land in .bss and only overflow to the heap if
 // initialized with more than this count.
-const UNTYPED_SLAB_CAPACITY: usize = 64;  // # slabs kept inline
+const UNTYPED_SLAB_CAPACITY: usize = 64; // # slabs kept inline
 
 // The MemoryManager supports allocating & freeing seL4 objects that are
 // instantiated from UntypedMemory "slabs". Allocation causes untyped memory
@@ -41,11 +41,11 @@ const UNTYPED_SLAB_CAPACITY: usize = 64;  // # slabs kept inline
 // TODO(sleffler): support device-backed memory objects
 #[derive(Debug)]
 struct UntypedSlab {
-    pub size_bits: usize, // NB: only used to sort
-    pub _base_paddr: seL4_Word,  // Physical address of slab start
-    pub _last_paddr: seL4_Word,  // Physical address of slab end
-    pub cptr: seL4_CPtr,    // seL4 untyped object
-    pub _next_paddr: seL4_Word,  // Physical address of next available chunk
+    pub size_bits: usize,       // NB: only used to sort
+    pub _base_paddr: seL4_Word, // Physical address of slab start
+    pub _last_paddr: seL4_Word, // Physical address of slab end
+    pub cptr: seL4_CPtr,        // seL4 untyped object
+    pub _next_paddr: seL4_Word, // Physical address of next available chunk
 }
 impl UntypedSlab {
     fn new(ut: &seL4_UntypedDesc, cptr: seL4_CPtr) -> Self {
@@ -57,8 +57,12 @@ impl UntypedSlab {
             _next_paddr: ut.paddr,
         }
     }
-    fn _size(&self) -> usize { l2tob(self.size_bits) }
-    fn size_bits(&self) -> usize { self.size_bits }
+    fn _size(&self) -> usize {
+        l2tob(self.size_bits)
+    }
+    fn size_bits(&self) -> usize {
+        self.size_bits
+    }
 }
 pub struct MemoryManager {
     untypeds: SmallVec<[UntypedSlab; UNTYPED_SLAB_CAPACITY]>,
@@ -66,13 +70,13 @@ pub struct MemoryManager {
     cur_untyped: usize,
     _cur_device_untyped: usize,
 
-    total_bytes: usize,   // Total available space
-    allocated_bytes: usize,   // Amount of space currently allocated
-    requested_bytes: usize,  // Amount of space allocated over all time
+    total_bytes: usize,     // Total available space
+    allocated_bytes: usize, // Amount of space currently allocated
+    requested_bytes: usize, // Amount of space allocated over all time
     overhead_bytes: usize,
 
-    allocated_objs: usize,   // # seL4 objects currently allocated
-    requested_objs: usize,  // # seL4 objects allocated over all time
+    allocated_objs: usize, // # seL4 objects currently allocated
+    requested_objs: usize, // # seL4 objects allocated over all time
 
     // Retype requests failed due to insufficient available memory.
     untyped_slab_too_small: usize,
@@ -90,7 +94,9 @@ fn _round_up(value: usize, align: usize) -> usize {
 }
 
 // Log2 bits to bytes.
-fn l2tob(size_bits: usize) -> usize { 1 << size_bits }
+fn l2tob(size_bits: usize) -> usize {
+    1 << size_bits
+}
 
 impl MemoryManager {
     // Creates a new MemoryManager instance. The allocator is seeded
@@ -119,9 +125,11 @@ impl MemoryManager {
             #[cfg(feature = "CONFIG_NOISY_UNTYPEDS")]
             log::info!("slot {} {:?}", slots.start + ut_index, ut);
             if ut.is_device() {
-                m._device_untypeds.push(UntypedSlab::new(ut, slots.start + ut_index));
+                m._device_untypeds
+                    .push(UntypedSlab::new(ut, slots.start + ut_index));
             } else {
-                m.untypeds.push(UntypedSlab::new(ut, slots.start + ut_index));
+                m.untypeds
+                    .push(UntypedSlab::new(ut, slots.start + ut_index));
                 // NB: must get current state of ut as it will reflect resources
                 //   allocated before we run.
                 let info = untyped_describe(slots.start + ut_index);
@@ -134,7 +142,8 @@ impl MemoryManager {
             }
         }
         // Sort non-device slabs by descending size.
-        m.untypeds.sort_unstable_by(|a, b| b.size_bits().cmp(&a.size_bits()));
+        m.untypeds
+            .sort_unstable_by(|a, b| b.size_bits().cmp(&a.size_bits()));
         m
     }
 
@@ -175,19 +184,15 @@ impl MemoryManager {
         self.out_of_memory
     }
 
-    fn retype_untyped(
-        free_untyped: seL4_CPtr,
-        root: seL4_CPtr,
-        obj: &ObjDesc,
-    ) -> seL4_Result {
+    fn retype_untyped(free_untyped: seL4_CPtr, root: seL4_CPtr, obj: &ObjDesc) -> seL4_Result {
         unsafe {
             seL4_Untyped_Retype(
                 free_untyped,
                 /*type=*/ obj.type_.into(),
                 /*size_bits=*/ obj.retype_size_bits().unwrap(),
                 /*root=*/ root,
-                /*node_index=*/ 0,  // Ignored 'cuz depth is zero
-                /*node_depth=*/ 0,  // NB: store in cnode
+                /*node_index=*/ 0, // Ignored 'cuz depth is zero
+                /*node_depth=*/ 0, // NB: store in cnode
                 /*node_offset=*/ obj.cptr,
                 /*num_objects=*/ obj.retype_count(),
             )
@@ -223,7 +228,11 @@ impl MemoryManagerInterface for MemoryManager {
             while let Err(e) =
                 // NB: we don't allocate ASIDPool objects but if we did it
                 //   would fail because it needs to map to an UntypedObject
-                MemoryManager::retype_untyped(self.untypeds[ut_index].cptr, bundle.cnode, od)
+                MemoryManager::retype_untyped(
+                    self.untypeds[ut_index].cptr,
+                    bundle.cnode,
+                    od,
+                )
             {
                 if e != seL4_Error::seL4_NotEnoughMemory {
                     // Should not happen.
@@ -246,7 +255,6 @@ impl MemoryManagerInterface for MemoryManager {
             }
             allocated_objs += od.retype_count();
             allocated_bytes += od.size_bytes().unwrap();
-
         }
         self.cur_untyped = ut_index;
 
@@ -299,9 +307,11 @@ impl MemoryManagerInterface for MemoryManager {
         for ut in &self.untypeds {
             let info = untyped_describe(ut.cptr);
             let size = l2tob(info.sizeBits);
-            info!("[{}] allocated {} free {}", ut.cptr,
-                  size - info.remainingBytes,
-                  info.remainingBytes,
+            info!(
+                "[{}] allocated {} free {}",
+                ut.cptr,
+                size - info.remainingBytes,
+                info.remainingBytes,
             );
         }
         Ok(())
