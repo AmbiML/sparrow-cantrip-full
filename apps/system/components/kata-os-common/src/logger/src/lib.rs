@@ -1,7 +1,7 @@
 #![cfg_attr(not(test), no_std)]
 
-use cstr_core::CStr;
 use core2::io::{Cursor, Write};
+use cstr_core::CStr;
 use log::{Metadata, Record};
 
 // TODO(sleffler): until we can copy directly into shared memory limit

@@ -4,10 +4,10 @@
 #![allow(non_camel_case_types)]
 
 use allocator;
-use logger::CantripLogger;
-use slot_allocator::CANTRIP_CSPACE_SLOTS;
 use log::trace;
+use logger::CantripLogger;
 use sel4_sys;
+use slot_allocator::CANTRIP_CSPACE_SLOTS;
 
 use sel4_sys::seL4_CNode_Delete;
 use sel4_sys::seL4_CPtr;
@@ -41,12 +41,14 @@ pub const CAP_RELEASE: usize = 0x8000_0000;
 pub struct RequestCapCleanup {}
 impl Drop for RequestCapCleanup {
     fn drop(&mut self) {
-        unsafe { seL4_SetCap(0, 0); }
+        unsafe {
+            seL4_SetCap(0, 0);
+        }
     }
 }
 
 pub struct Camkes {
-    name: &'static str, // Component name
+    name: &'static str,    // Component name
     recv_path: seL4_CPath, // IPCBuffer receive path
 }
 
@@ -68,26 +70,30 @@ impl Camkes {
         unsafe {
             allocator::ALLOCATOR.init(heap.as_mut_ptr() as usize, heap.len());
         }
-        trace!("setup heap: start_addr {:p} size {}", heap.as_ptr(), heap.len());
+        trace!(
+            "setup heap: start_addr {:p} size {}",
+            heap.as_ptr(),
+            heap.len()
+        );
     }
 
     pub fn init_slot_allocator(self: &Camkes, first_slot: seL4_CPtr, last_slot: seL4_CPtr) {
         unsafe {
             CANTRIP_CSPACE_SLOTS.init(self.name, first_slot, last_slot - first_slot);
-            trace!("setup cspace slots: first slot {} free {}",
-                   CANTRIP_CSPACE_SLOTS.base_slot(),
-                   CANTRIP_CSPACE_SLOTS.free_slots());
+            trace!(
+                "setup cspace slots: first slot {} free {}",
+                CANTRIP_CSPACE_SLOTS.base_slot(),
+                CANTRIP_CSPACE_SLOTS.free_slots()
+            );
         }
     }
 
-    pub fn pre_init(
-        self: &Camkes,
-        level: log::LevelFilter,
-        heap: &'static mut [u8],
-    ) {
+    pub fn pre_init(self: &Camkes, level: log::LevelFilter, heap: &'static mut [u8]) {
         self.init_logger(level);
         self.init_allocator(heap);
-        unsafe { self.init_slot_allocator(SELF_CNODE_FIRST_SLOT, SELF_CNODE_LAST_SLOT); }
+        unsafe {
+            self.init_slot_allocator(SELF_CNODE_FIRST_SLOT, SELF_CNODE_LAST_SLOT);
+        }
     }
 
     pub fn top_level_path(slot: seL4_CPtr) -> seL4_CPath {
@@ -97,15 +103,21 @@ impl Camkes {
     // Initializes the IPCBuffer receive path with |path|.
     pub fn init_recv_path(self: &mut Camkes, path: &seL4_CPath) {
         self.recv_path = *path;
-        unsafe { seL4_SetCapReceivePath(path.0, path.1, path.2); }
+        unsafe {
+            seL4_SetCapReceivePath(path.0, path.1, path.2);
+        }
         trace!("{}: Cap receive path {:?}", self.name, path);
     }
 
     // Returns the path specified with init_recv_path.
-    pub fn get_recv_path(self: &Camkes) -> seL4_CPath { self.recv_path }
+    pub fn get_recv_path(self: &Camkes) -> seL4_CPath {
+        self.recv_path
+    }
 
     // Returns the component name.
-    pub fn get_name(self: &Camkes) -> &'static str { self.name }
+    pub fn get_name(self: &Camkes) -> &'static str {
+        self.name
+    }
 
     // Returns the current receive path from the IPCBuffer.
     pub fn get_current_recv_path(self: &Camkes) -> seL4_CPath {
@@ -127,23 +139,30 @@ impl Camkes {
 
     // Like check_recv_path but asserts if there is an inconsistency.
     pub fn assert_recv_path(self: &Camkes) {
-        assert!(self.check_recv_path(),
-                "Current receive path {:?} does not match init'd path {:?}",
-                self.get_current_recv_path(), self.recv_path);
+        assert!(
+            self.check_recv_path(),
+            "Current receive path {:?} does not match init'd path {:?}",
+            self.get_current_recv_path(),
+            self.recv_path
+        );
     }
 
     // Attaches a capability to a CAmkES RPC request msg. seL4 will copy
     // the capabiltiy.
     #[must_use]
     pub fn set_request_cap(cptr: seL4_CPtr) -> RequestCapCleanup {
-        unsafe { seL4_SetCap(0, cptr); }
-        RequestCapCleanup{}
+        unsafe {
+            seL4_SetCap(0, cptr);
+        }
+        RequestCapCleanup {}
     }
 
     // Attaches a capability to a CAmkES RPC reply msg. seL4 will copy
     // the capabiltiy.
     pub fn set_reply_cap(cptr: seL4_CPtr) {
-        unsafe { seL4_SetCap(0, cptr); }
+        unsafe {
+            seL4_SetCap(0, cptr);
+        }
     }
 
     // Attaches a capability to a CAmkES RPC reply msg and arranges for
@@ -161,25 +180,37 @@ impl Camkes {
     }
 
     // Clears any capability attached to a CAmkES RPC reply msg.
-    pub fn clear_reply_cap() { Camkes::set_reply_cap(0); }
+    pub fn clear_reply_cap() {
+        Camkes::set_reply_cap(0);
+    }
 
     // Wrappers for sel4_sys::debug_assert macros.
     pub fn debug_assert_slot_empty(tag: &str, path: &seL4_CPath) {
-        sel4_sys::debug_assert_slot_empty!(path.1,
+        sel4_sys::debug_assert_slot_empty!(
+            path.1,
             "{}: expected slot {:?} empty but has cap type {:?}",
-            tag, path, sel4_sys::cap_identify(path.1));
+            tag,
+            path,
+            sel4_sys::cap_identify(path.1)
+        );
     }
     pub fn debug_assert_slot_cnode(tag: &str, path: &seL4_CPath) {
-        sel4_sys::debug_assert_slot_cnode!(path.1,
+        sel4_sys::debug_assert_slot_cnode!(
+            path.1,
             "{}: expected cnode in slot {:?} but found cap type {:?}",
-            tag, path, sel4_sys::cap_identify(path.1));
+            tag,
+            path,
+            sel4_sys::cap_identify(path.1)
+        );
     }
 
     // Dumps the contents of the toplevel CNode to the serial console.
     pub fn capscan() -> seL4_Result {
         // TODO(sleffler): requires CONFIG_PRINTING in the kernel
         #[cfg(feature = "CONFIG_PRINTING")]
-        unsafe { sel4_sys::seL4_DebugDumpCNode(SELF_CNODE); }
+        unsafe {
+            sel4_sys::seL4_DebugDumpCNode(SELF_CNODE);
+        }
         // XXX until seL4_Error is correctly returned
         Ok(())
     }

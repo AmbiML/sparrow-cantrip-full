@@ -94,11 +94,15 @@ pub fn SchedControl_Configure(
 ) -> seL4_Result {
     assert!(sel4_sc != 0);
     unsafe {
-        seL4_SchedControl_ConfigureFlags(sched_ctrl, sel4_sc,
-                                          sc_budget, sc_period,
-                                          /*extra_refills=*/ 0,
-                                          /*badge=*/ sc_data,
-                                          /*flags=*/ seL4_SchedContext_NoFlag)
+        seL4_SchedControl_ConfigureFlags(
+            sched_ctrl,
+            sel4_sc,
+            sc_budget,
+            sc_period,
+            /*extra_refills=*/ 0,
+            /*badge=*/ sc_data,
+            /*flags=*/ seL4_SchedContext_NoFlag,
+        )
     }
 }
 

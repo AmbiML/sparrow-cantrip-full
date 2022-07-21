@@ -16,9 +16,9 @@ use core::ptr;
 #[cfg(any(target_arch = "arm", target_arch = "aarch64"))]
 use sel4_sys::seL4_ARM_Page_Unify_Instruction;
 
+use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_CapInitThreadVSpace;
 use sel4_sys::seL4_CapRights;
-use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_Default_VMAttributes;
 use sel4_sys::seL4_Error;
 use sel4_sys::seL4_Page_Map;

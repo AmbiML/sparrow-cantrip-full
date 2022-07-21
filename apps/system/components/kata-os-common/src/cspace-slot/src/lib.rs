@@ -5,11 +5,11 @@
 
 use slot_allocator::CANTRIP_CSPACE_SLOTS;
 
-use sel4_sys::seL4_CapRights;
 use sel4_sys::seL4_CNode_Copy;
 use sel4_sys::seL4_CNode_Delete;
 use sel4_sys::seL4_CNode_Move;
 use sel4_sys::seL4_CPtr;
+use sel4_sys::seL4_CapRights;
 use sel4_sys::seL4_Result;
 use sel4_sys::seL4_SetCapReceivePath;
 use sel4_sys::seL4_WordBits;
@@ -46,12 +46,7 @@ impl CSpaceSlot {
     }
 
     // Copies the specified path to our slot.
-    pub fn copy_to(
-        &self,
-        src_root: seL4_CPtr,
-        src_index: seL4_CPtr,
-        src_depth: u8,
-    ) -> seL4_Result {
+    pub fn copy_to(&self, src_root: seL4_CPtr, src_index: seL4_CPtr, src_depth: u8) -> seL4_Result {
         let seL4_AllRights = seL4_CapRights::new(
             /*grant_reply=*/ 1, /*grant=*/ 1, /*read=*/ 1, /*write=*/ 1,
         );
@@ -69,12 +64,7 @@ impl CSpaceSlot {
     }
 
     // Moves the specified path to our slot.
-    pub fn move_to(
-        &self,
-        src_root: seL4_CPtr,
-        src_slot: seL4_CPtr,
-        src_depth: u8,
-    ) -> seL4_Result {
+    pub fn move_to(&self, src_root: seL4_CPtr, src_slot: seL4_CPtr, src_depth: u8) -> seL4_Result {
         unsafe {
             seL4_CNode_Move(
                 /*dest_root=*/ SELF_CNODE,
@@ -109,9 +99,7 @@ impl CSpaceSlot {
     // Delete any cap in our slot.
     // NB: deleting an empty slot is a noop to seL4
     pub fn delete(&self) -> seL4_Result {
-        unsafe {
-            seL4_CNode_Delete(SELF_CNODE, self.slot, seL4_WordBits as u8)
-        }
+        unsafe { seL4_CNode_Delete(SELF_CNODE, self.slot, seL4_WordBits as u8) }
     }
 }
 impl Drop for CSpaceSlot {

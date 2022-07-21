@@ -12,6 +12,12 @@
 
 use core::mem::size_of;
 use cstr_core;
+use sel4_sys::seL4_CNode_CapData;
+use sel4_sys::seL4_CPtr;
+use sel4_sys::seL4_CapRights;
+use sel4_sys::seL4_ObjectType;
+use sel4_sys::seL4_ObjectTypeCount;
+use sel4_sys::seL4_Word;
 use sel4_sys::SEL4_BOOTINFO_HEADER_BOOTINFO;
 use sel4_sys::SEL4_BOOTINFO_HEADER_FDT;
 use sel4_sys::SEL4_BOOTINFO_HEADER_PADDING;
@@ -20,12 +26,6 @@ use sel4_sys::SEL4_BOOTINFO_HEADER_X86_FRAMEBUFFER;
 use sel4_sys::SEL4_BOOTINFO_HEADER_X86_MBMMAP;
 use sel4_sys::SEL4_BOOTINFO_HEADER_X86_TSC_FREQ;
 use sel4_sys::SEL4_BOOTINFO_HEADER_X86_VBE;
-use sel4_sys::seL4_CapRights;
-use sel4_sys::seL4_CNode_CapData;
-use sel4_sys::seL4_CPtr;
-use sel4_sys::seL4_ObjectType;
-use sel4_sys::seL4_ObjectTypeCount;
-use sel4_sys::seL4_Word;
 
 use self::CDL_CapDataType::*;
 use self::CDL_ObjectType::*;
@@ -226,7 +226,7 @@ pub struct CDL_CapData__bindgen_ty_1__bindgen_ty_1 {
 }
 impl CDL_CapData__bindgen_ty_1__bindgen_ty_1 {
     #[inline]
-    pub fn new (guard_bits: seL4_Word, guard_size: seL4_Word) -> Self {
+    pub fn new(guard_bits: seL4_Word, guard_size: seL4_Word) -> Self {
         CDL_CapData__bindgen_ty_1__bindgen_ty_1 {
             _bitfield_align: [],
             _bitfield: Self::new_bitfield(guard_bits, guard_size),
@@ -270,9 +270,7 @@ impl CDL_CapData {
     }
     #[inline]
     pub fn tag(&self) -> CDL_CapDataType {
-        unsafe {
-            ::core::mem::transmute::<u32, CDL_CapDataType>(self._bitfield.get(0, 2) as u32)
-        }
+        unsafe { ::core::mem::transmute::<u32, CDL_CapDataType>(self._bitfield.get(0, 2) as u32) }
     }
     #[inline]
     pub fn set_tag(&mut self, val: u32) {
@@ -354,14 +352,11 @@ impl CDL_Cap {
     }
     #[inline]
     pub fn set_is_orig(&mut self, val: bool) {
-        self._bitfield
-            .set(3, 1, if val { 1u64 } else { 0u64 })
+        self._bitfield.set(3, 1, if val { 1u64 } else { 0u64 })
     }
     #[inline]
     pub fn rights(&self) -> CDL_CapRights {
-        unsafe {
-            ::core::mem::transmute::<usize, CDL_CapRights>(self._bitfield.get(4, 4) as usize)
-        }
+        unsafe { ::core::mem::transmute::<usize, CDL_CapRights>(self._bitfield.get(4, 4) as usize) }
     }
     #[inline]
     pub fn set_rights(&mut self, val: CDL_CapRights) {
@@ -371,11 +366,7 @@ impl CDL_Cap {
         }
     }
     #[inline]
-    fn new_bitfield(
-        vm_attribs: u32,
-        is_orig: u32,
-        rights: u32,
-    ) -> __BindgenBitfieldUnit<[u8; 1]> {
+    fn new_bitfield(vm_attribs: u32, is_orig: u32, rights: u32) -> __BindgenBitfieldUnit<[u8; 1]> {
         let mut __bindgen_bitfield_unit: __BindgenBitfieldUnit<[u8; 1]> = Default::default();
         __bindgen_bitfield_unit.set(0, 3, vm_attribs as u64);
         __bindgen_bitfield_unit.set(3, 1, is_orig as u64);
@@ -405,7 +396,10 @@ impl<'a> CDL_CapMap {
         self.as_slice()[index]
     }
     pub fn get_cap_at(&self, slot: seL4_Word) -> Option<&CDL_Cap> {
-        self.as_slice().iter().find(|s| s.slot == slot).map(|s| &s.cap)
+        self.as_slice()
+            .iter()
+            .find(|s| s.slot == slot)
+            .map(|s| &s.cap)
     }
 }
 
@@ -416,41 +410,41 @@ impl<'a> CDL_CapMap {
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum CDL_ObjectType {
-    CDL_Endpoint        = sel4_sys::seL4_EndpointObject as isize,
-    CDL_Notification    = sel4_sys::seL4_NotificationObject as isize,
-    CDL_TCB             = sel4_sys::seL4_TCBObject as isize,
-    CDL_CNode           = sel4_sys::seL4_CapTableObject as isize,
-    CDL_Untyped         = sel4_sys::seL4_UntypedObject as isize,
+    CDL_Endpoint = sel4_sys::seL4_EndpointObject as isize,
+    CDL_Notification = sel4_sys::seL4_NotificationObject as isize,
+    CDL_TCB = sel4_sys::seL4_TCBObject as isize,
+    CDL_CNode = sel4_sys::seL4_CapTableObject as isize,
+    CDL_Untyped = sel4_sys::seL4_UntypedObject as isize,
 
     #[cfg(feature = "CONFIG_KERNEL_MCS")]
-    CDL_SchedContext    = sel4_sys::seL4_SchedContextObject as isize,
+    CDL_SchedContext = sel4_sys::seL4_SchedContextObject as isize,
     #[cfg(feature = "CONFIG_KERNEL_MCS")]
-    CDL_RTReply         = sel4_sys::seL4_ReplyObject as isize,
+    CDL_RTReply = sel4_sys::seL4_ReplyObject as isize,
 
-    CDL_Frame           = sel4_sys::seL4_SmallPageObject as isize,
-    CDL_PT              = sel4_sys::seL4_PageTableObject as isize,
+    CDL_Frame = sel4_sys::seL4_SmallPageObject as isize,
+    CDL_PT = sel4_sys::seL4_PageTableObject as isize,
     #[cfg(any(target_arch = "arm", target_arch = "aarch64", target_arch = "x86"))]
-    CDL_PD              = sel4_sys::seL4_PageDirectoryObject as isize,
+    CDL_PD = sel4_sys::seL4_PageDirectoryObject as isize,
 
     #[cfg(target_arch = "aarch64")]
-    CDL_PUD             = sel4_sys::seL4_PageUpperDirectoryObject as isize,
+    CDL_PUD = sel4_sys::seL4_PageUpperDirectoryObject as isize,
     #[cfg(target_arch = "aarch64")]
-    CDL_PGD             = sel4_sys::seL4_PageGlobalDirectoryObject as isize,
+    CDL_PGD = sel4_sys::seL4_PageGlobalDirectoryObject as isize,
 
     #[cfg(any(feature = "CONFIG_ARM_HYPERVISOR_SUPPORT", feature = "CONFIG_VTX"))]
-    CDL_VCPU            = sel4_sys::seL4_VCPUObject as isize,
+    CDL_VCPU = sel4_sys::seL4_VCPUObject as isize,
 
     #[cfg(target_arch = "x86_64")]
-    CDL_PML4             = sel4_sys::seL4_PML4Object as isize,
+    CDL_PML4 = sel4_sys::seL4_PML4Object as isize,
     #[cfg(target_arch = "x86_64")]
-    CDL_PDPT             = sel4_sys::seL4_PDPTObject as isize,
+    CDL_PDPT = sel4_sys::seL4_PDPTObject as isize,
 
     // NB: the following are numbered relative to seL4_ObjectTypeCount,
     //   do not re-order!
-    CDL_ASIDPool        = seL4_ObjectTypeCount + 1,
+    CDL_ASIDPool = seL4_ObjectTypeCount + 1,
     CDL_Interrupt,
-    CDL_IOPorts,        // CONFIG_ARCH_X86
-    CDL_IODevice,       // CONFIG_ARCH_X86
+    CDL_IOPorts,  // CONFIG_ARCH_X86
+    CDL_IODevice, // CONFIG_ARCH_X86
 
     // NB: when MCS is not enabled these are still defined (sigh)
     #[cfg(not(feature = "CONFIG_KERNEL_MCS"))]
@@ -577,7 +571,9 @@ pub struct CDL_FrameFill_FileDataType_t {
 }
 impl<'a> CDL_FrameFill_FileDataType_t {
     pub fn filename(&'a self) -> &'a str {
-        unsafe { cstr_core::CStr::from_ptr(self.filename) }.to_str().unwrap()
+        unsafe { cstr_core::CStr::from_ptr(self.filename) }
+            .to_str()
+            .unwrap()
     }
 }
 
@@ -639,7 +635,9 @@ impl<'a> CDL_Object {
 
     #[cfg(not(feature = "CONFIG_DEBUG_BUILD"))]
     #[inline]
-    pub fn name(&self) -> &str { "<n/a>" }
+    pub fn name(&self) -> &str {
+        "<n/a>"
+    }
 
     pub fn slots_slice(&'a self) -> &'a [CDL_CapSlot] {
         #[allow(unaligned_references)]
@@ -654,7 +652,8 @@ impl<'a> CDL_Object {
     // numbering due to empty slots.
     #[inline]
     pub fn next_free_slot(&self) -> seL4_Word {
-        self.slots_slice().iter()
+        self.slots_slice()
+            .iter()
             .max_by_key(|slot| slot.slot)
             .map_or(0, |slot| slot.slot + 1)
     }
@@ -743,7 +742,8 @@ impl<'a> CDL_Object {
                 None
             } else {
                 cstr_core::CStr::from_ptr(self.extra.tcb_extra.elf_name)
-                    .to_str().ok()
+                    .to_str()
+                    .ok()
             }
         }
     }
@@ -908,12 +908,11 @@ impl<'a> CDL_Model {
 
     // Calculate the space occupied by the capDL specification.
     pub fn calc_space(&self) -> usize {
-        let mut total_space =
-              size_of::<CDL_Model>() +
-              self.num * size_of::<CDL_Object>() +
-              self.num_irqs * size_of::<CDL_ObjID>() +
-              self.num_untyped * size_of::<CDL_UntypedDerivation>() +
-              self.num_asid_slots * size_of::<CDL_ObjID>();
+        let mut total_space = size_of::<CDL_Model>()
+            + self.num * size_of::<CDL_Object>()
+            + self.num_irqs * size_of::<CDL_ObjID>()
+            + self.num_untyped * size_of::<CDL_UntypedDerivation>()
+            + self.num_asid_slots * size_of::<CDL_ObjID>();
         for obj in self.obj_slice() {
             #[cfg(feature = "CONFIG_DEBUG_BUILD")]
             if !obj.name.is_null() {

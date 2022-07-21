@@ -18,9 +18,8 @@ fn main() {
     // If SEL4_OUT_DIR is not set we expect the kernel build at a fixed
     // location relative to the ROOTDIR env variable.
     println!("SEL4_OUT_DIR {:?}", env::var("SEL4_OUT_DIR"));
-    let sel4_out_dir = env::var("SEL4_OUT_DIR").unwrap_or_else(
-        |_| format!("{}/out/cantrip/kernel", env::var("ROOTDIR").unwrap())
-    );
+    let sel4_out_dir = env::var("SEL4_OUT_DIR")
+        .unwrap_or_else(|_| format!("{}/out/cantrip/kernel", env::var("ROOTDIR").unwrap()));
     println!("sel4_out_dir {}", sel4_out_dir);
 
     // Dredge seL4 kernel config for settings we need as features to generate
@@ -35,19 +34,33 @@ fn main() {
     // Some architectures need informations from platform_yaml.
     let platform_yaml_path = format!("{}/gen_headers/plat/machine/platform_gen.yaml", sel4_out_dir);
     if let Ok(platform_yaml) = fs::File::open(&platform_yaml_path) {
-        let platform_info: PlatformInfo = serde_yaml::from_reader(platform_yaml).expect("invalid yaml file");
+        let platform_info: PlatformInfo =
+            serde_yaml::from_reader(platform_yaml).expect("invalid yaml file");
         let out_dir = env::var("OUT_DIR").unwrap();
         let out_path = std::path::Path::new(&out_dir).join("platform_gen.rs");
         let mut out_file = fs::File::create(&out_path).unwrap();
 
-        writeln!(&mut out_file,
+        writeln!(
+            &mut out_file,
             "struct MemoryRegion {{
                  start: usize,
                  end: usize,
-            }}").unwrap();
-        writeln!(&mut out_file, "const MEMORY_REGIONS: [MemoryRegion; {}] = [", platform_info.memory.len()).unwrap();
+            }}"
+        )
+        .unwrap();
+        writeln!(
+            &mut out_file,
+            "const MEMORY_REGIONS: [MemoryRegion; {}] = [",
+            platform_info.memory.len()
+        )
+        .unwrap();
         for range in platform_info.memory {
-            writeln!(&mut out_file, "    MemoryRegion {{ start: 0x{:X}, end: 0x{:X} }},", range.start, range.end).ok();
+            writeln!(
+                &mut out_file,
+                "    MemoryRegion {{ start: 0x{:X}, end: 0x{:X} }},",
+                range.start, range.end
+            )
+            .ok();
         }
         writeln!(&mut out_file, "];").ok();
     }

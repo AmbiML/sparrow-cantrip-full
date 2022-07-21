@@ -30,7 +30,9 @@ pub unsafe fn seL4_Page_Map_Flush(
     _sel4_page: seL4_Page,
     _rights: seL4_CapRights,
     _vm_attribs: seL4_VMAttributes,
-) -> seL4_Result { Ok(()) }
+) -> seL4_Result {
+    Ok(())
+}
 
 pub fn get_frame_type(object_size: seL4_Word) -> seL4_ObjectType {
     match object_size {

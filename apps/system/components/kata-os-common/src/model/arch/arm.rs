@@ -46,8 +46,11 @@ pub unsafe fn seL4_Page_Map_Flush(
     let addr = seL4_ARM_Page_GetAddress(sel4_page);
     if MEMORY_REGIONS[0].start <= addr.paddr && addr.paddr <= MEMORY_REGIONS[0].end {
         let frame_size_bits = page_type.size_bits().unwrap();
-        assert!(frame_size_bits <= (usize::BITS - 1) as usize,
-                "{:?}: illegal object size", page_type);
+        assert!(
+            frame_size_bits <= (usize::BITS - 1) as usize,
+            "{:?}: illegal object size",
+            page_type
+        );
 
         // NB: could minimize invalidations by checking page's paddr, but
         //   given the cost already incurred to lookup the page's paddr

@@ -8,27 +8,27 @@ assert_cfg!(target_arch = "aarch64");
 mod arm;
 pub use arm::*;
 
-use capdl::*;
+use crate::CantripOsModel;
 use capdl::CDL_CapType::*;
 use capdl::CDL_ObjectType::*;
-use crate::CantripOsModel;
+use capdl::*;
 
 use sel4_sys::seL4_ARM_PageDirectory_Map;
 use sel4_sys::seL4_ARM_PageUpperDirectory_Map;
-use sel4_sys::seL4_CapInitThreadCNode;
-use sel4_sys::seL4_CapIRQControl;
 use sel4_sys::seL4_CPtr;
+use sel4_sys::seL4_CapIRQControl;
+use sel4_sys::seL4_CapInitThreadCNode;
 use sel4_sys::seL4_Error;
 use sel4_sys::seL4_HugePageBits;
 use sel4_sys::seL4_IRQControl_GetTrigger;
 use sel4_sys::seL4_LargePageBits;
-use sel4_sys::seL4_ObjectType::*;
 use sel4_sys::seL4_ObjectType;
+use sel4_sys::seL4_ObjectType::*;
+use sel4_sys::seL4_PGDIndexBits;
+use sel4_sys::seL4_PUDIndexBits;
 use sel4_sys::seL4_PageBits;
 use sel4_sys::seL4_PageDirIndexBits;
 use sel4_sys::seL4_PageTableIndexBits;
-use sel4_sys::seL4_PGDIndexBits;
-use sel4_sys::seL4_PUDIndexBits;
 use sel4_sys::seL4_Result;
 use sel4_sys::seL4_UserContext;
 use sel4_sys::seL4_VMAttributes;
@@ -42,10 +42,12 @@ pub const CDL_PT_LEVEL_3_IndexBits: usize = seL4_PageTableIndexBits;
 fn MASK(pow2_bits: usize) -> usize { (1 << pow2_bits) - 1 }
 
 pub fn PGD_SLOT(vaddr: usize) -> usize {
-    (vaddr >> (seL4_PUDIndexBits + seL4_PageDirIndexBits + seL4_PageTableIndexBits + seL4_PageBits)) & MASK(seL4_PGDIndexBits)
+    (vaddr >> (seL4_PUDIndexBits + seL4_PageDirIndexBits + seL4_PageTableIndexBits + seL4_PageBits))
+        & MASK(seL4_PGDIndexBits)
 }
 pub fn PUD_SLOT(vaddr: usize) -> usize {
-    (vaddr >> (seL4_PageDirIndexBits + seL4_PageTableIndexBits + seL4_PageBits)) & MASK(seL4_PUDIndexBits)
+    (vaddr >> (seL4_PageDirIndexBits + seL4_PageTableIndexBits + seL4_PageBits))
+        & MASK(seL4_PUDIndexBits)
 }
 
 pub fn get_frame_type(object_size: seL4_Word) -> seL4_ObjectType {
@@ -216,10 +218,10 @@ impl<'a> CantripOsModel<'a> {
     ) -> seL4_Result {
         for slot in self.get_object(level_0_obj).slots_slice() {
             let base = (level_0_base + slot.slot)
-                    << (CDL_PT_LEVEL_1_IndexBits
-                        + CDL_PT_LEVEL_2_IndexBits
-                        + CDL_PT_LEVEL_3_IndexBits
-                        + seL4_PageBits);
+                << (CDL_PT_LEVEL_1_IndexBits
+                    + CDL_PT_LEVEL_2_IndexBits
+                    + CDL_PT_LEVEL_3_IndexBits
+                    + seL4_PageBits);
             let level_1_cap = &slot.cap;
             self.map_page_upper_dir(level_1_cap, level_0_obj, base)?;
             self.init_level_1(level_0_obj, base, level_1_cap.obj_id)?;
@@ -249,8 +251,7 @@ impl<'a> CantripOsModel<'a> {
 
     pub fn get_cdl_frame_pt(&self, pd: CDL_ObjID, vaddr: usize) -> Option<&'a CDL_Cap> {
         let pd_cap = self.get_cdl_frame_pd(pd, vaddr)?;
-        self.get_object(pd_cap.obj_id)
-            .get_cap_at(PD_SLOT(vaddr))
+        self.get_object(pd_cap.obj_id).get_cap_at(PD_SLOT(vaddr))
     }
 
     fn get_cdl_frame_pd(&self, root: CDL_ObjID, vaddr: usize) -> Option<&'a CDL_Cap> {
@@ -261,8 +262,7 @@ impl<'a> CantripOsModel<'a> {
             self.get_object(root).get_cap_at(PUD_SLOT(vaddr))
         } else {
             let pud_cap = self.get_cdl_frame_pud(root, vaddr)?;
-            self.get_object(pud_cap.obj_id)
-                .get_cap_at(PUD_SLOT(vaddr))
+            self.get_object(pud_cap.obj_id).get_cap_at(PUD_SLOT(vaddr))
         }
     }
 

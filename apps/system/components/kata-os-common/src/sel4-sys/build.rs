@@ -27,17 +27,15 @@ fn main() {
 
     // Default to "seL4" for backwards compat; can either use git submodule or
     // symbolic link (neither recommended)
-    let sel4_dir = env::var("SEL4_DIR").unwrap_or_else(
-        |_| format!("{}/cantrip/kernel", env::var("ROOTDIR").unwrap())
-    );
+    let sel4_dir = env::var("SEL4_DIR")
+        .unwrap_or_else(|_| format!("{}/cantrip/kernel", env::var("ROOTDIR").unwrap()));
     println!("sel4_dir {}", sel4_dir);
 
     // If SEL4_OUT_DIR is not set we expect the kernel build at a fixed
     // location relative to the ROOTDIR env variable.
     println!("SEL4_OUT_DIR {:?}", env::var("SEL4_OUT_DIR"));
-    let sel4_out_dir = env::var("SEL4_OUT_DIR").unwrap_or_else(
-        |_| format!("{}/out/cantrip/kernel", env::var("ROOTDIR").unwrap())
-    );
+    let sel4_out_dir = env::var("SEL4_OUT_DIR")
+        .unwrap_or_else(|_| format!("{}/out/cantrip/kernel", env::var("ROOTDIR").unwrap()));
     println!("sel4_out_dir {}", sel4_out_dir);
 
     // Dredge seL4 kerenl config for settings we need as features to generate
@@ -48,7 +46,9 @@ fn main() {
     let mut has_mcs = false;
     for feature in features {
         println!("cargo:rustc-cfg=feature=\"{}\"", feature);
-        if feature.as_str() == "CONFIG_KERNEL_MCS" { has_mcs = true; }
+        if feature.as_str() == "CONFIG_KERNEL_MCS" {
+            has_mcs = true;
+        }
     }
 
     // Use CARGO_TARGET_ARCH and CARGO_TARGET_POINTER_WIDTH
@@ -84,8 +84,7 @@ fn main() {
     );
 
     let mut cmd = Command::new("/usr/bin/env");
-    cmd.arg(&python_bin)
-       .arg("tools/syscall_stub_gen.py");
+    cmd.arg(&python_bin).arg("tools/syscall_stub_gen.py");
     if has_mcs {
         cmd.arg("--mcs");
     }
@@ -114,30 +113,28 @@ fn main() {
         sel4_dir, arch
     );
     let mut cmd = Command::new("/usr/bin/env");
-    cmd.arg(&python_bin)
-       .args(&[
-           "tools/invocation_header_gen.py",
-           "--dest",
-           &*format!("{}/{}_invocation.rs", out_dir, arch),
-           &*xml_interfaces_file,
-           &*xml_sel4_arch_file,
-           &*xml_arch_file,
-       ]);
+    cmd.arg(&python_bin).args(&[
+        "tools/invocation_header_gen.py",
+        "--dest",
+        &*format!("{}/{}_invocation.rs", out_dir, arch),
+        &*xml_interfaces_file,
+        &*xml_sel4_arch_file,
+        &*xml_arch_file,
+    ]);
     println!("Running {:?}", cmd);
     assert!(cmd.status().unwrap().success());
 
     // TODO(sleffler): requires pip install tempita
     let mut cmd = Command::new("/usr/bin/env");
-    cmd.arg(&python_bin)
-       .arg("tools/syscall_header_gen.py");
+    cmd.arg(&python_bin).arg("tools/syscall_header_gen.py");
     if has_mcs {
         cmd.arg("--mcs");
     }
     cmd.args(&[
-       "--xml",
-       &*format!("{}/libsel4/include/api/syscall.xml", sel4_dir),
-       "--dest",
-       &*format!("{}/syscalls.rs", out_dir),
+        "--xml",
+        &*format!("{}/libsel4/include/api/syscall.xml", sel4_dir),
+        "--dest",
+        &*format!("{}/syscalls.rs", out_dir),
     ]);
     println!("Running {:?}", cmd);
     assert!(cmd.status().unwrap().success());
@@ -155,13 +152,13 @@ fn main() {
     .unwrap();
     let mut cmd = Command::new("/usr/bin/env");
     cmd.args(&[
-           &python_bin,
-          "tools/bitfield_gen.py",
-          "--language=rust",
-  //      "--word-size=32"
-       ])
-       .stdin(unsafe { Stdio::from_raw_fd(bfin.as_raw_fd()) })
-       .stdout(unsafe { Stdio::from_raw_fd(bfout.as_raw_fd()) });
+        &python_bin,
+        "tools/bitfield_gen.py",
+        "--language=rust",
+        //      "--word-size=32"
+    ])
+    .stdin(unsafe { Stdio::from_raw_fd(bfin.as_raw_fd()) })
+    .stdout(unsafe { Stdio::from_raw_fd(bfout.as_raw_fd()) });
     println!("Running {:?}", cmd);
     assert!(cmd.status().unwrap().success());
     std::mem::forget(bfin);

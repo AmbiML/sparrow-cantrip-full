@@ -1,17 +1,17 @@
 // Static Object Allocation.
 // Expect a statically-allocated capDL spec.
 
-use capdl::*;
-use capdl::CDL_ObjectType::*;
 use crate::arch;
 use crate::CantripOsModel;
+use capdl::CDL_ObjectType::*;
+use capdl::*;
 use log::debug;
 use smallvec::SmallVec;
 
 use sel4_sys::seL4_ASIDControl_MakePool;
+use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_CapASIDControl;
 use sel4_sys::seL4_CapInitThreadCNode;
-use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_ObjectType;
 use sel4_sys::seL4_Result;
 use sel4_sys::seL4_Untyped_Retype;

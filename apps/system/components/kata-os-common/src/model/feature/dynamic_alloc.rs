@@ -1,25 +1,25 @@
 // Dynamic Object Allocation.
 
-use capdl::*;
-use capdl::CDL_FrameFill_BootInfoEnum_t::*;
-use capdl::CDL_FrameFillType_t::*;
-use capdl::CDL_ObjectType::*;
 use crate::CantripOsModel;
+use capdl::CDL_FrameFillType_t::*;
+use capdl::CDL_FrameFill_BootInfoEnum_t::*;
+use capdl::CDL_ObjectType::*;
+use capdl::*;
 use log::{debug, trace};
 use smallvec::SmallVec;
 
 use sel4_sys::seL4_ASIDControl_MakePool;
 use sel4_sys::seL4_BootInfo;
-use sel4_sys::seL4_CapASIDControl;
-use sel4_sys::seL4_CapInitThreadCNode;
-use sel4_sys::seL4_CapRights;
 use sel4_sys::seL4_CNode_Copy;
 use sel4_sys::seL4_CNode_Delete;
 use sel4_sys::seL4_CNode_Move;
 use sel4_sys::seL4_CPtr;
+use sel4_sys::seL4_CapASIDControl;
+use sel4_sys::seL4_CapInitThreadCNode;
+use sel4_sys::seL4_CapRights;
 use sel4_sys::seL4_Error;
-use sel4_sys::seL4_ObjectType::*;
 use sel4_sys::seL4_ObjectType;
+use sel4_sys::seL4_ObjectType::*;
 use sel4_sys::seL4_PageBits;
 use sel4_sys::seL4_Page_GetAddress;
 use sel4_sys::seL4_Result;
@@ -66,15 +66,22 @@ impl<'a> CantripOsModel<'a> {
         // The exception is ASIDPools, where create_object only allocates
         // the backing untypeds.
         let mut free_slot_index = 0;
-        for (obj_id, obj) in self.spec.obj_slice().iter()
+        for (obj_id, obj) in self
+            .spec
+            .obj_slice()
+            .iter()
             .enumerate()
             .filter(|(_, obj)| arch::requires_creation(obj.r#type()))
         {
             let free_slot = self.free_slot_start + free_slot_index;
 
             #[cfg(feature = "CONFIG_NOISY_CREATE_OBJECT")]
-            trace!("Creating object {} in slot {} from untyped {:#x}...",
-                   obj.name(), free_slot, self.state.get_untyped_cptr(ut_index));
+            trace!(
+                "Creating object {} in slot {} from untyped {:#x}...",
+                obj.name(),
+                free_slot,
+                self.state.get_untyped_cptr(ut_index)
+            );
 
             // NB: create_object may use free_slot + 1 and free_slot + 2
             while let Err(e) =
@@ -102,25 +109,31 @@ impl<'a> CantripOsModel<'a> {
                 CDL_Frame => {
                     fn is_bootinfo_frame(obj: &CDL_Object) -> bool {
                         let frame_fill = &obj.frame_fill(0).unwrap();
-                        frame_fill.type_ == CDL_FrameFill_BootInfo &&
-                            frame_fill.get_bootinfo().type_ == CDL_FrameFill_BootInfo_BootInfo
+                        frame_fill.type_ == CDL_FrameFill_BootInfo
+                            && frame_fill.get_bootinfo().type_ == CDL_FrameFill_BootInfo_BootInfo
                     }
                     if is_bootinfo_frame(obj) {
                         // NB: can instantiate multiple frames but only one
                         // CNode can receive the untypeds since we must move
                         // 'em from the rootserver (since they are "derived").
-                        assert!(!is_objid_valid(bootinfo_frame),
-                                "Duplicate bootinfo Frame at {}, prev {}",
-                                obj_id, bootinfo_frame);
+                        assert!(
+                            !is_objid_valid(bootinfo_frame),
+                            "Duplicate bootinfo Frame at {}, prev {}",
+                            obj_id,
+                            bootinfo_frame
+                        );
                         bootinfo_frame = obj_id;
                     }
                 }
                 // Look for a CNode associated with any bootinfo frame.
                 CDL_CNode => {
                     if obj.cnode_has_untyped_memory() {
-                        assert!(!is_objid_valid(untyped_cnode),
-                                "Duplicate bootinfo cnode at {}, prev {}",
-                                obj_id, untyped_cnode);
+                        assert!(
+                            !is_objid_valid(untyped_cnode),
+                            "Duplicate bootinfo cnode at {}, prev {}",
+                            obj_id,
+                            untyped_cnode
+                        );
                         untyped_cnode = obj_id;
                     }
                 }
@@ -214,8 +227,14 @@ impl<'a> CantripOsModel<'a> {
                 let index = ut.size_bits();
 
                 #[cfg(feature = "CONFIG_NOISY_UNTYPEDS")]
-                trace!("Untyped {:3} (cptr={:#x}) (addr={:#x}) is of size {:2}. Placing in slot {}...",
-                       untyped_index, untyped_start + untyped_index, ut.paddr, index, count[index]);
+                trace!(
+                    "Untyped {:3} (cptr={:#x}) (addr={:#x}) is of size {:2}. Placing in slot {}...",
+                    untyped_index,
+                    untyped_start + untyped_index,
+                    ut.paddr,
+                    index,
+                    count[index]
+                );
 
                 self.state
                     .set_untyped_cptr(count[index], untyped_start + untyped_index);
@@ -291,7 +310,8 @@ impl<'a> CantripOsModel<'a> {
                 obj_size_bits: usize,
                 ut: &seL4_UntypedDesc,
             ) -> bool {
-                ut.paddr <= obj_addr && obj_addr + BIT(obj_size_bits) <= ut.paddr + BIT(ut.size_bits())
+                ut.paddr <= obj_addr
+                    && obj_addr + BIT(obj_size_bits) <= ut.paddr + BIT(ut.size_bits())
             }
             fn get_address(ut_slot: seL4_CPtr) -> Result<seL4_Page_GetAddress, seL4_Error> {
                 // Create a temporary frame to get the address. We load this at slot + 2

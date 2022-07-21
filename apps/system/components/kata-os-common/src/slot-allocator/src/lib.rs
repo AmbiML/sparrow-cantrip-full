@@ -15,7 +15,7 @@ struct Slots {
     bits: Option<BitBox<u8, Lsb0>>,
     used: usize,
     name: &'static str, // Component name
-    // TODO(sleffler): maybe track last alloc for O(1) sequential allocations
+                        // TODO(sleffler): maybe track last alloc for O(1) sequential allocations
 }
 impl Slots {
     fn new(name: &'static str, size: usize) -> Self {
@@ -36,7 +36,9 @@ impl Slots {
         self.bits = Some(bitvec![u8, Lsb0; 0; size].into_boxed_bitslice());
         self.name = name;
     }
-    fn used_slots(&self) -> usize { self.used }
+    fn used_slots(&self) -> usize {
+        self.used
+    }
     fn free_slots(&self) -> usize {
         let bits = self.bits.as_ref().unwrap();
         bits.len() - self.used
@@ -66,9 +68,13 @@ impl Slots {
         }
     }
     fn alloc_first_fit(&mut self, count: usize) -> Option<usize> {
-        if count == 0 { return None; }
-        if count > self.free_slots() { return None; }
-        if count == 1  {
+        if count == 0 {
+            return None;
+        }
+        if count > self.free_slots() {
+            return None;
+        }
+        if count == 1 {
             let bits = self.bits.as_mut().unwrap();
             let bit = bits.first_zero()?;
             unsafe { bits.set_unchecked(bit, true) };
@@ -77,7 +83,11 @@ impl Slots {
             trace!("{}:alloc {}", self.name, bit);
             Some(bit)
         } else {
-            let first_slot = self.bits.as_ref().unwrap().iter_zeros()
+            let first_slot = self
+                .bits
+                .as_ref()
+                .unwrap()
+                .iter_zeros()
                 .find(|bit| self.not_any_in_range(bit + 1..bit + count))?;
             self.set_range(first_slot..first_slot + count, true);
             #[cfg(feature = "TRACE_OPS")]
@@ -93,8 +103,13 @@ impl Slots {
         } else {
             trace!("{}:free {} count {}", self.name, first_slot, count);
         }
-        assert!(count <= self.used,
-               "{}: count {} > used {}", self.name, count, self.used);
+        assert!(
+            count <= self.used,
+            "{}: count {} > used {}",
+            self.name,
+            count,
+            self.used
+        );
         self.set_range(first_slot..first_slot + count, false);
     }
 }
@@ -132,7 +147,9 @@ impl CantripSlotAllocator {
     }
 
     /// Returns the base slot number.
-    pub fn base_slot(&self) -> usize { self.base_slot }
+    pub fn base_slot(&self) -> usize {
+        self.base_slot
+    }
 
     /// Returns the number of slots in use.
     pub fn used_slots(&self) -> usize {
@@ -145,7 +162,9 @@ impl CantripSlotAllocator {
     }
 
     pub fn alloc(&self, count: usize) -> Option<usize> {
-        (*self.slots.lock()).alloc_first_fit(count).map(|x| x + self.base_slot)
+        (*self.slots.lock())
+            .alloc_first_fit(count)
+            .map(|x| x + self.base_slot)
     }
 
     pub fn free(&self, first_slot: usize, count: usize) {
@@ -204,7 +223,7 @@ mod slot_tests {
         assert_eq!(slots.free_slots(), NSLOTS - 1);
         slots.free(second, 1);
         assert_eq!(slots.used_slots(), 0);
-        assert_eq!(slots.free_slots(), NSLOTS );
+        assert_eq!(slots.free_slots(), NSLOTS);
 
         let again = slots.alloc_first_fit(1).unwrap();
         // first-fit so should get same thing
@@ -294,7 +313,6 @@ mod slot_tests {
         assert_eq!(slots.free_slots(), 0);
         assert!(slots.alloc_first_fit(1).is_none());
         assert!(slots.alloc_first_fit(8).is_none());
-
     }
 
     #[test]
@@ -351,12 +369,17 @@ mod cantrip_slot_tests {
 
     // NB: all these tests will run concurrently to exercise locking
 
-    const SLOT_RANGE: Range<usize> = Range { start: 10, end: 10 + 64 };
+    const SLOT_RANGE: Range<usize> = Range {
+        start: 10,
+        end: 10 + 64,
+    };
     static mut SLOTS: CantripSlotAllocator = CantripSlotAllocator::empty();
     fn setup() {
         use std::sync::Once;
         static INIT: Once = Once::new();
-        INIT.call_once(|| { unsafe { SLOTS.init("test", SLOT_RANGE.start, SLOT_RANGE.len()) }; })
+        INIT.call_once(|| {
+            unsafe { SLOTS.init("test", SLOT_RANGE.start, SLOT_RANGE.len()) };
+        })
     }
 
     #[test]

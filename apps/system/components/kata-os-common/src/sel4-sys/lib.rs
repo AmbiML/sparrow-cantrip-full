@@ -13,7 +13,7 @@
 #![allow(bad_style, unused_parens, unused_assignments)]
 
 use core::mem::size_of;
-use serde::{Deserialize,Serialize};
+use serde::{Deserialize, Serialize};
 use static_assertions::*;
 
 // NB: this mimics the logic in build.rs
@@ -197,7 +197,7 @@ pub const seL4_RefillSizeBytes: usize = (2 * 8);
 //         this scheduling context
 #[inline]
 pub fn seL4_MaxExtraRefills(size: seL4_Word) -> seL4_Word {
-    ((1 << size) -  seL4_CoreSchedContextBytes) / seL4_RefillSizeBytes
+    ((1 << size) - seL4_CoreSchedContextBytes) / seL4_RefillSizeBytes
 }
 
 // Flags to be used with seL4_SchedControl_ConfigureFlags
@@ -317,9 +317,15 @@ pub struct seL4_UntypedDesc {
     align: [seL4_Word; 0],
 }
 impl seL4_UntypedDesc {
-    pub fn is_device(&self) -> bool { self.isDevice != 0 }
-    pub fn is_tainted(&self) -> bool { self.isTainted != 0 }
-    pub fn size_bits(&self) -> usize { self.sizeBits as usize }
+    pub fn is_device(&self) -> bool {
+        self.isDevice != 0
+    }
+    pub fn is_tainted(&self) -> bool {
+        self.isTainted != 0
+    }
+    pub fn size_bits(&self) -> usize {
+        self.sizeBits as usize
+    }
 }
 
 // explicitly *not* Copy. the array at the end is tricky to handle.
@@ -396,5 +402,5 @@ pub const SEL4_BOOTINFO_HEADER_X86_ACPI_RSDP: usize = 3;
 pub const SEL4_BOOTINFO_HEADER_X86_FRAMEBUFFER: usize = 4;
 pub const SEL4_BOOTINFO_HEADER_X86_TSC_FREQ: usize = 5;
 pub const SEL4_BOOTINFO_HEADER_FDT: usize = 6;
-pub const SEL4_BOOTINFO_HEADER_BOOTINFO: usize = 7;  // Copy of rootserver's BootInfo
+pub const SEL4_BOOTINFO_HEADER_BOOTINFO: usize = 7; // Copy of rootserver's BootInfo
 pub const SEL4_BOOTINFO_HEADER_NUM: usize = SEL4_BOOTINFO_HEADER_BOOTINFO + 1;

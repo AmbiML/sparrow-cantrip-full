@@ -8,17 +8,17 @@ assert_cfg!(target_arch = "riscv32");
 mod riscv;
 pub use riscv::*;
 
-use capdl::*;
-use capdl::CDL_CapType::*;
 use crate::CantripOsModel;
+use capdl::CDL_CapType::*;
+use capdl::*;
 
 use sel4_sys::seL4_LargePageBits;
 use sel4_sys::seL4_ObjectType;
 use sel4_sys::seL4_PageBits;
 use sel4_sys::seL4_PageTableIndexBits;
-use sel4_sys::seL4_Result;
 use sel4_sys::seL4_RISCV_4K_Page;
 use sel4_sys::seL4_RISCV_Mega_Page;
+use sel4_sys::seL4_Result;
 use sel4_sys::seL4_Word;
 
 const CDL_PT_NUM_LEVELS: usize = 2;

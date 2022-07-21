@@ -5,8 +5,8 @@
 
 use core::mem::size_of;
 
-use sel4_sys::seL4_CapRights;
 use sel4_sys::seL4_CPtr;
+use sel4_sys::seL4_CapRights;
 use sel4_sys::seL4_Default_VMAttributes;
 use sel4_sys::seL4_Page_Map;
 use sel4_sys::seL4_Page_Unmap;
@@ -55,57 +55,47 @@ impl CopyRegion {
     }
 
     // Returns the region size in bytes.
-    pub fn size(&self) -> usize { self.size }
+    pub fn size(&self) -> usize {
+        self.size
+    }
 
     // Returns the region size if mapped, otherwise 0.
     pub fn mapped_bytes(&self) -> usize {
-        if self.cur_frame.is_some() { self.size } else { 0 }
+        if self.cur_frame.is_some() {
+            self.size
+        } else {
+            0
+        }
     }
 
     // Returns an immutable [u8] ref to the mapped region.
     pub fn as_ref(&mut self) -> &[u8] {
         assert!(self.cur_frame.is_some());
-        unsafe {
-            core::slice::from_raw_parts(
-                self.region as _, self.size
-            )
-        }
+        unsafe { core::slice::from_raw_parts(self.region as _, self.size) }
     }
 
     // Returns a mutable [u8] ref to the mapped region.
     pub fn as_mut(&mut self) -> &mut [u8] {
         assert!(self.cur_frame.is_some());
-        unsafe {
-            core::slice::from_raw_parts_mut(
-                self.region as _, self.size
-            )
-        }
+        unsafe { core::slice::from_raw_parts_mut(self.region as _, self.size) }
     }
 
     // Returns an immutable [seL4_Word] ref to the mapped region.
     pub fn as_word_ref(&mut self) -> &[seL4_Word] {
         assert!(self.cur_frame.is_some());
-        unsafe {
-            core::slice::from_raw_parts(
-                self.region, self.size / size_of::<seL4_Word>(),
-            )
-        }
+        unsafe { core::slice::from_raw_parts(self.region, self.size / size_of::<seL4_Word>()) }
     }
 
     // Returns a mutable [seL4_Word] ref to the mapped region.
     pub fn as_word_mut(&mut self) -> &mut [seL4_Word] {
         assert!(self.cur_frame.is_some());
-        unsafe {
-            core::slice::from_raw_parts_mut(
-                self.region, self.size / size_of::<seL4_Word>(),
-            )
-        }
+        unsafe { core::slice::from_raw_parts_mut(self.region, self.size / size_of::<seL4_Word>()) }
     }
 
     // Maps the |frame| in the SELF_VSPACE_ROOT for r/w.
     // XXX need rights + attribs?
     pub fn map(&mut self, frame: seL4_CPtr) -> seL4_Result {
-        black_box(frame);  // NB: compiler WAR for frame clobber
+        black_box(frame); // NB: compiler WAR for frame clobber
         unsafe {
             seL4_Page_Map(
                 frame,

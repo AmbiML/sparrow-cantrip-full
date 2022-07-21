@@ -8,19 +8,19 @@ assert_cfg!(all(target_arch = "arm", target_pointer_width = "32"));
 mod arm;
 pub use arm::*;
 
-use capdl::*;
+use crate::CantripOsModel;
 use capdl::CDL_CapType::*;
 use capdl::CDL_ObjectType::*;
-use crate::CantripOsModel;
+use capdl::*;
 
-use sel4_sys::seL4_CapInitThreadCNode;
-use sel4_sys::seL4_CapIRQControl;
 use sel4_sys::seL4_CPtr;
+use sel4_sys::seL4_CapIRQControl;
+use sel4_sys::seL4_CapInitThreadCNode;
 use sel4_sys::seL4_Error;
 use sel4_sys::seL4_IRQControl_GetTrigger;
 use sel4_sys::seL4_LargePageBits;
-use sel4_sys::seL4_ObjectType::*;
 use sel4_sys::seL4_ObjectType;
+use sel4_sys::seL4_ObjectType::*;
 use sel4_sys::seL4_PageBits;
 use sel4_sys::seL4_PageTableIndexBits;
 use sel4_sys::seL4_Result;

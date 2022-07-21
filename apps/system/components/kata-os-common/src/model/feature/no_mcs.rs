@@ -3,9 +3,9 @@
 use crate::CantripOsModel;
 use capdl::*;
 
-use sel4_sys::seL4_CapInitThreadTCB;
 use sel4_sys::seL4_CNode;
 use sel4_sys::seL4_CPtr;
+use sel4_sys::seL4_CapInitThreadTCB;
 use sel4_sys::seL4_Error;
 use sel4_sys::seL4_Result;
 use sel4_sys::seL4_SchedContext;

@@ -6,14 +6,14 @@
 use static_assertions::assert_cfg;
 assert_cfg!(any(target_arch = "riscv32", target_arch = "riscv64"));
 
-use capdl::*;
-use capdl::CDL_ObjectType::*;
 use crate::CantripOsModel;
+use capdl::CDL_ObjectType::*;
+use capdl::*;
 
-use sel4_sys::seL4_CapInitThreadCNode;
-use sel4_sys::seL4_CapIRQControl;
-use sel4_sys::seL4_CapRights;
 use sel4_sys::seL4_CPtr;
+use sel4_sys::seL4_CapIRQControl;
+use sel4_sys::seL4_CapInitThreadCNode;
+use sel4_sys::seL4_CapRights;
 use sel4_sys::seL4_Error;
 use sel4_sys::seL4_IRQControl_Get;
 use sel4_sys::seL4_ObjectType;
@@ -53,7 +53,9 @@ pub unsafe fn seL4_Page_Map_Flush(
     _sel4_page: seL4_Page,
     _rights: seL4_CapRights,
     _vm_attribs: seL4_VMAttributes,
-) -> seL4_Result { Ok(()) }
+) -> seL4_Result {
+    Ok(())
+}
 
 pub fn create_irq_cap(irq: CDL_IRQ, _obj: &CDL_Object, free_slot: seL4_CPtr) -> seL4_Result {
     unsafe {
