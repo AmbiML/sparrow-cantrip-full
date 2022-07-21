@@ -13,7 +13,7 @@ use cantrip_memory_interface::RawMemoryStatsData;
 use cantrip_memory_manager::CantripMemoryManager;
 use cantrip_os_common::camkes::Camkes;
 use cantrip_os_common::sel4_sys;
-use log::trace;
+use log::info;
 
 use sel4_sys::seL4_BootInfo;
 use sel4_sys::seL4_CNode_Delete;
@@ -53,10 +53,9 @@ pub unsafe extern "C" fn pre_init() {
         /*untypeds=*/ bootinfo.untyped_descs(),
     );
     if let Ok(stats) = CANTRIP_MEMORY.stats() {
-        trace!(
-            "Global memory: {} allocated {} free",
-            stats.allocated_bytes,
-            stats.free_bytes,
+        info!(
+            "Global memory: {} allocated {} free {} reserved",
+            stats.allocated_bytes, stats.free_bytes, stats.overhead_bytes,
         );
     }
 
