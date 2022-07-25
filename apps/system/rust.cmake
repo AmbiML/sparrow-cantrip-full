@@ -7,7 +7,8 @@
 cmake_minimum_required(VERSION 3.8.2)
 include_guard(GLOBAL)
 
-# Force TLS-model to be compatible with CAmkES usage.
+# Force TLS-model to be compatible with CAmkES usage (see
+# tools/seL4/camkes-tool/helpers/environment_flags.cmake).
 # NB: we cannot use CARGO_OPTIONS, cargo will strip it out
 set(RUSTFLAGS "-Z tls-model=local-exec" CACHE INTERNAL "rustc env flags")
 
