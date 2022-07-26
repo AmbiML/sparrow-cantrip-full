@@ -116,7 +116,7 @@ impl CopyRegion {
     pub fn unmap(&mut self) -> seL4_Result {
         if let Some(cptr) = self.cur_frame {
             #[cfg(any(target_arch = "arm", target_arch = "aarch64"))]
-            unsafe { seL4_ARM_Page_Unify_Instruction(cptr, 0, self.size()) }?;
+            unsafe { sel4_sys::seL4_ARM_Page_Unify_Instruction(cptr, 0, self.size()) }?;
 
             unsafe { seL4_Page_Unmap(cptr) }?;
             self.cur_frame = None;
