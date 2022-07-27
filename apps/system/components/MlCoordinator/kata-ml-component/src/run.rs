@@ -8,6 +8,7 @@ use cstr_core::CStr;
 use cantrip_ml_coordinator::MLCoordinator;
 use cantrip_ml_coordinator::ModelIdx;
 use cantrip_ml_interface::MlCoordError;
+use cantrip_ml_shared::ImageId;
 use cantrip_os_common::camkes::Camkes;
 use cantrip_timer_interface::*;
 use log::error;
@@ -45,14 +46,17 @@ pub unsafe extern "C" fn run() {
 unsafe fn validate_ids(
     c_bundle_id: *const cstr_core::c_char,
     c_model_id: *const cstr_core::c_char,
-) -> Result<(String, String), MlCoordError> {
+) -> Result<ImageId, MlCoordError> {
     let bundle_id = CStr::from_ptr(c_bundle_id)
         .to_str()
         .map_err(|_| MlCoordError::InvalidBundleId)?;
     let model_id = CStr::from_ptr(c_model_id)
         .to_str()
         .map_err(|_| MlCoordError::InvalidModelId)?;
-    Ok((String::from(bundle_id), String::from(model_id)))
+    Ok(ImageId {
+        bundle_id: String::from(bundle_id),
+        model_id: String::from(model_id),
+    })
 }
 
 #[no_mangle]
@@ -60,12 +64,12 @@ pub unsafe extern "C" fn mlcoord_oneshot(
     c_bundle_id: *const cstr_core::c_char,
     c_model_id: *const cstr_core::c_char,
 ) -> MlCoordError {
-    let (bundle_id, model_id) = match validate_ids(c_bundle_id, c_model_id) {
-        Ok(ids) => ids,
+    let id = match validate_ids(c_bundle_id, c_model_id) {
+        Ok(id) => id,
         Err(e) => return e,
     };
 
-    if let Err(e) = ML_COORD.lock().oneshot(bundle_id, model_id) {
+    if let Err(e) = ML_COORD.lock().oneshot(id) {
         return e;
     }
 
@@ -78,11 +82,11 @@ pub unsafe extern "C" fn mlcoord_periodic(
     c_model_id: *const cstr_core::c_char,
     rate_in_ms: u32,
 ) -> MlCoordError {
-    let (bundle_id, model_id) = match validate_ids(c_bundle_id, c_model_id) {
-        Ok(ids) => ids,
+    let id = match validate_ids(c_bundle_id, c_model_id) {
+        Ok(id) => id,
         Err(e) => return e,
     };
-    if let Err(e) = ML_COORD.lock().periodic(bundle_id, model_id, rate_in_ms) {
+    if let Err(e) = ML_COORD.lock().periodic(id, rate_in_ms) {
         return e;
     }
 
@@ -94,12 +98,12 @@ pub unsafe extern "C" fn mlcoord_cancel(
     c_bundle_id: *const cstr_core::c_char,
     c_model_id: *const cstr_core::c_char,
 ) -> MlCoordError {
-    let (bundle_id, model_id) = match validate_ids(c_bundle_id, c_model_id) {
-        Ok(ids) => ids,
+    let id = match validate_ids(c_bundle_id, c_model_id) {
+        Ok(id) => id,
         Err(e) => return e,
     };
 
-    if let Err(e) = ML_COORD.lock().cancel(bundle_id, model_id) {
+    if let Err(e) = ML_COORD.lock().cancel(&id) {
         return e;
     }
 

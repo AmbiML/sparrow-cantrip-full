@@ -7,27 +7,14 @@ extern crate alloc;
 
 mod vc_top;
 
-use alloc::boxed::Box;
 use core::mem::size_of;
 use core::slice;
-use cantrip_memory_interface::ObjDescBundle;
-use cantrip_ml_shared::{ModelSections, Window, WMMU_PAGE_SIZE};
-use cantrip_ml_shared::{TCM_PADDR, TCM_SIZE};
-use cantrip_proc_interface::BundleImage;
-
-use io::Read;
-use cantrip_io as io;
+use cantrip_io::Read;
+use cantrip_ml_shared::{Permission, WindowId, TCM_PADDR, TCM_SIZE};
+use log::{error, trace};
 
 extern "C" {
     static TCM: *mut u32;
-}
-
-fn round_up(a: usize, b: usize) -> usize {
-    if (a % b) == 0 {
-        a
-    } else {
-        usize::checked_add(a, b).unwrap() - (a % b)
-    }
 }
 
 pub fn enable_interrupts(enable: bool) {
@@ -39,16 +26,27 @@ pub fn enable_interrupts(enable: bool) {
     vc_top::set_intr_enable(intr_enable);
 }
 
-pub fn set_wmmu(sections: &ModelSections) {
-    // XXX: Support multiple sections.
+pub fn set_wmmu_window(
+    window_id: WindowId,
+    start_address: usize,
+    length: usize,
+    permission: Permission,
+) {
+    trace!(
+        "Set window {:?} to addr {:x} len {:x}",
+        window_id,
+        start_address,
+        length
+    );
+    vc_top::set_mmu_window_offset(window_id as usize, start_address);
     // The length of the window is not the size of the window, but rather
     // the last address of the window. This saves us a bit in hardware:
     // 0x400000 is 23 bits vs. 0x3FFFFF 22 bits.
-    vc_top::set_mmu_window_offset(0, sections.tcm.addr);
-    vc_top::set_mmu_window_length(0, sections.tcm.size - 1);
-    vc_top::set_mmu_window_permission(0, vc_top::Permission::ReadWriteExecute);
+    vc_top::set_mmu_window_length(window_id as usize, length - 1);
+    vc_top::set_mmu_window_permission(window_id as usize, permission);
 }
 
+/// Start the core at the default PC.
 pub fn run() {
     let ctrl = vc_top::Ctrl::new()
         .with_freeze(false)
@@ -57,66 +55,53 @@ pub fn run() {
     vc_top::set_ctrl(ctrl);
 }
 
-// Writes the section of the image from |start_address| to
-// |start_address + on_flash_size| into the TCM. Zeroes the section from
-// |on_flash_size| to |unpacked_size|.
-#[allow(dead_code)] // XXX: Remove when integrated.
-pub fn write_image_part(
-    image: &mut Box<dyn Read>,
+/// Writes the section of the image from |start_address| to
+/// |start_address + on_flash_size| into the TCM. Zeroes the section from
+/// |on_flash_size| to |unpacked_size|. Returns None if the write failed.
+pub fn write_image_part<R: Read>(
+    image: &mut R,
     start_address: usize,
     on_flash_size: usize,
     unpacked_size: usize,
-) -> Result<(), &'static str> {
+) -> Option<()> {
     let start = start_address - TCM_PADDR;
 
+    trace!(
+        "Writing {:x} bytes to 0x{:x}, {:x} unpacked size",
+        on_flash_size,
+        start_address,
+        unpacked_size
+    );
+
     let tcm_slice = unsafe { slice::from_raw_parts_mut(TCM as *mut u8, TCM_SIZE) };
-    image
-        .read_exact(&mut tcm_slice[start..on_flash_size])
-        .map_err(|_| "section read error")?;
-    // TODO(jesionowski): Use hardware clear when TCM_SIZE fits into INIT_END.
-    tcm_slice[on_flash_size..unpacked_size].fill(0x00);
 
-    Ok(())
-}
-
-// XXX: Remove when write_image is integrated.
-// Loads the model into the TCM.
-pub fn load_image(frames: &ObjDescBundle) -> Result<ModelSections, &'static str> {
-    let mut image = BundleImage::new(frames);
-    let mut tcm_found = false;
-    // Size of window is filled in below.
-    let mut window = Window {
-        addr: TCM_PADDR,
-        size: 0,
+    if let Err(e) = image.read_exact(&mut tcm_slice[start..start + on_flash_size]) {
+        error!("Section read error {:?}", e);
+        return None;
     };
 
-    clear_tcm();
-    // NB: we require a TCM section and that only one is present
-    while let Some(section) = image.next_section() {
-        let slice = if section.vaddr == TCM_PADDR {
-            if tcm_found {
-                return Err("dup TCM section");
-            }
-            tcm_found = true;
+    // TODO(jesionowski): Use hardware clear when TCM_SIZE fits into INIT_END.
+    tcm_slice[start + on_flash_size..start + unpacked_size].fill(0x00);
 
-            if section.fsize > TCM_SIZE {
-                return Err("TCM section too big");
-            }
-            window.size = round_up(section.msize, WMMU_PAGE_SIZE);
-            unsafe { slice::from_raw_parts_mut(TCM as *mut u8, TCM_SIZE) }
-        } else {
-            return Err("Unexpected section");
-        };
-        image
-            .read_exact(&mut slice[section.data_range()])
-            .map_err(|_| "section read error")?;
-        // TODO(jesionowski): Remove when clear_tcm is fully implemented.
-        slice[section.zero_range()].fill(0x00);
-    }
-    if !tcm_found {
-        return Err("Incomplete");
-    }
-    Ok(ModelSections { tcm: window })
+    Some(())
+}
+
+/// Move |src_index..src_index + byte_length| to
+/// |dest_index..dest_index + byte_length|.
+pub fn tcm_move(src: usize, dest: usize, byte_length: usize) {
+    trace!(
+        "Moving 0x{:x} bytes to 0x{:x} from 0x{:x}",
+        byte_length,
+        dest as usize,
+        src as usize,
+    );
+
+    let tcm_slice = get_tcm_slice();
+    let src_index = (src - TCM_PADDR) / size_of::<u32>();
+    let dest_index = (dest - TCM_PADDR) / size_of::<u32>();
+    let count: usize = byte_length / size_of::<u32>();
+
+    tcm_slice.copy_within(src_index..src_index + count, dest_index);
 }
 
 // Interrupts are write 1 to clear.
@@ -144,7 +129,7 @@ pub fn clear_data_fault() {
     vc_top::set_intr_state(intr_state);
 }
 
-// TODO(jesionowski): Remove dead_code when TCM_SIZE fits into INIT_END.
+// TODO(jesionowski): Use when TCM_SIZE fits into INIT_END.
 #[allow(dead_code)]
 fn clear_section(start: u32, end: u32) {
     let init_start = vc_top::InitStart::new().with_address(start);
@@ -152,14 +137,28 @@ fn clear_section(start: u32, end: u32) {
 
     let init_end = vc_top::InitEnd::new().with_address(end).with_valid(true);
     vc_top::set_init_end(init_end);
-
-    while !vc_top::get_init_status().init_done() {}
 }
 
-pub fn clear_tcm() {
-    // TODO(jesionowski): Enable when TCM_SIZE fits into INIT_END.
-    // clear_section(0, TCM_SIZE as u32, false);
+/// Zeroes out |byte_length| bytes starting at |addr|.
+pub fn clear_tcm(addr: usize, byte_length: usize) {
+    assert!(addr >= TCM_PADDR);
+    assert!(addr + byte_length <= TCM_PADDR + TCM_SIZE);
+
+    trace!("Clearing 0x{:x} bytes at 0x{:x}", byte_length, addr);
+
+    let start = (addr - TCM_PADDR) / size_of::<u32>();
+    let count: usize = byte_length / size_of::<u32>();
+
+    // TODO(jesionowski): Use clear_section method when able.
+    let tcm_slice = get_tcm_slice();
+    tcm_slice[start..start + count].fill(0x00);
 }
+
+// TODO(jesionowski): Use when TCM_SIZE fits into INIT_END.
+// We'll want to kick off the hardware clear after the execution is complete,
+// holding off the busy-wait until we're ready to start another execution.
+#[allow(dead_code)]
+pub fn wait_for_clear_to_finish() { while !vc_top::get_init_status().init_done() {} }
 
 // TODO(jesionowski): Remove these when error handling is refactored.
 // The status will be faulty iff the interrupt line is raised, and

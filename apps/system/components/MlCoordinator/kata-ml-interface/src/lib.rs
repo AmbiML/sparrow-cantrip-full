@@ -1,5 +1,4 @@
 #![no_std]
-#![allow(dead_code)]
 use cstr_core::CString;
 
 /// Errors that can occur when interacting with the MlCoordinator.
@@ -9,6 +8,7 @@ pub enum MlCoordError {
     MlCoordOk,
     InvalidModelId,
     InvalidBundleId,
+    InvalidImage,
     LoadModelFailed,
     NoModelSlotsLeft,
     NoSuchModel,

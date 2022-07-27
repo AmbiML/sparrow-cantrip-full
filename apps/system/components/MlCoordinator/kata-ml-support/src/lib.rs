@@ -1,3 +1,3 @@
 #![no_std]
 
-mod image_manager;
+pub mod image_manager;

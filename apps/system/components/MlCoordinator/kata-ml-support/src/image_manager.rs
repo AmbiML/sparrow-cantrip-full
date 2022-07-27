@@ -1,5 +1,3 @@
-#![allow(dead_code)] // XXX: Supress warnings, remove once integrated.
-
 // The Image Manager is responsible for loading and unloading multiple images
 // into the Vector Core's tightly coupled memory. It tracks which image section
 // is where and evicts images on the core when necessary.
@@ -28,21 +26,15 @@
 
 extern crate alloc;
 
-use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::cmp;
-use cantrip_ml_shared::{ImageId, ImageSizes};
-use cantrip_ml_shared::{MAX_MODELS, TCM_PADDR, TCM_SIZE, WMMU_PAGE_SIZE};
+use cantrip_ml_shared::*;
 use log::{info, trace};
 
-use cantrip_io::Read;
-
-// XXX: Enable configuration when cantrip_vec_core does not depend on
-// cantrip-os-common.
-// #[cfg(not(test))]
-// use cantrip_vec_core as MlCore;
-// #[cfg(test)]
+#[cfg(test)]
 use fake_vec_core as MlCore;
+#[cfg(not(test))]
+use cantrip_vec_core as MlCore;
 
 // For each loaded image we need to track where the image's first segment is:
 // data_top ---> +---------------+
@@ -98,7 +90,7 @@ const INIT_NONE: Option<Image> = None;
 //                   | shared temp   |
 //                   |               |
 //                   +---------------+
-struct ImageManager {
+pub struct ImageManager {
     images: [Option<Image>; MAX_MODELS],
     image_queue: Vec<ImageIdx>,
 
@@ -107,33 +99,25 @@ struct ImageManager {
     tcm_bottom: usize,
 }
 
-// TODO(jesionowski): Create cantrip-os-utils, move this to it.
-fn round_up(a: usize, b: usize) -> usize {
-    if (a % b) == 0 {
-        a
-    } else {
-        usize::checked_add(a, b).unwrap() - (a % b)
-    }
-}
-
 // Returns the bytes needed above current_size to fit requested_size.
 fn space_needed(current_size: usize, requested_size: usize) -> usize {
     cmp::max(requested_size as isize - current_size as isize, 0) as usize
 }
 
-impl Default for ImageManager {
-    fn default() -> Self {
+impl ImageManager {
+    pub const fn new() -> Self {
         ImageManager {
             images: [INIT_NONE; MAX_MODELS],
-            image_queue: Vec::with_capacity(MAX_MODELS),
+            image_queue: Vec::new(),
             sensor_top: TCM_PADDR,
             tcm_top: TCM_PADDR,
             tcm_bottom: TCM_PADDR + TCM_SIZE,
         }
     }
-}
 
-impl ImageManager {
+    // Optional initilization step to reserve space for the queue.
+    pub fn init(&mut self) { self.image_queue.reserve(MAX_MODELS); }
+
     // Allocate a block of memory for the SensorManager to use. Returns the
     // address of the block. This function should only be called once during
     // SensorManager initialization, before any images are loaded.
@@ -173,12 +157,6 @@ impl ImageManager {
 
                 // Only move data if the addresses are different.
                 if tcm_addr != image.data_top_addr {
-                    trace!(
-                        "Moving {:X} bytes from {:X} to {:X}",
-                        size,
-                        image.data_top_addr,
-                        tcm_addr
-                    );
                     MlCore::tcm_move(image.data_top_addr, tcm_addr, size);
                     image.data_top_addr = tcm_addr;
                 }
@@ -189,18 +167,21 @@ impl ImageManager {
         self.tcm_top = tcm_addr;
     }
 
-    // Remove the latest image loaded and return the size of the freed space.
+    // Removes the latest image loaded and return the size of the freed space.
     fn unload_latest(&mut self) -> ImageSizes {
         // We can assume there's an image in the queue and unwrap safely, as
         // otherwise we wouldn't need to unload images to fit new ones.
         let idx = self.image_queue.pop().unwrap();
 
+        let (bundle, model) = self.ids_at(idx);
+        info!("Unloading image {}:{}", bundle, model);
+
         self.images[idx].take().unwrap().sizes
     }
 
-    // Removes images in FILO order until the top TCM and temp TCM
-    // constraints are satisfied.
-    fn make_space(&mut self, top_tcm_needed: usize, temp_tcm_needed: usize) {
+    /// Removes images in FILO order until the top TCM and temp TCM
+    /// constraints are satisfied. Returns the address of the freed space.
+    pub fn make_space(&mut self, top_tcm_needed: usize, temp_tcm_needed: usize) -> usize {
         assert!(top_tcm_needed + temp_tcm_needed <= TCM_SIZE);
         let mut available_tcm = self.tcm_free_space();
         let mut space_needed_for_temp =
@@ -210,6 +191,8 @@ impl ImageManager {
             let freed_sizes = self.unload_latest();
 
             available_tcm += freed_sizes.data_top_size();
+
+            self.tcm_top -= freed_sizes.data_top_size();
 
             // If we removed an image that had a temporary data size above the
             // current temp data size, we add that new memory to the pool.
@@ -221,31 +204,20 @@ impl ImageManager {
             // Re-calculate space needed for temporary data given the new size.
             space_needed_for_temp = space_needed(remaining_temp, temp_tcm_needed);
         }
+
+        self.tcm_top
     }
 
     // Sets the size of the temporary section based on the remaining images.
     fn set_tcm_bottom(&mut self) {
         let temp_data_size = self.required_temporary_data();
         self.tcm_bottom = TCM_PADDR + TCM_SIZE - temp_data_size;
-    }
-
-    // Updates the pointers after an image is written to TCM to ensure the
-    // image is kept around.
-    fn update_image_bookkeeping(&mut self, image: Image) {
-        // We expect to always have <32 models due to memory constraints,
-        // making this unwrap safe.
-        let index = self.images.iter().position(|i| i.is_none()).unwrap();
-
-        self.image_queue.push(index);
-
-        self.tcm_top += image.sizes.data_top_size();
-        self.set_tcm_bottom();
-
-        // If these pointers cross the memory is in an inconsistent state.
-        // (We shouldn't hit this unless our space calculations are wrong.)
-        assert!(self.tcm_bottom >= self.tcm_top);
-
-        self.images[index] = Some(image);
+        MlCore::set_wmmu_window(
+            WindowId::TempData,
+            self.tcm_bottom,
+            temp_data_size,
+            Permission::READ_WRITE,
+        );
     }
 
     // Returns the index for image |id| if it exists.
@@ -259,63 +231,43 @@ impl ImageManager {
         })
     }
 
-    // Returns true if the image is currently loaded in the TCM.
+    /// Returns true if the image |id| is currently loaded in the TCM.
     pub fn is_loaded(&mut self, id: &ImageId) -> bool { self.get_image_index(id).is_some() }
 
-    // Loads an |image| onto the Vector Core's TCM, evicting models as
-    // necessary. |on_flash_sizes| represents the on-disk sizes (ie fsize)
-    // for each section, while |unpacked_sizes| represents the aligned memory
-    // needed for execution (ie msize).
-    pub fn load_image(
-        &mut self,
-        image: &mut Box<dyn Read>,
-        id: ImageId,
-        on_flash_sizes: ImageSizes,
-        unpacked_sizes: ImageSizes,
-    ) -> Result<(), &'static str> {
-        self.make_space(unpacked_sizes.data_top_size(), unpacked_sizes.temporary_data);
-        let mut temp_top = self.tcm_top;
-
-        MlCore::write_image_part(image, temp_top, on_flash_sizes.text, unpacked_sizes.text)?;
-        temp_top += unpacked_sizes.text;
-
-        MlCore::write_image_part(
-            image,
-            temp_top,
-            on_flash_sizes.constant_data,
-            unpacked_sizes.constant_data,
-        )?;
-        temp_top += unpacked_sizes.constant_data;
-
-        MlCore::write_image_part(
-            image,
-            temp_top,
-            on_flash_sizes.model_output,
-            unpacked_sizes.model_output,
-        )?;
-        temp_top += unpacked_sizes.model_output;
-
-        MlCore::write_image_part(
-            image,
-            temp_top,
-            on_flash_sizes.static_data,
-            unpacked_sizes.static_data,
-        )?;
-
-        // Commit the image and update pointers.
-        self.update_image_bookkeeping(Image {
+    /// Appends an (already written) image to internal book-keeping. This class
+    /// does not handle the write as it requires seL4 references. The
+    /// MlCoordinator must call this function after the write.
+    pub fn commit_image(&mut self, id: ImageId, sizes: ImageSizes) {
+        let image = Image {
             id,
-            sizes: unpacked_sizes,
+            sizes,
             data_top_addr: self.tcm_top,
-        });
+        };
 
-        Ok(())
+        // We expect to always have <32 models due to memory constraints,
+        // making this unwrap safe.
+        let index = self.images.iter().position(|i| i.is_none()).unwrap();
+
+        trace!("Adding image: {:x?}", image);
+
+        self.image_queue.push(index);
+        self.tcm_top += image.sizes.data_top_size();
+
+        self.images[index] = Some(image);
+
+        self.set_tcm_bottom();
+
+        // If these pointers cross the memory is in an inconsistent state.
+        // (We shouldn't hit this unless our space calculations are wrong.)
+        assert!(self.tcm_bottom >= self.tcm_top);
     }
 
     // Unloads image |id| if loaded. Returns true if an image was unloaded.
     pub fn unload_image(&mut self, id: &ImageId) -> bool {
         if let Some(idx) = self.get_image_index(id) {
+            self.image_queue.remove(idx);
             self.images[idx] = None;
+
             self.compact_tcm_top();
             self.set_tcm_bottom();
             return true;
@@ -324,6 +276,59 @@ impl ImageManager {
         false
     }
 
+    /// Sets the WMMU to match the loaded image |id|. Returns true if that
+    /// image exists and the WMMU was set.
+    pub fn set_wmmu(&self, id: &ImageId) -> bool {
+        if let Some(idx) = self.get_image_index(id) {
+            let image = &self.images[idx].as_ref().unwrap();
+
+            let mut top = image.data_top_addr;
+
+            MlCore::set_wmmu_window(
+                WindowId::Text,
+                top,
+                image.sizes.text,
+                Permission::READ_EXECUTE,
+            );
+            top += image.sizes.text;
+
+            MlCore::set_wmmu_window(
+                WindowId::ConstData,
+                top,
+                image.sizes.constant_data,
+                Permission::READ,
+            );
+            top += image.sizes.constant_data;
+
+            MlCore::set_wmmu_window(
+                WindowId::ModelOutput,
+                top,
+                image.sizes.model_output,
+                Permission::READ_WRITE,
+            );
+            top += image.sizes.model_output;
+
+            MlCore::set_wmmu_window(
+                WindowId::StaticData,
+                top,
+                image.sizes.static_data,
+                Permission::READ_WRITE,
+            );
+
+            // TODO(jesionowski): Set model_input window when sensor manager
+            // is integrated.
+
+            // NB: TEMP_DATA_WINDOW is set in set_tcm_bottom.
+
+            return true;
+        }
+
+        false
+    }
+
+    /// Zeroes out the temporary data section.
+    pub fn clear_temp_data(&self) { MlCore::clear_tcm(self.tcm_bottom, self.tcm_bottom_size()); }
+
     fn ids_at(&self, idx: ImageIdx) -> (&str, &str) {
         match self.images[idx].as_ref() {
             Some(image) => (&image.id.bundle_id, &image.id.model_id),
@@ -331,10 +336,11 @@ impl ImageManager {
         }
     }
 
+    /// Prints local state for debugging.
     pub fn debug_state(&self) {
         info!("Loaded Images:");
         for image in self.images.as_ref().iter().flatten() {
-            info!("  {:?}", image);
+            info!("  {:x?}", image);
         }
 
         info!("Image Queue:");
@@ -343,9 +349,9 @@ impl ImageManager {
             info!("  {}:{}", bundle, model);
         }
 
-        info!("Sensor Top: {}", self.sensor_top);
-        info!("TCM Top: {}", self.tcm_top);
-        info!("TCM Bottom: {}", self.tcm_bottom);
+        info!("Sensor Top: 0x{:x}", self.sensor_top);
+        info!("TCM Top: 0x{:x}", self.tcm_top);
+        info!("TCM Bottom: 0x{:x}", self.tcm_bottom);
     }
 }
 
@@ -358,25 +364,12 @@ mod test {
 
     #[test]
     fn allocate_sensor() {
-        let mut image_manager = ImageManager::default();
+        let mut image_manager = ImageManager::new();
 
         assert_eq_hex!(image_manager.allocate_sensor_input(0x1000), TCM_PADDR);
 
         assert_eq_hex!(image_manager.tcm_top_size(), 0x1000);
     }
-
-    // Stub out the Read trait to enable fake images.
-    struct FakeImage;
-
-    impl Read for FakeImage {
-        fn read(&mut self, _buf: &mut [u8]) -> Result<usize, cantrip_io::Error> { Ok(0) }
-    }
-
-    fn fake_image() -> Box<dyn Read> { Box::new(FakeImage {}) }
-
-    // The on_flash_sizes are only used when writing the image to memory. For
-    // these tests we want to ignore this, so just use zeroed sizes.
-    fn ignore_on_flash_sizes() -> ImageSizes { ImageSizes::default() }
 
     fn constant_image_size(size: usize) -> ImageSizes {
         ImageSizes {
@@ -398,20 +391,16 @@ mod test {
 
     fn default_id() -> ImageId { make_id(1) }
 
-    fn load_image(image_manager: &mut ImageManager, id: ImageId, unpacked_sizes: ImageSizes) {
-        // fake_vec_core can't fail to load.
-        let _ = image_manager.load_image(
-            &mut fake_image(),
-            id,
-            ignore_on_flash_sizes(),
-            unpacked_sizes,
-        );
+    fn load_image(image_manager: &mut ImageManager, id: ImageId, in_memory_sizes: ImageSizes) {
+        image_manager.make_space(in_memory_sizes.data_top_size(), in_memory_sizes.temporary_data);
+
+        image_manager.commit_image(id, in_memory_sizes);
     }
 
     // Load a model and see that is_loaded returns true. Unload and see false.
     #[test]
     fn load_unload() {
-        let mut image_manager = ImageManager::default();
+        let mut image_manager = ImageManager::new();
         load_image(&mut image_manager, default_id(), constant_image_size(0x1000));
 
         let id = default_id();
@@ -428,7 +417,7 @@ mod test {
     // isn't loaded.
     #[test]
     fn is_loaded_no() {
-        let mut image_manager = ImageManager::default();
+        let mut image_manager = ImageManager::new();
 
         assert!(!image_manager.is_loaded(&default_id()));
         assert!(!image_manager.unload_image(&default_id()));
@@ -464,7 +453,7 @@ mod test {
     // of the second model. Then, load a 4th that unloads the others.
     #[test]
     fn loads_force_unloads() {
-        let mut image_manager = ImageManager::default();
+        let mut image_manager = ImageManager::new();
 
         let id1 = make_id(1);
         let id2 = make_id(2);
@@ -490,7 +479,7 @@ mod test {
     // others have been compacted.
     #[test]
     fn unloads_compact_tcm() {
-        let mut image_manager = ImageManager::default();
+        let mut image_manager = ImageManager::new();
 
         let id1 = make_id(1);
         let id2 = make_id(2);

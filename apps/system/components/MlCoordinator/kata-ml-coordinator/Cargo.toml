@@ -6,10 +6,13 @@ edition = "2021"
 
 [dependencies]
 cstr_core = { version = "0.2.3", default-features = false }
+cantrip-io = { path = "../../DebugConsole/cantrip-io" }
 cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-memory-interface = { path = "../../MemoryManager/cantrip-memory-interface" }
 cantrip-ml-interface = { path = "../cantrip-ml-interface" }
 cantrip-ml-shared = { path = "../cantrip-ml-shared" }
+cantrip-ml-support= { path = "../cantrip-ml-support" }
+cantrip-proc-interface = { path = "../../ProcessManager/cantrip-proc-interface" }
 cantrip-security-interface = { path = "../../SecurityCoordinator/cantrip-security-interface" }
 cantrip-timer-interface = { path = "../../TimerService/cantrip-timer-interface" }
 cantrip-vec-core = { path = "../cantrip-vec-core" }

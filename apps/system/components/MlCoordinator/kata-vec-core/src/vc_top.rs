@@ -3,6 +3,7 @@
 // Setters and getters for the Vector Core CSRs.
 
 use core::ptr;
+use cantrip_ml_shared::Permission;
 use modular_bitfield::prelude::*;
 
 extern "C" {
@@ -219,17 +220,9 @@ pub fn set_mmu_window_length(window: usize, length: usize) {
     }
 }
 
-pub enum Permission {
-    Read = 1,
-    Write = 2,
-    ReadWrite = 3,
-    Execute = 4,
-    ReadWriteExecute = 7,
-}
-
 pub fn set_mmu_window_permission(window: usize, permission: Permission) {
     let addr = window_addr(window) + PERMISSIONS_ADDR;
     unsafe {
-        core::ptr::write_volatile(addr as *mut usize, permission as usize);
+        core::ptr::write_volatile(addr as *mut usize, permission.bits() as usize);
     }
 }

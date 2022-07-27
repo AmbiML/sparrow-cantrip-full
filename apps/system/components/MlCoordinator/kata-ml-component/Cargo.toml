@@ -10,6 +10,7 @@ cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-memory-interface = { path = "../../MemoryManager/cantrip-memory-interface" }
 cantrip-ml-coordinator = { path = "../cantrip-ml-coordinator" }
 cantrip-ml-interface = { path = "../cantrip-ml-interface" }
+cantrip-ml-shared = { path = "../cantrip-ml-shared" }
 cantrip-timer-interface = { path = "../../TimerService/cantrip-timer-interface" }
 log = "0.4"
 spin = "0.9"

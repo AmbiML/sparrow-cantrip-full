@@ -4,22 +4,24 @@
 
 extern crate alloc;
 
-use alloc::string::String;
 use alloc::vec::Vec;
 use cantrip_memory_interface::cantrip_object_free_in_cnode;
 use cantrip_ml_interface::MlCoordError;
-use cantrip_ml_shared::MAX_MODELS;
+use cantrip_ml_shared::*;
+use cantrip_ml_support::image_manager::ImageManager;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
+use cantrip_proc_interface::BundleImage;
 use cantrip_security_interface::*;
 use cantrip_timer_interface::*;
 use cantrip_vec_core as MlCore;
-use log::{error, info, trace, warn};
+use log::{error, info, warn};
 
 /// Represents a single loadable model.
 #[derive(Debug)]
 struct LoadableModel {
-    bundle_id: String,
-    model_id: String,
+    id: ImageId,
+    on_flash_sizes: ImageSizes,
+    in_memory_sizes: ImageSizes,
     rate_in_ms: Option<u32>,
 }
 
@@ -33,15 +35,15 @@ struct Statistics {
 pub struct MLCoordinator {
     /// The currently running model index, if any.
     running_model: Option<ModelIdx>,
-    /// The currently loaded model.
-    // NB: This will be removed once the WMMU allows for multiple models loaded
-    loaded_model: Option<ModelIdx>,
     /// A list of all models that have been requested for oneshot or periodic
     /// execution.
     models: [Option<LoadableModel>; MAX_MODELS],
     /// A queue of models that are ready for immediate execution on the vector
     /// core, once the currently running model has finished.
     execution_queue: Vec<ModelIdx>,
+    /// The image manager is responsible for tracking, loading, and unloading
+    /// images.
+    image_manager: ImageManager,
     statistics: Statistics,
 }
 
@@ -55,9 +57,9 @@ impl MLCoordinator {
     pub const fn new() -> Self {
         MLCoordinator {
             running_model: None,
-            loaded_model: None,
             models: [INIT_NONE; MAX_MODELS],
             execution_queue: Vec::new(),
+            image_manager: ImageManager::new(),
             statistics: Statistics {
                 load_failures: 0,
                 already_queued: 0,
@@ -69,72 +71,170 @@ impl MLCoordinator {
     pub fn init(&mut self) {
         MlCore::enable_interrupts(true);
         self.execution_queue.reserve(MAX_MODELS);
+        self.image_manager.init();
     }
 
-    /// Load a model by copying it into the Vector Core's TCM, if it's not
-    /// already been loaded.
-    fn load_model(&mut self, model_idx: ModelIdx) -> Result<(), MlCoordError> {
-        if self.loaded_model == Some(model_idx) {
-            trace!("Model already loaded, skipping load");
+    // Validates the image by ensuring it has all the required loadable
+    // sections and that it fits into the TCM. Returns a tuple of
+    // |(on_flash_sizes, in_memory_sizes)|.
+    fn validate_image(&self, id: &ImageId) -> Option<(ImageSizes, ImageSizes)> {
+        let mut container_slot = CSpaceSlot::new();
+        match cantrip_security_load_model(&id.bundle_id, &id.model_id, &container_slot) {
+            Ok(model_frames) => {
+                container_slot.release(); // NB: take ownership
+                let mut image = BundleImage::new(&model_frames);
+
+                let mut on_flash_sizes = ImageSizes::default();
+                let mut in_memory_sizes = ImageSizes::default();
+
+                while let Some(section) = image.next_section() {
+                    match section.vaddr {
+                        TEXT_VADDR => {
+                            on_flash_sizes.text = section.fsize;
+                            in_memory_sizes.text = round_up(section.msize, WMMU_PAGE_SIZE);
+                        }
+                        CONST_DATA_VADDR => {
+                            on_flash_sizes.constant_data = section.fsize;
+                            in_memory_sizes.constant_data = round_up(section.msize, WMMU_PAGE_SIZE);
+                        }
+                        MODEL_OUTPUT_VADDR => {
+                            on_flash_sizes.model_output = section.fsize;
+                            in_memory_sizes.model_output = round_up(section.msize, WMMU_PAGE_SIZE);
+                        }
+                        STATIC_DATA_VADDR => {
+                            on_flash_sizes.static_data = section.fsize;
+                            in_memory_sizes.static_data = round_up(section.msize, WMMU_PAGE_SIZE);
+                        }
+                        TEMP_DATA_VADDR => {
+                            on_flash_sizes.temporary_data = section.fsize;
+                            in_memory_sizes.temporary_data =
+                                round_up(section.msize, WMMU_PAGE_SIZE);
+                        }
+                        vaddr => {
+                            warn!("While validating found unexpected section at {}", vaddr);
+                        }
+                    }
+                }
+
+                if !in_memory_sizes.is_valid() {
+                    error!("Image invalid, section missing: {:?}", in_memory_sizes);
+                    return None;
+                }
+                if in_memory_sizes.total_size() > TCM_SIZE {
+                    error!("Image too big to fit in TCM: {:?}", in_memory_sizes);
+                    return None;
+                }
+
+                drop(image);
+                let _ = cantrip_object_free_in_cnode(&model_frames);
+
+                Some((on_flash_sizes, in_memory_sizes))
+            }
+            Err(status) => {
+                error!("Security Core error {:?}", status);
+                None
+            }
+        }
+    }
+
+    // If there is a next model in the queue, load it onto the vector core and
+    // start running. If there's already a running model, don't do anything.
+    fn schedule_next_model(&mut self) -> Result<(), MlCoordError> {
+        if self.running_model.is_some() || self.execution_queue.is_empty() {
             return Ok(());
         }
 
-        // Ensure we have a model at the passed index. This shouldn't error.
-        let model = self.models[model_idx]
-            .as_ref()
-            .ok_or(MlCoordError::LoadModelFailed)?;
+        let next_idx = self.execution_queue.remove(0);
+        let model = self.models[next_idx].as_ref().expect("Model get fail");
 
-        // Loads |model_id| associated with |bundle_id| from the
-        // SecurityCoordinator. The data are returned as unmapped
-        // page frames in a CNode container left in |container_slot|.
-        // To load the model into the vector core the pages must be
-        // mapped into the MlCoordinator's VSpace before being copied
-        // to their destination.
-        let mut container_slot = CSpaceSlot::new();
-        match cantrip_security_load_model(&model.bundle_id, &model.model_id, &container_slot) {
-            Ok(model_frames) => {
-                container_slot.release(); // NB: take ownership
-                let ret_status = match MlCore::load_image(&model_frames) {
-                    Err(e) => {
-                        error!("Load of {}:{} failed: {:?}", &model.bundle_id, &model.model_id, e);
-                        // May have corrupted TCM.
-                        self.loaded_model = None;
-                        self.statistics.load_failures += 1;
-                        Err(MlCoordError::LoadModelFailed)
+        if !self.image_manager.is_loaded(&model.id) {
+            // Loads |model_id| associated with |bundle_id| from the
+            // SecurityCoordinator. The data are returned as unmapped
+            // page frames in a CNode container left in |container_slot|.
+            // To load the model into the vector core the pages must be
+            // mapped into the MlCoordinator's VSpace before being copied
+            // to their destination.
+            let mut container_slot = CSpaceSlot::new();
+            match cantrip_security_load_model(&model.id.bundle_id, &model.id.model_id, &container_slot)
+            {
+                Ok(model_frames) => {
+                    container_slot.release(); // NB: take ownership
+                    let mut image = BundleImage::new(&model_frames);
+
+                    // Ask the image manager to make enough room and get
+                    // the address to write to.
+                    let mut temp_top = self.image_manager.make_space(
+                        model.in_memory_sizes.data_top_size(),
+                        model.in_memory_sizes.temporary_data,
+                    );
+
+                    while let Some(section) = image.next_section() {
+                        // TODO(jesionowski): Ensure these are in order.
+                        if section.vaddr == TEXT_VADDR {
+                            MlCore::write_image_part(
+                                &mut image,
+                                temp_top,
+                                model.on_flash_sizes.text,
+                                model.in_memory_sizes.text,
+                            )
+                            .ok_or(MlCoordError::LoadModelFailed)?;
+
+                            temp_top += model.in_memory_sizes.text;
+                        } else if section.vaddr == CONST_DATA_VADDR {
+                            MlCore::write_image_part(
+                                &mut image,
+                                temp_top,
+                                model.on_flash_sizes.constant_data,
+                                model.in_memory_sizes.constant_data,
+                            )
+                            .ok_or(MlCoordError::LoadModelFailed)?;
+
+                            temp_top += model.in_memory_sizes.constant_data;
+                        } else if section.vaddr == MODEL_OUTPUT_VADDR {
+                            // Don't load, but do skip.
+                            temp_top += model.in_memory_sizes.model_output;
+                        } else if section.vaddr == STATIC_DATA_VADDR {
+                            MlCore::write_image_part(
+                                &mut image,
+                                temp_top,
+                                model.on_flash_sizes.static_data,
+                                model.in_memory_sizes.static_data,
+                            )
+                            .ok_or(MlCoordError::LoadModelFailed)?;
+
+                            temp_top += model.in_memory_sizes.static_data;
+                        }
                     }
-                    Ok(sections) => {
-                        info!("Load successful.");
-                        MlCore::set_wmmu(&sections);
-                        self.loaded_model = Some(model_idx);
-                        Ok(())
-                    }
-                };
-                let _ = cantrip_object_free_in_cnode(&model_frames);
-                ret_status
-            }
-            Err(e) => {
-                error!(
-                    "LoadModel of bundle {}:{} failed: {:?}",
-                    &model.bundle_id, &model.model_id, e
-                );
-                self.statistics.load_failures += 1;
-                Err(MlCoordError::LoadModelFailed)
+                    info!("Load successful.");
+
+                    // Inform the image manager the image has been written.
+                    self.image_manager
+                        .commit_image(model.id.clone(), model.in_memory_sizes);
+
+                    drop(image);
+                    let _ = cantrip_object_free_in_cnode(&model_frames);
+                }
+                Err(e) => {
+                    error!(
+                        "LoadModel of bundle {}:{} failed: {:?}",
+                        &model.id.bundle_id, &model.id.model_id, e
+                    );
+                    self.statistics.load_failures += 1;
+                    return Err(MlCoordError::LoadModelFailed);
+                }
             }
         }
-    }
 
-    /// If there is a next model in the queue, load it onto the core and start
-    /// running. If there's already a running model, don't do anything.
-    fn schedule_next_model(&mut self) -> Result<(), MlCoordError> {
-        if !self.running_model.is_some() && !self.execution_queue.is_empty() {
-            let next_idx = self.execution_queue.remove(0);
-            // If load model fails we won't try and re-queue this model.
-            // It's very unlikely for load errors to be transient, it should
-            // only happen in the case of a mal-formed model.
-            self.load_model(next_idx)?;
-            MlCore::run(); // Unhalt, start at default PC.
-            self.running_model = Some(next_idx);
-        }
+        // TODO(jesionowski): Investigate if we need to clear the entire
+        // temporary data section or just certain parts.
+        // TODO(jesionowski): When hardware clear is enabled, we should
+        // kick it off after the run instead.
+        self.image_manager.clear_temp_data();
+
+        self.image_manager.set_wmmu(&model.id);
+
+        self.running_model = Some(next_idx);
+        MlCore::run(); // Start core at default PC.
 
         Ok(())
     }
@@ -173,8 +273,7 @@ impl MLCoordinator {
     // of that slot.
     fn ready_model(
         &mut self,
-        bundle_id: String,
-        model_id: String,
+        id: ImageId,
         rate_in_ms: Option<u32>,
     ) -> Result<ModelIdx, MlCoordError> {
         // Return None if all slots are full.
@@ -184,20 +283,39 @@ impl MLCoordinator {
             .position(|m| m.is_none())
             .ok_or(MlCoordError::NoModelSlotsLeft)?;
 
+        let (on_flash_sizes, in_memory_sizes) =
+            self.validate_image(&id).ok_or(MlCoordError::InvalidImage)?;
+
         self.models[index] = Some(LoadableModel {
-            bundle_id,
-            model_id,
+            id,
+            on_flash_sizes,
+            in_memory_sizes,
             rate_in_ms,
         });
 
         Ok(index)
     }
 
-    /// Start a one-time model execution, to be executed immediately.
-    pub fn oneshot(&mut self, bundle_id: String, model_id: String) -> Result<(), MlCoordError> {
-        let model_idx = self.ready_model(bundle_id, model_id, None)?;
+    // Returns the index for model |id| if it exists.
+    fn get_model_index(&self, id: &ImageId) -> Option<ModelIdx> {
+        self.models.iter().position(|opti| {
+            if let Some(i) = opti {
+                i.id == *id
+            } else {
+                false
+            }
+        })
+    }
 
-        self.execution_queue.push(model_idx);
+    /// Start a one-time model execution, to be executed immediately.
+    pub fn oneshot(&mut self, id: ImageId) -> Result<(), MlCoordError> {
+        // Check if we've loaded this model already.
+        let idx = match self.get_model_index(&id) {
+            Some(idx) => idx,
+            None => self.ready_model(id, None)?,
+        };
+
+        self.execution_queue.push(idx);
         self.schedule_next_model()?;
 
         Ok(())
@@ -205,36 +323,25 @@ impl MLCoordinator {
 
     /// Start a periodic model execution, to be executed immediately and
     /// then every rate_in_ms.
-    pub fn periodic(
-        &mut self,
-        bundle_id: String,
-        model_id: String,
-        rate_in_ms: u32,
-    ) -> Result<(), MlCoordError> {
-        let model_idx = self.ready_model(bundle_id, model_id, Some(rate_in_ms))?;
+    pub fn periodic(&mut self, id: ImageId, rate_in_ms: u32) -> Result<(), MlCoordError> {
+        // Check if we've loaded this model already.
+        let idx = match self.get_model_index(&id) {
+            Some(idx) => idx,
+            None => self.ready_model(id, Some(rate_in_ms))?,
+        };
 
-        self.execution_queue.push(model_idx);
+        self.execution_queue.push(idx);
         self.schedule_next_model()?;
 
-        timer_service_periodic(model_idx as u32, rate_in_ms);
+        timer_service_periodic(idx as u32, rate_in_ms);
 
         Ok(())
     }
 
     /// Cancels an outstanding execution.
-    pub fn cancel(&mut self, bundle_id: String, model_id: String) -> Result<(), MlCoordError> {
+    pub fn cancel(&mut self, id: &ImageId) -> Result<(), MlCoordError> {
         // Find the model index matching the bundle/model id.
-        let model_idx = self
-            .models
-            .iter()
-            .position(|optm| {
-                if let Some(m) = optm {
-                    m.bundle_id == bundle_id && m.model_id == model_id
-                } else {
-                    false
-                }
-            })
-            .ok_or(MlCoordError::NoSuchModel)?;
+        let model_idx = self.get_model_index(id).ok_or(MlCoordError::NoSuchModel)?;
 
         // If the model is periodic, cancel the timer.
         if self.models[model_idx]
@@ -255,6 +362,8 @@ impl MLCoordinator {
             self.execution_queue.remove(idx);
         }
 
+        self.image_manager.unload_image(id);
+
         self.models[model_idx] = None;
         Ok(())
     }
@@ -270,7 +379,7 @@ impl MLCoordinator {
                 let model = self.models[model_idx].as_ref().unwrap();
                 warn!(
                     "Dropping {}:{} periodic execution as it has an execution outstanding already.",
-                    &model.bundle_id, &model.model_id
+                    &model.id.bundle_id, &model.id.model_id
                 );
                 self.statistics.already_queued += 1;
                 return Ok(());
@@ -317,7 +426,7 @@ impl MLCoordinator {
 
     fn ids_at(&self, idx: ModelIdx) -> (&str, &str) {
         match self.models[idx].as_ref() {
-            Some(model) => (&model.bundle_id, &model.model_id),
+            Some(model) => (&model.id.bundle_id, &model.id.model_id),
             None => ("None", "None"),
         }
     }
@@ -331,19 +440,9 @@ impl MLCoordinator {
             None => info!("No running model."),
         }
 
-        match self.loaded_model {
-            Some(idx) => {
-                let (bundle, model) = self.ids_at(idx);
-                info!("Loaded model: {}:{}", bundle, model);
-            }
-            None => info!("No loaded model."),
-        }
-
         info!("Loadable Models:");
-        for model in self.models.as_ref() {
-            if let Some(m) = model {
-                info!("  {:?}", m);
-            }
+        for model in self.models.as_ref().iter().flatten() {
+            info!("  {:x?}", model);
         }
 
         info!("Execution Queue:");
@@ -353,5 +452,7 @@ impl MLCoordinator {
         }
 
         info!("Statistics: {:?}", self.statistics);
+
+        self.image_manager.debug_state();
     }
 }

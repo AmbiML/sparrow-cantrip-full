@@ -5,11 +5,17 @@ extern crate alloc;
 
 use alloc::boxed::Box;
 use cantrip_io::Read;
-use cantrip_ml_shared::ModelSections;
+use cantrip_ml_shared::Permission;
 
 pub fn enable_interrupts(_enable: bool) {}
 
-pub fn set_wmmu(_sections: &ModelSections) {}
+pub fn set_wmmu_window(
+    _window_id: usize,
+    _start_address: usize,
+    _length: usize,
+    _permission: Permission,
+) {
+}
 
 pub fn run() {}
 
@@ -32,7 +38,9 @@ pub fn clear_instruction_fault() {}
 
 pub fn clear_data_fault() {}
 
-pub fn clear_tcm() {}
+pub fn clear_tcm(_addr: usize, _len: usize) {}
+
+pub fn wait_for_clear_to_finish() {}
 
 pub fn get_return_code() -> u32 { 0 }
 

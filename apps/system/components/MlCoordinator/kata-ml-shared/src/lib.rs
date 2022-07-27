@@ -1,5 +1,4 @@
 #![no_std]
-#![allow(dead_code)]
 
 // Data structures used throughout the Cantrip ML implementation that do not
 // depend on cantrip-os-common.
@@ -7,6 +6,7 @@
 extern crate alloc;
 
 use alloc::string::String;
+use bitflags::bitflags;
 
 /// An image is uniquely identified by the bundle that owns it and the
 /// particular model id in that bundle.
@@ -18,7 +18,7 @@ pub struct ImageId {
 
 /// An image consists of five sections. See go/sparrow-vc-memory for a
 /// description of each section. Sizes are in bytes.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct ImageSizes {
     pub text: usize,
     pub model_input: usize,
@@ -33,24 +33,21 @@ impl ImageSizes {
     pub fn data_top_size(&self) -> usize {
         self.text + self.model_output + self.constant_data + self.static_data
     }
-}
 
-// XXX: Out-dated and should use ImageSizes. Refactor when multiple sections
-// are enabled.
-/// The Vector Core uses a Windowed MMU (go/sparrow-wmmu) in order to prevent
-/// models from interferring with each other. Before executing a model,
-/// windows to only that model's code and data are opened.
-/// A window is represented by an address and size of that window.
-pub struct Window {
-    pub addr: usize,
-    pub size: usize,
-}
+    pub fn total_size(&self) -> usize {
+        self.data_top_size() + self.temporary_data + self.model_input
+    }
 
-// XXX: Out-dated. Refactor when multiple sections are enabled.
-/// When a model is loaded onto the Vector Core, the ML Coordinator needs to
-/// track where each window is.
-pub struct ModelSections {
-    pub tcm: Window,
+    // A set of sizes is considered valid if everything but model_input is
+    // non-zero.
+    pub fn is_valid(&self) -> bool {
+        // TODO(jesionowski): Add `&& self.model_output != 0` when model output
+        // is integrated with model code.
+        self.text != 0
+            && self.constant_data != 0
+            && self.static_data != 0
+            && self.temporary_data != 0
+    }
 }
 
 /// The page size of the WMMU.
@@ -66,3 +63,39 @@ pub const TCM_SIZE: usize = 0x1000000;
 
 /// The address of the Vector Core's TCM, viewed from the SMC.
 pub const TCM_PADDR: usize = 0x34000000;
+
+// The virtualized address of each WMMU section (see: go/sparrow-vc-memory).
+pub const TEXT_VADDR: usize = 0x80000000;
+pub const CONST_DATA_VADDR: usize = 0x81000000;
+pub const MODEL_OUTPUT_VADDR: usize = 0x82000000;
+pub const STATIC_DATA_VADDR: usize = 0x83000000;
+pub const MODEL_INPUT_VADDR: usize = 0x84000000;
+pub const TEMP_DATA_VADDR: usize = 0x85000000;
+
+#[derive(Clone, Copy, Debug)]
+pub enum WindowId {
+    Text = 0,
+    ConstData = 1,
+    ModelOutput = 2,
+    StaticData = 3,
+    ModelInput = 4,
+    TempData = 5,
+}
+
+bitflags! {
+    pub struct Permission: u32 {
+        const READ    = 0b00000001;
+        const WRITE   = 0b00000010;
+        const EXECUTE = 0b00000100;
+        const READ_WRITE = Self::READ.bits | Self::WRITE.bits;
+        const READ_EXECUTE = Self::READ.bits | Self::EXECUTE.bits;
+    }
+}
+
+pub fn round_up(a: usize, b: usize) -> usize {
+    if (a % b) == 0 {
+        a
+    } else {
+        usize::checked_add(a, b).unwrap() - (a % b)
+    }
+}

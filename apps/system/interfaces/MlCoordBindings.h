@@ -13,6 +13,7 @@ typedef enum MlCoordError {
   MlCoordOk,
   InvalidModelId,
   InvalidBundleId,
+  InvalidImage,
   LoadModelFailed,
   NoModelSlotsLeft,
   NoSuchModel,
