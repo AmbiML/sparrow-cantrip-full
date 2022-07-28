@@ -359,6 +359,8 @@ pub struct seL4_BootInfo {
     pub initThreadCNodeSizeBits: seL4_Word,
     /// Root task's domain ID
     pub initThreadDomain: seL4_Domain,
+    /// Memory reserved to the kernel.
+    pub kernelReservedBytes: seL4_Word,
 
     #[cfg(feature = "CONFIG_KERNEL_MCS")]
     // Caps to sched_control for each node

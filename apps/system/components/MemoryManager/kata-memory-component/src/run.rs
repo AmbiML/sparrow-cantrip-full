@@ -54,8 +54,11 @@ pub unsafe extern "C" fn pre_init() {
     );
     if let Ok(stats) = CANTRIP_MEMORY.stats() {
         info!(
-            "Global memory: {} allocated {} free {} reserved",
-            stats.allocated_bytes, stats.free_bytes, stats.overhead_bytes,
+            "Global memory: {} allocated {} free, reserved: {} kernel {} user",
+            stats.allocated_bytes,
+            stats.free_bytes,
+            bootinfo.kernelReservedBytes,
+            stats.overhead_bytes,
         );
     }
 
