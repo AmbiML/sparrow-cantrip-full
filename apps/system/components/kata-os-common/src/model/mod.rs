@@ -187,7 +187,7 @@ impl<'a> CantripOsModel<'a> {
             #[cfg(feature = "CONFIG_ARM_SMMU")]
             sid_number: 0,
 
-            untyped_cnode: CDL_ObjID::MAX,
+            untyped_cnode: CDL_ObjID_Invalid,
             untyped_index: 0,
             untyped_max: 0,
 
@@ -291,7 +291,7 @@ impl<'a> CantripOsModel<'a> {
         let mut ut_index = self.untyped_index;
         while let Err(e) = self.create_object(
             &cnode,
-            CDL_ObjID::MAX, // NB: use something invalid in case it's used
+            CDL_ObjID_Invalid,
             self.state.get_untyped_cptr(ut_index),
             cnode_slot,
         ) {

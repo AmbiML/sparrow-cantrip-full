@@ -59,8 +59,8 @@ impl<'a> CantripOsModel<'a> {
         let mut roots = SmallVec::new();
 
         // Record objects that receive special treatment later on.
-        let mut bootinfo_frame: CDL_ObjID = CDL_ObjID::MAX;
-        let mut untyped_cnode: CDL_ObjID = CDL_ObjID::MAX;
+        let mut bootinfo_frame: CDL_ObjID = CDL_ObjID_Invalid;
+        let mut untyped_cnode: CDL_ObjID = CDL_ObjID_Invalid;
 
         // First, allocate most objects and record the cslot locations.
         // The exception is ASIDPools, where create_object only allocates

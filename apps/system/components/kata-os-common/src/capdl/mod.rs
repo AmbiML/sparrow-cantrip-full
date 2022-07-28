@@ -132,9 +132,10 @@ pub const CDL_TCB_TemporalFaultEP_Slot: seL4_Word = CDL_TCB_SC_Slot + 1;
 pub const CDL_TCB_VCPU_Slot: seL4_Word = CDL_TCB_TemporalFaultEP_Slot + 1;
 
 pub type CDL_ObjID = seL4_Word;
+pub const CDL_ObjID_Invalid: CDL_ObjID = CDL_ObjID::MAX;
 // NB: some object id's are written in the spec as -1
 pub fn is_objid_valid(val: CDL_ObjID) -> bool {
-    val != CDL_ObjID::MAX
+    val != CDL_ObjID_Invalid
 }
 pub type CDL_IRQ = seL4_Word;
 pub type CDL_Core = seL4_Word;
