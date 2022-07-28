@@ -97,7 +97,6 @@ impl<'a> CantripOsModel<'a> {
                     panic!("Out of untyped memory.");
                 }
             }
-
             match obj.r#type() {
                 // Capture VSpace roots & TCBs for later use.
                 CDL_TCB => {
@@ -172,11 +171,17 @@ impl<'a> CantripOsModel<'a> {
 
             // update to point to our new ASID pool
             self.set_orig_cap(obj_id, asid_slot);
+            // NB: stash the original untyped in the dup table for holding
+            self.set_dup_cap(obj_id, asid_ut);
             free_slot_index += 1;
         }
 
         // Update the free slot to go past all the objects we just made.
         self.free_slot_start += free_slot_index;
+
+        // Stash state for create_holding_cnode.
+        self.untyped_index = ut_index;
+        self.untyped_max = num_normal_untypes;
 
         // Stash the VSpace roots.
         roots.sort();
@@ -198,17 +203,22 @@ impl<'a> CantripOsModel<'a> {
     // Sort untyped objects from largest to smallest.  This ensures that
     // fragmentation is minimized if the objects are also sorted, largest
     // to smallest, during creation.
+    //
+    // NB: filter untyped objects marked tainted; those were used to
+    //   construct rootserver objects and will be reclaimed by the
+    //   MemoryManager.
     fn sort_untypeds(&mut self, bootinfo: &seL4_BootInfo) -> usize {
         let untyped_start = bootinfo.untyped.start;
         let untyped_end = bootinfo.untyped.end;
         let untypedList = unsafe { self.bootinfo.untyped_descs() };
 
         // Count how many non-device untypeds there are of each size.
-        let mut count: [usize; seL4_WordBits] = [0; seL4_WordBits];
-        for ut in untypedList {
-            if !ut.is_device() {
-                count[ut.size_bits()] += 1;
-            }
+        let mut count = [0usize; seL4_WordBits];
+        for ut in untypedList
+            .iter()
+            .filter(|ut| !ut.is_device() && !ut.is_tainted())
+        {
+            count[ut.size_bits()] += 1;
         }
 
         // Calculate the starting index for each untyped.
@@ -223,7 +233,7 @@ impl<'a> CantripOsModel<'a> {
         let mut num_normal_untypes = 0usize;
         for untyped_index in 0..(untyped_end - untyped_start) {
             let ut = &untypedList[untyped_index];
-            if !ut.is_device() {
+            if !ut.is_device() && !ut.is_tainted() {
                 let index = ut.size_bits();
 
                 #[cfg(feature = "CONFIG_NOISY_UNTYPEDS")]

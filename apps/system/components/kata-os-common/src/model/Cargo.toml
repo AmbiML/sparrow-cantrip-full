@@ -33,6 +33,7 @@ CONFIG_VTX = []
 # Enable inclusion of noisy logging in various areas
 CONFIG_NOISY_UNTYPEDS = []
 CONFIG_NOISY_CREATE_OBJECT = []
+CONFIG_NOISY_HANDOFF = []
 CONFIG_NOISY_INIT_CNODE = []
 CONFIG_NOISY_INIT_VSPACE = []
 

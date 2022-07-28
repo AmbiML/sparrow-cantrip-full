@@ -15,6 +15,7 @@ use capdl::*;
 use core::cmp;
 use core::convert::TryInto;
 use core::mem::size_of;
+use core::mem::MaybeUninit;
 use core::ptr;
 use cpio::CpioNewcReader;
 use cstr_core::CStr;
@@ -157,6 +158,8 @@ pub struct CantripOsModel<'a> {
     sid_number: usize,
 
     untyped_cnode: CDL_ObjID,
+    untyped_index: usize,
+    untyped_max: usize,
 
     extended_bootinfo_table: [*const seL4_BootInfoHeader; SEL4_BOOTINFO_HEADER_NUM],
 
@@ -185,6 +188,8 @@ impl<'a> CantripOsModel<'a> {
             sid_number: 0,
 
             untyped_cnode: CDL_ObjID::MAX,
+            untyped_index: 0,
+            untyped_max: 0,
 
             extended_bootinfo_table: [ptr::null(); SEL4_BOOTINFO_HEADER_NUM],
 
@@ -221,16 +226,236 @@ impl<'a> CantripOsModel<'a> {
         Ok(())
     }
 
-    pub fn handoff_capabilities(&mut self) -> seL4_Result {
-        // Hand-off capabilities needed to dynamically create seL4 objects.
-        // The MemoryManager needs the UntypedMemory slabs to instantiate
-        // objects. The ProcessManager needs various other object(s) to
-        // configure TCB's but those are expressed with capDL and moved
-        // as part of the work done by init_cspsace.
+    // Hand-off capabilities needed to dynamically create seL4 objects.
+    // The MemoryManager needs the UntypedMemory slabs to instantiate
+    // objects.
+    fn handoff_untypeds(&mut self) -> seL4_Result {
+        assert!(is_objid_valid(self.untyped_cnode), "No handoff CNode found");
 
-        if is_objid_valid(self.untyped_cnode) {
-            self.handoff_untypeds()?;
+        // UntypedMemory caps are appended to the CAmkES-generated slots
+        // in the CNode identified for handoff. CAmkES is assumed to have
+        // sized the CNode to handle moving the untyped memory slabs + 1
+        // slot for a "holding CNode".
+        let cnode = self.get_object(self.untyped_cnode);
+        let dest_root = self.get_orig_cap(self.untyped_cnode);
+        let dest_start = cnode.next_free_slot() + 1;
+        let num_untypeds = self.bootinfo.untyped.end - self.bootinfo.untyped.start;
+
+        trace!(
+            "Hand-off {} untypeds from {} to {}",
+            num_untypeds,
+            self.bootinfo.untyped.start,
+            dest_start
+        );
+        // NB: we let kernel tell us if the CNode is too small.
+        for ut in 0..num_untypeds {
+            self.handoff_cap(
+                self.untyped_cnode,
+                /*src_index=*/ self.bootinfo.untyped.start + ut,
+                /*dest_root=*/ dest_root,
+                /*dest_index=*/ dest_start + ut,
+            )?;
         }
+        Ok(())
+    }
+
+    // Allocates a CNode for use by handoff_holding.
+    fn create_holding_cnode(&mut self, kernel_caps: usize) -> (seL4_CPtr, usize) {
+        fn count_log2(count: usize) -> usize {
+            assert!(count != 0);
+            (usize::BITS - usize::leading_zeros(count)) as usize
+        }
+
+        // Calculate the cnode size. NB: get_free_slot() is initialized to the
+        // first empty slot so adjust in calculating the depth.
+        let cnode_slot = self.get_free_slot();
+        let cnode_depth = count_log2(kernel_caps + (cnode_slot - self.bootinfo.empty.start));
+        trace!(
+            "{} holding caps, holding cnode depth {}",
+            kernel_caps + (cnode_slot - self.bootinfo.empty.start),
+            cnode_depth
+        );
+
+        // NB: only setup the bits we know will be used.
+        #[allow(unused_variables)]
+        let cnode = CDL_Object {
+            #[cfg(feature = "CONFIG_DEBUG_BUILD")]
+            name: "HoldingCNode".as_ptr(),
+            slots: unsafe { MaybeUninit::<CDL_CapMap>::zeroed().assume_init() },
+            extra: unsafe { MaybeUninit::<CDL_ObjectExtra>::zeroed().assume_init() },
+            type_: CDL_CNode,
+            size_bits: cnode_depth as u32,
+        };
+
+        // Start from last untyped memory object used by loader_alloc::create_objects.
+        let mut ut_index = self.untyped_index;
+        while let Err(e) = self.create_object(
+            &cnode,
+            CDL_ObjID::MAX, // NB: use something invalid in case it's used
+            self.state.get_untyped_cptr(ut_index),
+            cnode_slot,
+        ) {
+            debug!("create error {:?}", e);
+            if e != seL4_Error::seL4_NotEnoughMemory {
+                panic!("Untyped retype failed, error {:?}", e);
+            }
+            // This untyped is exhausted, go to the next entry.
+            ut_index += 1;
+            if ut_index >= self.untyped_max {
+                panic!("Out of untyped memory.");
+            }
+        }
+        self.next_free_slot();
+        // NB: we intentionally do not record the cap in the orig table
+
+        (cnode_slot, cnode_depth)
+    }
+
+    // Hand-off objects that need to be held for safekeeping. We create a
+    // suitably-sized "holding CNode" and sweep the necessary capabilities
+    // from our top-level CNode into the holding CNode. This allows the
+    // designated component (e.g MemoryManager) to revoke designated untyped
+    // memory slabs without reclaiming the objects the rootserver constructed
+    // for CAmkES components.
+    pub fn handoff_capabilities(&mut self) -> seL4_Result {
+        fn delete_cap(cptr: seL4_CPtr) -> seL4_Result {
+            unsafe {
+                seL4_CNode_Delete(
+                    /*src_root=*/ seL4_CapInitThreadCNode,
+                    /*src_index=*/ cptr,
+                    /*src_depth=*/ seL4_WordBits as u8,
+                )
+            }
+        }
+        // Well-known caps created by the kernel.
+        let kernel_caps = [
+            seL4_CapIRQControl,         // global IRQ controller
+            seL4_CapASIDControl,        // global ASID controller
+            seL4_CapInitThreadASIDPool, // initial thread's ASID pool
+            seL4_CapIOPort,             // global IO port (or null)
+            seL4_CapIOSpace,            // global IO space (or null)
+            seL4_CapDomain,             // global domain controller
+        ];
+
+        if !is_objid_valid(self.untyped_cnode) {
+            // Do not fail if there is no cnode, this is not setup when
+            // running sel4test (for example).
+            return Ok(());
+        }
+
+        // Create the CNode for the holding caps.
+        let (holding_cnode_slot, holding_cnode_depth) =
+            self.create_holding_cnode(kernel_caps.len());
+
+        // Handoff untypeds now that we've allocated the holding CNode.
+        self.handoff_untypeds()?;
+
+        let dest_cnode_orig = self.get_orig_cap(self.untyped_cnode);
+        let dest_cnode_dup = self.dup_cap(self.untyped_cnode)?;
+
+        let mut next_slot = 0; // Next open slot in the holding CNode
+
+        // Moves |src| from the toplevel CNode to the next available
+        // slot in the holding CNode. We filter out errors that occur
+        // if the source slot is empty.
+        let hold_cap = |src, dest| {
+            match unsafe {
+                seL4_CNode_Move(
+                    /*dest_root=*/ holding_cnode_slot,
+                    /*dest_index=*/ dest,
+                    /*dest_depth=*/ holding_cnode_depth as u8,
+                    /*src_root=*/ seL4_CapInitThreadCNode,
+                    /*src_index=*/ src,
+                    /*src_depth=*/ seL4_WordBits as u8,
+                )
+            } {
+                Err(seL4_FailedLookup) | Ok(_) => Ok(()),
+                e => e,
+            }
+        };
+
+        // Like hold_cap but hold a dup of |src|. Used for TCB's so a
+        // reference remains usable to start threads. The original caps
+        // remain in the top-level CNode until the MemoryManager reclaim
+        // them. NB: this should never fail so there's no error filtering.
+        let hold_dup_cap = |src, dest| {
+            let seL4_AllRights = seL4_CapRights::new(
+                /*grant_reply=*/ 1, /*grant=*/ 1, /*read=*/ 1, /*write=*/ 1,
+            );
+            unsafe {
+                seL4_CNode_Copy(
+                    /*dest_root=*/ holding_cnode_slot,
+                    /*dest_index=*/ dest,
+                    /*dest_depth=*/ holding_cnode_depth as u8,
+                    /*src_root=*/ seL4_CapInitThreadCNode,
+                    /*src_index=*/ src,
+                    /*src_depth=*/ seL4_WordBits as u8,
+                    seL4_AllRights,
+                )
+            }
+        };
+
+        // Move well-known caps setup by the kernel.
+        for cap in kernel_caps.into_iter() {
+            hold_cap(cap, next_slot)?;
+            next_slot += 1;
+        }
+
+        // Then sweep in caps created from the capDL spec. The holding
+        // CNode is not enumerated here because it (intentionally) does
+        // not appear in the orig or dup tables. See above about TCB's.
+        for obj_id in 0..self.get_free_slot() {
+            // Skip handoff destination, we'll deal with it below.
+            if obj_id == self.untyped_cnode {
+                continue;
+            }
+
+            let orig_cap = self.get_orig_cap(obj_id);
+            if orig_cap != 0 {
+                if self.get_object(obj_id).r#type() == CDL_TCB {
+                    hold_dup_cap(orig_cap, next_slot)?;
+                    next_slot += 1;
+                } else {
+                    hold_cap(orig_cap, next_slot)?;
+                    next_slot += 1;
+                }
+            }
+            let dup_cap = self.get_dup_cap(obj_id);
+            if dup_cap != 0 && dup_cap != orig_cap {
+                // TCB's are not dup'd so no need to check
+                hold_cap(dup_cap, next_slot)?;
+                next_slot += 1;
+            }
+        }
+
+        // IRQ caps are in a separate table.
+        for irq in 0..self.state.get_max_irqs() {
+            let irq_cap = self.get_irq_cap(irq);
+            if irq_cap != 0 {
+                hold_cap(irq_cap, next_slot)?;
+                next_slot += 1;
+            }
+        }
+
+        // Almost done with holding handoffs. The last one to do
+        // is the destination CNode. We have a dup to do the final
+        // handoff of the holding CNode so move the original now.
+        hold_cap(dest_cnode_orig, next_slot)?;
+
+        // Finally handoff the holding CNode for safekeeping. We must
+        // use the dup of the destination CNode since we just released
+        // the original cap.
+        let dest_cnode = self.get_object(self.untyped_cnode);
+        assert_eq!(dest_cnode.r#type(), CDL_CNode);
+        self.handoff_cap(
+            self.untyped_cnode,
+            /*src_index=*/ holding_cnode_slot,
+            /*dest_root=*/ dest_cnode_dup,
+            /*dest_index=*/ dest_cnode.next_free_slot() + 0,
+        )?;
+
+        delete_cap(dest_cnode_dup)?;
+
         Ok(())
     }
 
@@ -373,7 +598,6 @@ impl<'a> CantripOsModel<'a> {
             }
             obj_type => obj_type.into(),
         };
-
         // Give arch handler a first chance; we handle memory-backed objects.
         match self.create_arch_object(obj, id, free_slot) {
             None => {
@@ -586,16 +810,20 @@ impl<'a> CantripOsModel<'a> {
         }
 
         assert!(is_objid_valid(self.untyped_cnode));
-        let cnode = &self.spec.obj_slice()[self.untyped_cnode];
+        let cnode = self.get_object(self.untyped_cnode);
         assert_eq!(cnode.r#type(), CDL_CNode);
 
         // NB: page-aligned so safe to deref.
         let bootinfo = unsafe { &mut *(dest as *mut seL4_BootInfo) };
 
-        // UntypedMemory caps are appended to the specified slots.
+        // UntypedMemory caps are appended to the designated CNode.
+        // Calculate the first unoccupied slot in the CNode; immediately
+        // after a "holding CNode" will be dropped and the untypeds go
+        // one past that.
+        let next_free_slot = cnode.next_free_slot() + 1;
         bootinfo.untyped = sel4_sys::seL4_SlotRegion {
-            start: cnode.num_slots() + 1,
-            end: cnode.num_slots() + 1 + (self.bootinfo.untyped.end - self.bootinfo.untyped.start),
+            start: next_free_slot,
+            end: next_free_slot + (self.bootinfo.untyped.end - self.bootinfo.untyped.start),
         };
         // Update the empty region to support dynamic cap allocation.
         bootinfo.empty = sel4_sys::seL4_SlotRegion {
@@ -911,35 +1139,6 @@ impl<'a> CantripOsModel<'a> {
         Ok(())
     }
 
-    pub fn handoff_untypeds(&mut self) -> seL4_Result {
-        assert!(is_objid_valid(self.untyped_cnode), "No handoff CNode found");
-
-        // UntypedMemory caps are appended to the CAmkES-generated slots
-        // in the CNode identified for handoff. CAmkES is assumed to have
-        // sized the CNode to handle moving the untyped memory slabs.
-        let cnode = self.get_object(self.untyped_cnode);
-        let dest_root = self.get_orig_cap(self.untyped_cnode);
-        let dest_start = cnode.next_free_slot();
-        let num_untypeds = self.bootinfo.untyped.end - self.bootinfo.untyped.start;
-
-        trace!(
-            "Hand-off {} untypeds from {} to {}",
-            num_untypeds,
-            self.bootinfo.untyped.start,
-            dest_start
-        );
-        // NB: we let kernel tell us if the CNode is too small.
-        for ut in 0..num_untypeds {
-            self.handoff_cap(
-                self.untyped_cnode,
-                /*src_index=*/ self.bootinfo.untyped.start + ut,
-                /*dest_root=*/ dest_root,
-                /*dest_index=*/ dest_start + ut,
-            )?;
-        }
-        Ok(())
-    }
-
     fn handoff_cap(
         &self,
         cnode_obj_id: CDL_ObjID,
@@ -1156,8 +1355,23 @@ impl<'a> CantripOsModel<'a> {
     fn set_dup_cap(&mut self, obj_id: CDL_ObjID, slot: seL4_CPtr) {
         let old_cap = self.get_dup_cap(obj_id);
         if old_cap != slot && old_cap != 0 {
-            // NB: should only happens when dup'ing shared page frames
-            trace!("dup: obj_id {} old {} new {}", obj_id, old_cap, slot);
+            // Overwriting a previous dup should only happen for shared page
+            // frames & badging endpoints. We need a record of them for the
+            // handoff_holding work; stash 'em in the dup table at the next
+            // available slot--we know at the point this happens slots will be
+            // allocated only with next_free_slot so there cannot be a collision.
+            // NB: caller's must be aware another slot may be allocated
+            let overflow_slot = self.get_free_slot();
+            self.set_dup_cap(overflow_slot, old_cap);
+            self.next_free_slot();
+            trace!(
+                "dup: obj {:?} obj_id {} old {} new {} overflow {}",
+                self.get_object(obj_id).r#type(),
+                obj_id,
+                old_cap,
+                slot,
+                overflow_slot
+            );
         };
         self.state.set_dup_cap(obj_id, slot);
     }
@@ -1193,6 +1407,8 @@ impl<'a> CantripOsModel<'a> {
             )
         }?;
         self.next_free_slot();
+        // NB: record in dup table for handoff_holding
+        self.set_dup_cap(obj_id, free_slot);
         Ok(free_slot)
     }
 
@@ -1212,8 +1428,8 @@ impl<'a> CantripOsModel<'a> {
                 seL4_AllRights,
             )
         }?;
-        self.set_dup_cap(obj_id, free_slot);
         self.next_free_slot();
+        self.set_dup_cap(obj_id, free_slot);
         Ok(free_slot)
     }
 }
