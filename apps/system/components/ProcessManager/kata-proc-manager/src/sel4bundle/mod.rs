@@ -292,8 +292,8 @@ impl seL4BundleImpl {
             cap_tcb: CSpaceSlot::new(), // Top-level dup for suspend/resume
             first_page: first_vaddr / PAGE_SIZE,
 
-            affinity: 0, // CPU 0
-            domain: Domain::AppSandbox,
+            affinity: 0,            // CPU 0
+            domain: Domain::System, // TODO(jtgans,sleffler): Figure out how to use this correctly. b/238811077
 
             tcb_name: bundle.app_id.clone(),
             tcb_max_priority: 254, // TODO(sleffler): guess

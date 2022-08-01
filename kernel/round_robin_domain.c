@@ -13,10 +13,19 @@
  * other half. Note that even if there's nothing to run in the third-party
  * application domain, the scheduler will schedule an idle thread to ensure that
  * domain gets it's allocated share of time.
+ *
+ * TODO(jtgans,sleffler): Figure out how to better use these domains for
+ * scheduling applications. We don't really want to use a full 50% duty cycle
+ * for third party applications -- this wastes too much time. See also
+ * b/238811077.
+ *
+ * NOTE: Only a single domain is currently enabled, as per the commented section
+ * below. Any time the below schedule is changed, the number of domains
+ * configured in easy-settings.cmake must also be changed.
  */
 const dschedule_t ksDomSchedule[] = {
     {.domain = 0, .length = 1},  // System domain
-    {.domain = 1, .length = 1},  // Third party application domain
+    /*  {.domain = 1, .length = 1},  // Third party application domain */
 };
 
 const word_t ksDomScheduleLength = sizeof(ksDomSchedule) / sizeof(dschedule_t);

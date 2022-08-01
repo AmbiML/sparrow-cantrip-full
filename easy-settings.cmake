@@ -14,5 +14,5 @@ set(SIMULATION ON CACHE BOOL "Whether to build simulate script")
 set(RELEASE OFF CACHE BOOL "Performance optimized build")
 set(UseRiscVBBL OFF CACHE BOOL "Whether to use bbl")
 
-set(KernelNumDomains 2 CACHE STRING "How many scheduling domains to build for")
+set(KernelNumDomains 1 CACHE STRING "How many scheduling domains to build for")
 set(KernelDomainSchedule "${CMAKE_CURRENT_LIST_DIR}/kernel/round_robin_domain.c" CACHE INTERNAL "Domain scheduler algorithm")
