@@ -26,9 +26,7 @@ enum State {
 }
 
 impl State {
-    fn new() -> State {
-        State::SendingZRINIT
-    }
+    fn new() -> State { State::SendingZRINIT }
 
     fn next(self, frame: &Frame) -> State {
         match (self, frame.get_frame_type()) {

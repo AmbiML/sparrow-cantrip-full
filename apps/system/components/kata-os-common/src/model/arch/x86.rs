@@ -47,32 +47,28 @@ pub fn create_irq_cap(irq: CDL_IRQ, obj: &CDL_Object, free_slot: seL4_CPtr) -> s
     let index = free_slot;
     let depth = seL4_WordBits as u8;
     match obj.r#type() {
-        CDL_IOAPICInterrupt => {
-            seL4_IRQControl_GetIOAPIC(
-                seL4_CapIRQControl,
-                root,
-                index,
-                depth,
-                obj.ioapicirq_ioapic(),
-                obj.ioapicirq_pin(),
-                obj.ioapicirq_level(),
-                obj.ioapicirq_polarity(),
-                irq,
-            )
-        }
-        CDL_MSIInterrupt => {
-            seL4_IRQControl_GetMSI(
-                seL4_CapIRQControl,
-                root,
-                index,
-                depth,
-                obj.msiirq_pci_bus(),
-                obj.msiirq_pci_dev(),
-                obj.msiirq_pci_fun(),
-                obj.msiirq_handle(),
-                irq,
-            )
-        }
+        CDL_IOAPICInterrupt => seL4_IRQControl_GetIOAPIC(
+            seL4_CapIRQControl,
+            root,
+            index,
+            depth,
+            obj.ioapicirq_ioapic(),
+            obj.ioapicirq_pin(),
+            obj.ioapicirq_level(),
+            obj.ioapicirq_polarity(),
+            irq,
+        ),
+        CDL_MSIInterrupt => seL4_IRQControl_GetMSI(
+            seL4_CapIRQControl,
+            root,
+            index,
+            depth,
+            obj.msiirq_pci_bus(),
+            obj.msiirq_pci_dev(),
+            obj.msiirq_pci_fun(),
+            obj.msiirq_handle(),
+            irq,
+        ),
         _ => seL4_IRQControl_Get(seL4_CapIRQControl, irq, root, index, depth),
     }
 }

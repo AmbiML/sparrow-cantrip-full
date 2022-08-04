@@ -64,9 +64,7 @@ extern "C" {
     static csr: *mut u32;
 }
 
-fn get_u32(idx: isize) -> u32 {
-    unsafe { ptr::read_volatile(csr.offset(idx)) }
-}
+fn get_u32(idx: isize) -> u32 { unsafe { ptr::read_volatile(csr.offset(idx)) } }
 
 fn set_u32(idx: isize, val: u32) {
     unsafe {
@@ -74,82 +72,42 @@ fn set_u32(idx: isize, val: u32) {
     }
 }
 
-fn get_bytes(idx: isize) -> [u8; 4] {
-    get_u32(idx).to_ne_bytes()
-}
+fn get_bytes(idx: isize) -> [u8; 4] { get_u32(idx).to_ne_bytes() }
 
-fn set_bytes(idx: isize, bytes: [u8; 4]) {
-    set_u32(idx, u32::from_ne_bytes(bytes));
-}
+fn set_bytes(idx: isize, bytes: [u8; 4]) { set_u32(idx, u32::from_ne_bytes(bytes)); }
 
-pub fn get_ctrl() -> Ctrl {
-    Ctrl::from_bytes(get_bytes(1))
-}
+pub fn get_ctrl() -> Ctrl { Ctrl::from_bytes(get_bytes(1)) }
 
-pub fn set_ctrl(ctrl: Ctrl) {
-    set_bytes(1, ctrl.into_bytes());
-}
+pub fn set_ctrl(ctrl: Ctrl) { set_bytes(1, ctrl.into_bytes()); }
 
-pub fn get_config() -> Config {
-    Config::from_bytes(get_bytes(0x40))
-}
+pub fn get_config() -> Config { Config::from_bytes(get_bytes(0x40)) }
 
-pub fn set_config(config: Config) {
-    set_bytes(0x40, config.into_bytes());
-}
+pub fn set_config(config: Config) { set_bytes(0x40, config.into_bytes()); }
 
-pub fn get_value_low() -> u32 {
-    get_u32(0x41)
-}
+pub fn get_value_low() -> u32 { get_u32(0x41) }
 
-pub fn set_value_low(val: u32) {
-    set_u32(0x41, val);
-}
+pub fn set_value_low(val: u32) { set_u32(0x41, val); }
 
-pub fn get_value_high() -> u32 {
-    get_u32(0x42)
-}
+pub fn get_value_high() -> u32 { get_u32(0x42) }
 
-pub fn set_value_high(val: u32) {
-    set_u32(0x42, val);
-}
+pub fn set_value_high(val: u32) { set_u32(0x42, val); }
 
-pub fn get_compare_low() -> u32 {
-    get_u32(0x43)
-}
+pub fn get_compare_low() -> u32 { get_u32(0x43) }
 
-pub fn set_compare_low(val: u32) {
-    set_u32(0x43, val);
-}
+pub fn set_compare_low(val: u32) { set_u32(0x43, val); }
 
-pub fn get_compare_high() -> u32 {
-    get_u32(0x44)
-}
+pub fn get_compare_high() -> u32 { get_u32(0x44) }
 
-pub fn set_compare_high(val: u32) {
-    set_u32(0x44, val);
-}
+pub fn set_compare_high(val: u32) { set_u32(0x44, val); }
 
-pub fn get_intr_enable() -> Intr {
-    Intr::from_bytes(get_bytes(0x45))
-}
+pub fn get_intr_enable() -> Intr { Intr::from_bytes(get_bytes(0x45)) }
 
-pub fn set_intr_enable(intr_enable: Intr) {
-    set_bytes(0x45, intr_enable.into_bytes());
-}
+pub fn set_intr_enable(intr_enable: Intr) { set_bytes(0x45, intr_enable.into_bytes()); }
 
-pub fn get_intr_state() -> Intr {
-    Intr::from_bytes(get_bytes(0x46))
-}
+pub fn get_intr_state() -> Intr { Intr::from_bytes(get_bytes(0x46)) }
 
-pub fn set_intr_state(intr_state: Intr) {
-    set_bytes(0x46, intr_state.into_bytes());
-}
+pub fn set_intr_state(intr_state: Intr) { set_bytes(0x46, intr_state.into_bytes()); }
 
-pub fn get_intr_test() -> Intr {
-    Intr::from_bytes(get_bytes(0x47))
-}
+pub fn get_intr_test() -> Intr { Intr::from_bytes(get_bytes(0x47)) }
 
-pub fn set_intr_test(intr_test: Intr) {
-    set_bytes(0x47, intr_test.into_bytes());
-}
+pub fn set_intr_test(intr_test: Intr) { set_bytes(0x47, intr_test.into_bytes()); }

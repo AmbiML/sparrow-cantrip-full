@@ -37,9 +37,7 @@ pub struct __BindgenBitfieldUnit<Storage> {
 }
 impl<Storage> __BindgenBitfieldUnit<Storage> {
     #[inline]
-    pub const fn new(storage: Storage) -> Self {
-        Self { storage }
-    }
+    pub const fn new(storage: Storage) -> Self { Self { storage } }
 }
 impl<Storage> __BindgenBitfieldUnit<Storage>
 where
@@ -134,9 +132,7 @@ pub const CDL_TCB_VCPU_Slot: seL4_Word = CDL_TCB_TemporalFaultEP_Slot + 1;
 pub type CDL_ObjID = seL4_Word;
 pub const CDL_ObjID_Invalid: CDL_ObjID = CDL_ObjID::MAX;
 // NB: some object id's are written in the spec as -1
-pub fn is_objid_valid(val: CDL_ObjID) -> bool {
-    val != CDL_ObjID_Invalid
-}
+pub fn is_objid_valid(val: CDL_ObjID) -> bool { val != CDL_ObjID_Invalid }
 pub type CDL_IRQ = seL4_Word;
 pub type CDL_Core = seL4_Word;
 
@@ -234,21 +230,13 @@ impl CDL_CapData__bindgen_ty_1__bindgen_ty_1 {
         }
     }
     #[inline]
-    pub fn guard_bits(&self) -> seL4_Word {
-        self._bitfield.get(0, 18) as seL4_Word
-    }
+    pub fn guard_bits(&self) -> seL4_Word { self._bitfield.get(0, 18) as seL4_Word }
     #[inline]
-    pub fn set_guard_bits(&mut self, val: seL4_Word) {
-        self._bitfield.set(0, 18, val as u64)
-    }
+    pub fn set_guard_bits(&mut self, val: seL4_Word) { self._bitfield.set(0, 18, val as u64) }
     #[inline]
-    pub fn guard_size(&self) -> seL4_Word {
-        self._bitfield.get(18, 14) as seL4_Word
-    }
+    pub fn guard_size(&self) -> seL4_Word { self._bitfield.get(18, 14) as seL4_Word }
     #[inline]
-    pub fn set_guard_size(&mut self, val: seL4_Word) {
-        self._bitfield.set(18, 14, val as u64)
-    }
+    pub fn set_guard_size(&mut self, val: seL4_Word) { self._bitfield.set(18, 14, val as u64) }
     fn new_bitfield(
         guard_bits: seL4_Word,
         guard_size: seL4_Word,
@@ -274,9 +262,7 @@ impl CDL_CapData {
         unsafe { ::core::mem::transmute::<u32, CDL_CapDataType>(self._bitfield.get(0, 2) as u32) }
     }
     #[inline]
-    pub fn set_tag(&mut self, val: u32) {
-        self._bitfield.set(0, 2, val as u64)
-    }
+    pub fn set_tag(&mut self, val: u32) { self._bitfield.set(0, 2, val as u64) }
     #[inline]
     pub fn guard_bits(&self) -> seL4_Word {
         unsafe { self.__bindgen_anon.__bindgen_anon.guard_bits() }
@@ -294,21 +280,13 @@ impl CDL_CapData {
         unsafe { self.__bindgen_anon.__bindgen_anon.set_guard_size(val) }
     }
     #[inline]
-    pub fn badge(&self) -> seL4_Word {
-        unsafe { self.__bindgen_anon.badge }
-    }
+    pub fn badge(&self) -> seL4_Word { unsafe { self.__bindgen_anon.badge } }
     #[inline]
-    pub fn set_badge(&mut self, val: seL4_Word) {
-        self.__bindgen_anon.badge = val
-    }
+    pub fn set_badge(&mut self, val: seL4_Word) { self.__bindgen_anon.badge = val }
     #[inline]
-    pub fn data(&self) -> seL4_Word {
-        unsafe { self.__bindgen_anon.data }
-    }
+    pub fn data(&self) -> seL4_Word { unsafe { self.__bindgen_anon.data } }
     #[inline]
-    pub fn set_data(&mut self, val: seL4_Word) {
-        self.__bindgen_anon.data = val
-    }
+    pub fn set_data(&mut self, val: seL4_Word) { self.__bindgen_anon.data = val }
 }
 
 #[repr(C, packed)]
@@ -326,31 +304,19 @@ pub struct CDL_Cap {
 }
 impl CDL_Cap {
     // data in an seL4-friendly format
-    pub fn cap_data(&self) -> seL4_Word {
-        self.data.get_cap_data()
-    }
+    pub fn cap_data(&self) -> seL4_Word { self.data.get_cap_data() }
 
     // Returns the sel4utils representation of a CDL_Cap's rights
-    pub fn cap_rights(&self) -> seL4_CapRights {
-        self.rights().into()
-    }
+    pub fn cap_rights(&self) -> seL4_CapRights { self.rights().into() }
 
     #[inline]
-    pub fn r#type(&self) -> CDL_CapType {
-        self.type_
-    }
+    pub fn r#type(&self) -> CDL_CapType { self.type_ }
     #[inline]
-    pub fn vm_attribs(&self) -> u32 {
-        self._bitfield.get(0, 3) as u32
-    }
+    pub fn vm_attribs(&self) -> u32 { self._bitfield.get(0, 3) as u32 }
     #[inline]
-    pub fn set_vm_attribs(&mut self, val: u32) {
-        self._bitfield.set(0, 3, val as u64)
-    }
+    pub fn set_vm_attribs(&mut self, val: u32) { self._bitfield.set(0, 3, val as u64) }
     #[inline]
-    pub fn is_orig(&self) -> bool {
-        self._bitfield.get(3, 1) != 0
-    }
+    pub fn is_orig(&self) -> bool { self._bitfield.get(3, 1) != 0 }
     #[inline]
     pub fn set_is_orig(&mut self, val: bool) {
         self._bitfield.set(3, 1, if val { 1u64 } else { 0u64 })
@@ -393,9 +359,7 @@ impl<'a> CDL_CapMap {
     pub fn as_slice(&'a self) -> &'a [CDL_CapSlot] {
         unsafe { core::slice::from_raw_parts(self.slot, self.num) }
     }
-    pub fn get_slot(&self, index: usize) -> CDL_CapSlot {
-        self.as_slice()[index]
-    }
+    pub fn get_slot(&self, index: usize) -> CDL_CapSlot { self.as_slice()[index] }
     pub fn get_cap_at(&self, slot: seL4_Word) -> Option<&CDL_Cap> {
         self.as_slice()
             .iter()
@@ -552,9 +516,7 @@ pub enum CDL_FrameFill_BootInfoEnum_t {
     CDL_FrameFill_BootInfo_BootInfo = SEL4_BOOTINFO_HEADER_BOOTINFO as isize,
 }
 impl From<CDL_FrameFill_BootInfoEnum_t> for usize {
-    fn from(bi_type: CDL_FrameFill_BootInfoEnum_t) -> usize {
-        bi_type as usize
-    }
+    fn from(bi_type: CDL_FrameFill_BootInfoEnum_t) -> usize { bi_type as usize }
 }
 
 #[repr(C)]
@@ -636,18 +598,14 @@ impl<'a> CDL_Object {
 
     #[cfg(not(feature = "CONFIG_DEBUG_BUILD"))]
     #[inline]
-    pub fn name(&self) -> &str {
-        "<n/a>"
-    }
+    pub fn name(&self) -> &str { "<n/a>" }
 
     pub fn slots_slice(&'a self) -> &'a [CDL_CapSlot] {
         #[allow(unaligned_references)]
         self.slots.as_slice()
     }
     #[inline]
-    pub fn num_slots(&self) -> seL4_Word {
-        self.slots.num
-    }
+    pub fn num_slots(&self) -> seL4_Word { self.slots.num }
     // Returns the next available slot past those specified in the spec.
     // Note we cannot use num_slots since there may be gaps in the
     // numbering due to empty slots.
@@ -669,13 +627,9 @@ impl<'a> CDL_Object {
         self.slots.get_cap_at(slot)
     }
     #[inline]
-    pub fn r#type(&self) -> CDL_ObjectType {
-        self.type_
-    }
+    pub fn r#type(&self) -> CDL_ObjectType { self.type_ }
     #[inline]
-    pub fn size_bits(&self) -> seL4_Word {
-        self.size_bits as seL4_Word
-    }
+    pub fn size_bits(&self) -> seL4_Word { self.size_bits as seL4_Word }
     pub fn paddr(&self) -> Option<seL4_Word> {
         match self.type_ {
             CDL_Frame => Some(unsafe { self.extra.frame_extra.paddr }),
@@ -702,9 +656,7 @@ impl<'a> CDL_Object {
     // TODO(sleffler): maybe assert type_ before referencing union members
     // NB: return everything as seL4_Word to minimize conversions
     #[inline]
-    pub fn tcb_ipcbuffer_addr(&self) -> seL4_Word {
-        unsafe { self.extra.tcb_extra.ipcbuffer_addr }
-    }
+    pub fn tcb_ipcbuffer_addr(&self) -> seL4_Word { unsafe { self.extra.tcb_extra.ipcbuffer_addr } }
     #[inline]
     pub fn tcb_priority(&self) -> seL4_Word {
         (unsafe { self.extra.tcb_extra.priority }) as seL4_Word
@@ -718,25 +670,17 @@ impl<'a> CDL_Object {
         (unsafe { self.extra.tcb_extra.affinity }) as seL4_Word
     }
     #[inline]
-    pub fn tcb_domain(&self) -> seL4_Word {
-        (unsafe { self.extra.tcb_extra.domain }) as seL4_Word
-    }
+    pub fn tcb_domain(&self) -> seL4_Word { (unsafe { self.extra.tcb_extra.domain }) as seL4_Word }
     #[inline]
-    pub fn tcb_init(&self) -> *const seL4_Word {
-        unsafe { self.extra.tcb_extra.init }
-    }
+    pub fn tcb_init(&self) -> *const seL4_Word { unsafe { self.extra.tcb_extra.init } }
     #[inline]
     pub fn tcb_init_sz(&self) -> seL4_Word {
         (unsafe { self.extra.tcb_extra.init_sz }) as seL4_Word
     }
     #[inline]
-    pub fn tcb_pc(&self) -> seL4_Word {
-        unsafe { self.extra.tcb_extra.pc }
-    }
+    pub fn tcb_pc(&self) -> seL4_Word { unsafe { self.extra.tcb_extra.pc } }
     #[inline]
-    pub fn tcb_sp(&self) -> seL4_Word {
-        unsafe { self.extra.tcb_extra.sp }
-    }
+    pub fn tcb_sp(&self) -> seL4_Word { unsafe { self.extra.tcb_extra.sp } }
     pub fn tcb_elf_name(&'a self) -> Option<&'a str> {
         unsafe {
             if self.extra.tcb_extra.elf_name.is_null() {
@@ -749,40 +693,24 @@ impl<'a> CDL_Object {
         }
     }
     #[inline]
-    pub fn tcb_resume(&self) -> bool {
-        unsafe { self.extra.tcb_extra.resume }
-    }
+    pub fn tcb_resume(&self) -> bool { unsafe { self.extra.tcb_extra.resume } }
     #[inline]
-    pub fn tcb_fault_ep(&self) -> seL4_CPtr {
-        unsafe { self.extra.tcb_extra.fault_ep }
-    }
+    pub fn tcb_fault_ep(&self) -> seL4_CPtr { unsafe { self.extra.tcb_extra.fault_ep } }
 
     #[inline]
-    pub fn cb_bank(&self) -> seL4_Word {
-        (unsafe { self.extra.cb_extra.bank }) as seL4_Word
-    }
+    pub fn cb_bank(&self) -> seL4_Word { (unsafe { self.extra.cb_extra.bank }) as seL4_Word }
 
     #[inline]
-    pub fn sc_period(&self) -> u64 {
-        unsafe { self.extra.sc_extra.period }
-    }
+    pub fn sc_period(&self) -> u64 { unsafe { self.extra.sc_extra.period } }
     #[inline]
-    pub fn sc_budget(&self) -> u64 {
-        unsafe { self.extra.sc_extra.budget }
-    }
+    pub fn sc_budget(&self) -> u64 { unsafe { self.extra.sc_extra.budget } }
     #[inline]
-    pub fn sc_data(&self) -> seL4_Word {
-        (unsafe { self.extra.sc_extra.data }) as seL4_Word
-    }
+    pub fn sc_data(&self) -> seL4_Word { (unsafe { self.extra.sc_extra.data }) as seL4_Word }
 
     #[inline]
-    pub fn other_start(&self) -> seL4_Word {
-        (unsafe { self.extra.other.start }) as seL4_Word
-    }
+    pub fn other_start(&self) -> seL4_Word { (unsafe { self.extra.other.start }) as seL4_Word }
     #[inline]
-    pub fn other_end(&self) -> seL4_Word {
-        (unsafe { self.extra.other.end }) as seL4_Word
-    }
+    pub fn other_end(&self) -> seL4_Word { (unsafe { self.extra.other.end }) as seL4_Word }
 
     #[inline]
     pub fn msi_pci_bus(&self) -> seL4_Word {

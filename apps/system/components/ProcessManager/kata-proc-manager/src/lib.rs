@@ -49,14 +49,10 @@ impl CantripProcManager {
     }
 
     // Finishes the setup started by empty():
-    pub fn init(&self) {
-        *self.manager.lock() = Some(ProcessManager::new(CantripManagerInterface));
-    }
+    pub fn init(&self) { *self.manager.lock() = Some(ProcessManager::new(CantripManagerInterface)); }
 
     // Returns the bundle capacity.
-    pub fn capacity(&self) -> usize {
-        self.manager.lock().as_ref().unwrap().capacity()
-    }
+    pub fn capacity(&self) -> usize { self.manager.lock().as_ref().unwrap().capacity() }
 }
 // These just lock accesses and handle the necessary indirection.
 impl PackageManagementInterface for CantripProcManager {
@@ -85,10 +81,7 @@ impl ProcessControlInterface for CantripProcManager {
 struct CantripManagerInterface;
 impl ProcessManagerInterface for CantripManagerInterface {
     fn install(&mut self, pkg_contents: &ObjDescBundle) -> Result<String, ProcessManagerError> {
-        trace!(
-            "ProcessManagerInterface::install pkg_contents {}",
-            pkg_contents
-        );
+        trace!("ProcessManagerInterface::install pkg_contents {}", pkg_contents);
 
         // Package contains: application manifest, application binary, and
         // (optional) ML workload binary to run on vector core.

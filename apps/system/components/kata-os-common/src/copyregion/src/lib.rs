@@ -55,9 +55,7 @@ impl CopyRegion {
     }
 
     // Returns the region size in bytes.
-    pub fn size(&self) -> usize {
-        self.size
-    }
+    pub fn size(&self) -> usize { self.size }
 
     // Returns the region size if mapped, otherwise 0.
     pub fn mapped_bytes(&self) -> usize {
@@ -125,7 +123,5 @@ impl CopyRegion {
     }
 }
 impl Drop for CopyRegion {
-    fn drop(&mut self) {
-        self.unmap().expect("CopyRegion");
-    }
+    fn drop(&mut self) { self.unmap().expect("CopyRegion"); }
 }

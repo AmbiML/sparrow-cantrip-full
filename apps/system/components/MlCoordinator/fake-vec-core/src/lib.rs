@@ -34,10 +34,6 @@ pub fn clear_data_fault() {}
 
 pub fn clear_tcm() {}
 
-pub fn get_return_code() -> u32 {
-    0
-}
+pub fn get_return_code() -> u32 { 0 }
 
-pub fn get_fault_register() -> u32 {
-    0
-}
+pub fn get_fault_register() -> u32 { 0 }

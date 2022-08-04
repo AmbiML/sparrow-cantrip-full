@@ -30,10 +30,7 @@ pub unsafe extern "C" fn pre_init() {
 
     // Complete CANTRIP_PROC setup now that Global allocator is setup.
     CANTRIP_PROC.init();
-    trace!(
-        "ProcessManager has capacity for {} bundles",
-        CANTRIP_PROC.capacity()
-    );
+    trace!("ProcessManager has capacity for {} bundles", CANTRIP_PROC.capacity());
 
     PKG_MGMT_RECV_SLOT = CANTRIP_CSPACE_SLOTS.alloc(1).unwrap();
 }
@@ -143,9 +140,7 @@ pub unsafe extern "C" fn proc_ctrl_get_running_bundles(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn proc_ctrl_capscan() {
-    let _ = Camkes::capscan();
-}
+pub unsafe extern "C" fn proc_ctrl_capscan() { let _ = Camkes::capscan(); }
 
 #[no_mangle]
 pub unsafe extern "C" fn proc_ctrl_capscan_bundle(

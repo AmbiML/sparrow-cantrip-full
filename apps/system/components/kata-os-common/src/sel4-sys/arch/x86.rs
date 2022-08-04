@@ -86,9 +86,7 @@ pub enum seL4_ObjectType {
     seL4_LastObjectType,
 }
 impl From<seL4_ObjectType> for seL4_Word {
-    fn from(type_: seL4_ObjectType) -> seL4_Word {
-        type_ as seL4_Word
-    }
+    fn from(type_: seL4_ObjectType) -> seL4_Word { type_ as seL4_Word }
 }
 
 #[repr(u32)]
@@ -101,12 +99,9 @@ pub enum seL4_X86_VMAttributes {
     WriteCombining = 4,
 }
 impl From<u32> for seL4_X86_VMAttributes {
-    fn from(val: u32) -> seL4_x86_VMAttributes {
-        unsafe { ::core::mem::transmute(val & 7) }
-    }
+    fn from(val: u32) -> seL4_x86_VMAttributes { unsafe { ::core::mem::transmute(val & 7) } }
 }
-pub const seL4_X86_Default_VMAttributes: seL4_X86_VMAttributes =
-    seL4_X86_VMAttributes::WriteBack;
+pub const seL4_X86_Default_VMAttributes: seL4_X86_VMAttributes = seL4_X86_VMAttributes::WriteBack;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -175,9 +170,11 @@ pub unsafe fn seL4_SetCap(index: isize, cptr: seL4_CPtr) {
 }
 
 #[inline(always)]
-pub unsafe fn seL4_GetCapReceivePath(receiveCNode: *mut seL4_CPtr,
-                                     receiveIndex: *mut seL4_CPtr,
-                                     receiveDepth: *mut seL4_Word) {
+pub unsafe fn seL4_GetCapReceivePath(
+    receiveCNode: *mut seL4_CPtr,
+    receiveIndex: *mut seL4_CPtr,
+    receiveDepth: *mut seL4_Word,
+) {
     if !receiveCNode.is_null() {
         asm!("movl %fs:500, $0" : "=r"(*receiveCNode) : : : "volatile");
     }
@@ -192,16 +189,24 @@ pub unsafe fn seL4_GetCapReceivePath(receiveCNode: *mut seL4_CPtr,
 }
 
 #[inline(always)]
-pub unsafe fn seL4_SetCapReceivePath(receiveCNode: seL4_CPtr,
-                                     receiveIndex: seL4_CPtr,
-                                     receiveDepth: seL4_Word) {
+pub unsafe fn seL4_SetCapReceivePath(
+    receiveCNode: seL4_CPtr,
+    receiveIndex: seL4_CPtr,
+    receiveDepth: seL4_Word,
+) {
     asm!("movl $0, %fs:500" : : "r"(receiveCNode) : "memory" : "volatile");
     asm!("movl $0, %fs:504" : : "r"(receiveIndex) : "memory" : "volatile");
     asm!("movl $0, %fs:508" : : "r"(receiveDepth) : "memory" : "volatile");
 }
 
 #[inline(always)]
-unsafe fn x86_sys_send(sys: seL4_Word, mut dest: seL4_Word, info: seL4_Word, mr1: seL4_Word, mr2: seL4_Word) {
+unsafe fn x86_sys_send(
+    sys: seL4_Word,
+    mut dest: seL4_Word,
+    info: seL4_Word,
+    mr1: seL4_Word,
+    mr2: seL4_Word,
+) {
     asm!("pushl %ebp
           pushl %ebx
           movl %ecx, %ebp
@@ -262,7 +267,14 @@ unsafe fn x86_sys_send_null(sys: seL4_Word, mut dest: seL4_Word, info: seL4_Word
 }
 
 #[inline(always)]
-unsafe fn x86_sys_recv(sys: seL4_Word, src: seL4_Word, out_badge: *mut seL4_Word, out_info: *mut seL4_Word, out_mr1: *mut seL4_Word, out_mr2: *mut seL4_Word) {
+unsafe fn x86_sys_recv(
+    sys: seL4_Word,
+    src: seL4_Word,
+    out_badge: *mut seL4_Word,
+    out_info: *mut seL4_Word,
+    out_mr1: *mut seL4_Word,
+    out_mr2: *mut seL4_Word,
+) {
     asm!("pushl %ebp
           pushl %ebx
           movl %esx, %ecp
@@ -285,7 +297,15 @@ unsafe fn x86_sys_recv(sys: seL4_Word, src: seL4_Word, out_badge: *mut seL4_Word
 }
 
 #[inline(always)]
-unsafe fn x86_sys_send_recv(sys: seL4_Word, dest: seL4_Word, out_badge: *mut seL4_Word, info: seL4_Word, out_info: *mut seL4_Word, in_out_mr1: *mut seL4_Word, in_out_mr2: *mut seL4_Word) {
+unsafe fn x86_sys_send_recv(
+    sys: seL4_Word,
+    dest: seL4_Word,
+    out_badge: *mut seL4_Word,
+    info: seL4_Word,
+    out_info: *mut seL4_Word,
+    in_out_mr1: *mut seL4_Word,
+    in_out_mr2: *mut seL4_Word,
+) {
     asm!("pushl %ebp
           pushl %ebx
           movl %ecx, %ebp
@@ -329,7 +349,13 @@ unsafe fn x86_sys_null(sys: seL4_Word) {
 
 #[inline(always)]
 pub unsafe fn seL4_Send(dest: seL4_CPtr, msgInfo: seL4_MessageInfo) {
-    x86_sys_send(SyscallId::Send as seL4_Word, dest, msgInfo.words[0], seL4_GetMR(0), seL4_GetMR(1));
+    x86_sys_send(
+        SyscallId::Send as seL4_Word,
+        dest,
+        msgInfo.words[0],
+        seL4_GetMR(0),
+        seL4_GetMR(1),
+    );
 }
 
 macro_rules! opt_deref {
@@ -339,7 +365,7 @@ macro_rules! opt_deref {
         } else {
             0
         }
-    }
+    };
 }
 
 macro_rules! opt_assign {
@@ -347,47 +373,82 @@ macro_rules! opt_assign {
         if !$loc.is_null() {
             *$loc = $val;
         }
-    }
+    };
 }
 
 #[inline(always)]
-pub unsafe fn seL4_SendWithMRs(dest: seL4_CPtr, msgInfo: seL4_MessageInfo,
-                               mr0: *mut seL4_Word, mr1: *mut seL4_Word) {
-    x86_sys_send(SyscallId::Send as seL4_Word, dest, msgInfo.words[0],
-                 if mr0.is_null() { 0 } else { *mr0 },
-                 if mr1.is_null() { 0 } else { *mr1 });
+pub unsafe fn seL4_SendWithMRs(
+    dest: seL4_CPtr,
+    msgInfo: seL4_MessageInfo,
+    mr0: *mut seL4_Word,
+    mr1: *mut seL4_Word,
+) {
+    x86_sys_send(
+        SyscallId::Send as seL4_Word,
+        dest,
+        msgInfo.words[0],
+        if mr0.is_null() { 0 } else { *mr0 },
+        if mr1.is_null() { 0 } else { *mr1 },
+    );
 }
 
 #[inline(always)]
 pub unsafe fn seL4_NBSend(dest: seL4_CPtr, msgInfo: seL4_MessageInfo) {
-    x86_sys_send(SyscallId::NBSend as seL4_Word, dest, msgInfo.words[0], seL4_GetMR(0), seL4_GetMR(1));
+    x86_sys_send(
+        SyscallId::NBSend as seL4_Word,
+        dest,
+        msgInfo.words[0],
+        seL4_GetMR(0),
+        seL4_GetMR(1),
+    );
 }
 
 #[inline(always)]
-pub unsafe fn seL4_NBSendWithMRs(dest: seL4_CPtr, msgInfo: seL4_MessageInfo,
-                                 mr0: *mut seL4_Word, mr1: *mut seL4_Word) {
-    x86_sys_send(SyscallId::NBSend as seL4_Word, dest, msgInfo.words[0],
-                 if mr0.is_null() { 0 } else { *mr0 },
-                 if mr1.is_null() { 0 } else { *mr1 });
+pub unsafe fn seL4_NBSendWithMRs(
+    dest: seL4_CPtr,
+    msgInfo: seL4_MessageInfo,
+    mr0: *mut seL4_Word,
+    mr1: *mut seL4_Word,
+) {
+    x86_sys_send(
+        SyscallId::NBSend as seL4_Word,
+        dest,
+        msgInfo.words[0],
+        if mr0.is_null() { 0 } else { *mr0 },
+        if mr1.is_null() { 0 } else { *mr1 },
+    );
 }
 
 #[inline(always)]
 pub unsafe fn seL4_Reply(msgInfo: seL4_MessageInfo) {
-    x86_sys_reply(SyscallId::Reply as seL4_Word, msgInfo.words[0], seL4_GetMR(0), seL4_GetMR(1));
-
+    x86_sys_reply(
+        SyscallId::Reply as seL4_Word,
+        msgInfo.words[0],
+        seL4_GetMR(0),
+        seL4_GetMR(1),
+    );
 }
 #[inline(always)]
-pub unsafe fn seL4_ReplyWithMRs(msgInfo: seL4_MessageInfo,
-                                mr0: *mut seL4_Word, mr1: *mut seL4_Word) {
-    x86_sys_reply(SyscallId::Reply as seL4_Word, msgInfo.words[0],
-                  if mr0.is_null() { 0 } else { *mr0 },
-                  if mr1.is_null() { 0 } else { *mr1 });
+pub unsafe fn seL4_ReplyWithMRs(
+    msgInfo: seL4_MessageInfo,
+    mr0: *mut seL4_Word,
+    mr1: *mut seL4_Word,
+) {
+    x86_sys_reply(
+        SyscallId::Reply as seL4_Word,
+        msgInfo.words[0],
+        if mr0.is_null() { 0 } else { *mr0 },
+        if mr1.is_null() { 0 } else { *mr1 },
+    );
 }
-
 
 #[inline(always)]
 pub unsafe fn seL4_Signal(dest: seL4_CPtr) {
-    x86_sys_send_null(SyscallId::Send as seL4_Word, dest, seL4_MessageInfo::new(0,0,0,0).words[0]);
+    x86_sys_send_null(
+        SyscallId::Send as seL4_Word,
+        dest,
+        seL4_MessageInfo::new(0, 0, 0, 0).words[0],
+    );
 }
 
 #[inline(always)]
@@ -397,7 +458,14 @@ pub unsafe fn seL4_Recv(src: seL4_CPtr, sender: *mut seL4_Word) -> seL4_MessageI
     let mut mr0: seL4_Word = uninitialized();
     let mut mr1: seL4_Word = uninitialized();
 
-    x86_sys_recv(SyscallId::Recv as seL4_Word, src, &mut badge, &mut info.words[0], &mut mr0 as *mut _, &mut mr1);
+    x86_sys_recv(
+        SyscallId::Recv as seL4_Word,
+        src,
+        &mut badge,
+        &mut info.words[0],
+        &mut mr0 as *mut _,
+        &mut mr1,
+    );
 
     seL4_SetMR(0, mr0);
     seL4_SetMR(1, mr1);
@@ -408,14 +476,25 @@ pub unsafe fn seL4_Recv(src: seL4_CPtr, sender: *mut seL4_Word) -> seL4_MessageI
 }
 
 #[inline(always)]
-pub unsafe fn seL4_RecvWithMRs(src: seL4_CPtr, sender: *mut seL4_Word,
-                               mr0: *mut seL4_Word, mr1: *mut seL4_Word) -> seL4_MessageInfo {
+pub unsafe fn seL4_RecvWithMRs(
+    src: seL4_CPtr,
+    sender: *mut seL4_Word,
+    mr0: *mut seL4_Word,
+    mr1: *mut seL4_Word,
+) -> seL4_MessageInfo {
     let mut info: seL4_MessageInfo = uninitialized();
     let mut badge: seL4_Word = uninitialized();
     let mut msg0: seL4_Word = uninitialized();
     let mut msg1: seL4_Word = uninitialized();
 
-    x86_sys_recv(SyscallId::Recv as seL4_Word, src, &mut badge, &mut info.words[0], &mut msg0, &mut msg1);
+    x86_sys_recv(
+        SyscallId::Recv as seL4_Word,
+        src,
+        &mut badge,
+        &mut info.words[0],
+        &mut msg0,
+        &mut msg1,
+    );
 
     opt_assign!(mr0, msg0);
     opt_assign!(mr1, msg1);
@@ -431,7 +510,14 @@ pub unsafe fn seL4_NBRecv(src: seL4_CPtr, sender: *mut seL4_Word) -> seL4_Messag
     let mut mr0: seL4_Word = uninitialized();
     let mut mr1: seL4_Word = uninitialized();
 
-    x86_sys_recv(SyscallId::NBRecv as seL4_Word, src, &mut badge, &mut info.words[0], &mut mr0, &mut mr1);
+    x86_sys_recv(
+        SyscallId::NBRecv as seL4_Word,
+        src,
+        &mut badge,
+        &mut info.words[0],
+        &mut mr0,
+        &mut mr1,
+    );
 
     seL4_SetMR(0, mr0);
     seL4_SetMR(1, mr1);
@@ -447,7 +533,15 @@ pub unsafe fn seL4_Call(mut dest: seL4_CPtr, msgInfo: seL4_MessageInfo) -> seL4_
     let mut mr0 = seL4_GetMR(0);
     let mut mr1 = seL4_GetMR(1);
 
-    x86_sys_send_recv(SyscallId::Call as seL4_Word, dest, &mut dest, msgInfo.words[0], &mut info.words[0], &mut mr0, &mut mr1);
+    x86_sys_send_recv(
+        SyscallId::Call as seL4_Word,
+        dest,
+        &mut dest,
+        msgInfo.words[0],
+        &mut info.words[0],
+        &mut mr0,
+        &mut mr1,
+    );
 
     seL4_SetMR(0, mr0);
     seL4_SetMR(1, mr1);
@@ -456,8 +550,12 @@ pub unsafe fn seL4_Call(mut dest: seL4_CPtr, msgInfo: seL4_MessageInfo) -> seL4_
 }
 
 #[inline(always)]
-pub unsafe fn seL4_CallWithMRs(mut dest: seL4_CPtr, msgInfo: seL4_MessageInfo,
-                               mr0: *mut seL4_Word, mr1: *mut seL4_Word) -> seL4_MessageInfo {
+pub unsafe fn seL4_CallWithMRs(
+    mut dest: seL4_CPtr,
+    msgInfo: seL4_MessageInfo,
+    mr0: *mut seL4_Word,
+    mr1: *mut seL4_Word,
+) -> seL4_MessageInfo {
     let mut info: seL4_MessageInfo = uninitialized();
     let mut msg0: seL4_Word = 0;
     let mut msg1: seL4_Word = 0;
@@ -473,7 +571,15 @@ pub unsafe fn seL4_CallWithMRs(mut dest: seL4_CPtr, msgInfo: seL4_MessageInfo,
         }
     }
 
-    x86_sys_send_recv(SyscallId::Call as seL4_Word, dest, &mut dest, msgInfo.words[0], &mut info.words[0], &mut msg0, &mut msg1);
+    x86_sys_send_recv(
+        SyscallId::Call as seL4_Word,
+        dest,
+        &mut dest,
+        msgInfo.words[0],
+        &mut info.words[0],
+        &mut msg0,
+        &mut msg1,
+    );
 
     opt_assign!(mr0, msg0);
     opt_assign!(mr1, msg1);
@@ -482,14 +588,25 @@ pub unsafe fn seL4_CallWithMRs(mut dest: seL4_CPtr, msgInfo: seL4_MessageInfo,
 }
 
 #[inline(always)]
-pub unsafe fn seL4_ReplyRecv(dest: seL4_CPtr, msgInfo: seL4_MessageInfo,
-                             sender: *mut seL4_Word) -> seL4_MessageInfo {
+pub unsafe fn seL4_ReplyRecv(
+    dest: seL4_CPtr,
+    msgInfo: seL4_MessageInfo,
+    sender: *mut seL4_Word,
+) -> seL4_MessageInfo {
     let mut info: seL4_MessageInfo = uninitialized();
     let mut badge: seL4_Word = uninitialized();
     let mut mr0 = seL4_GetMR(0);
     let mut mr1 = seL4_GetMR(1);
 
-    x86_sys_send_recv(SyscallId::ReplyRecv as seL4_Word, dest, &mut badge, msgInfo.words[0], &mut info.words[0], &mut mr0, &mut mr1);
+    x86_sys_send_recv(
+        SyscallId::ReplyRecv as seL4_Word,
+        dest,
+        &mut badge,
+        msgInfo.words[0],
+        &mut info.words[0],
+        &mut mr0,
+        &mut mr1,
+    );
 
     seL4_SetMR(0, mr0);
     seL4_SetMR(1, mr1);
@@ -500,8 +617,13 @@ pub unsafe fn seL4_ReplyRecv(dest: seL4_CPtr, msgInfo: seL4_MessageInfo,
 }
 
 #[inline(always)]
-pub unsafe fn seL4_ReplyWaitWithMRs(dest: seL4_CPtr, msgInfo: seL4_MessageInfo, sender: *mut seL4_Word,
-                                     mr0: *mut seL4_Word, mr1: *mut seL4_Word) -> seL4_MessageInfo {
+pub unsafe fn seL4_ReplyWaitWithMRs(
+    dest: seL4_CPtr,
+    msgInfo: seL4_MessageInfo,
+    sender: *mut seL4_Word,
+    mr0: *mut seL4_Word,
+    mr1: *mut seL4_Word,
+) -> seL4_MessageInfo {
     let mut info: seL4_MessageInfo = uninitialized();
     let mut badge: seL4_Word = uninitialized();
     let mut msg0: seL4_Word = 0;
@@ -518,7 +640,15 @@ pub unsafe fn seL4_ReplyWaitWithMRs(dest: seL4_CPtr, msgInfo: seL4_MessageInfo, 
         }
     }
 
-    x86_sys_send_recv(SyscallId::ReplyRecv as seL4_Word, dest, &mut badge, msgInfo.words[0], &mut info.words[0], &mut msg0, &mut msg1);
+    x86_sys_send_recv(
+        SyscallId::ReplyRecv as seL4_Word,
+        dest,
+        &mut badge,
+        msgInfo.words[0],
+        &mut info.words[0],
+        &mut msg0,
+        &mut msg1,
+    );
 
     opt_assign!(mr0, msg0);
     opt_assign!(mr1, msg1);
@@ -540,7 +670,15 @@ pub unsafe fn seL4_VMEnter(vcpu: seL4_CPtr, sender: *mut seL4_Word) -> seL4_Word
     let mut mr0 = seL4_GetMR(0);
     let mut mr1 = seL4_GetMR(1);
 
-    x86_sys_send_recv(SyscallId::VMEnter as seL4_Word, vcpu, &mut badge, 0, &mut fault, &mut mr0, &mut mr1);
+    x86_sys_send_recv(
+        SyscallId::VMEnter as seL4_Word,
+        vcpu,
+        &mut badge,
+        0,
+        &mut fault,
+        &mut mr0,
+        &mut mr1,
+    );
 
     seL4_SetMR(0, mr0);
     seL4_SetMR(1, mr1);
@@ -558,8 +696,15 @@ pub unsafe fn seL4_DebugPutChar(c: u8) {
     let mut unused1 = 0;
     let mut unused2 = 0;
     let mut unused3 = 0;
-    x86_sys_send_recv(SyscallId::DebugPutChar as seL4_Word, c as seL4_Word, &mut unused0, 0, &mut
-                      unused1, &mut unused2, &mut unused3);
+    x86_sys_send_recv(
+        SyscallId::DebugPutChar as seL4_Word,
+        c as seL4_Word,
+        &mut unused0,
+        0,
+        &mut unused1,
+        &mut unused2,
+        &mut unused3,
+    );
 }
 
 #[inline(always)]
@@ -579,8 +724,15 @@ pub unsafe fn seL4_DebugCapIdentify(mut cap: seL4_CPtr) -> u32 {
     let mut unused0 = 0;
     let mut unused1 = 0;
     let mut unused2 = 0;
-    x86_sys_send_recv(SyscallId::DebugCapIdentify as seL4_Word,
-                      cap, &mut cap, 0, &mut unused0, &mut unused1, &mut unused2);
+    x86_sys_send_recv(
+        SyscallId::DebugCapIdentify as seL4_Word,
+        cap,
+        &mut cap,
+        0,
+        &mut unused0,
+        &mut unused1,
+        &mut unused2,
+    );
     cap as _
 }
 
@@ -590,27 +742,49 @@ pub unsafe fn seL4_DebugDumpCNode(mut cap: seL4_CPtr) {
     let mut unused0 = 0;
     let mut unused1 = 0;
     let mut unused2 = 0;
-    x86_sys_send_recv(SyscallId::DebugDumpCNode as seL4_Word,
-                      cap, &mut cap, 0, &mut unused0, &mut unused1, &mut unused2);
+    x86_sys_send_recv(
+        SyscallId::DebugDumpCNode as seL4_Word,
+        cap,
+        &mut cap,
+        0,
+        &mut unused0,
+        &mut unused1,
+        &mut unused2,
+    );
 }
 
 /// Note: name MUST be NUL-terminated.
 #[inline(always)]
 pub unsafe fn seL4_DebugNameThread(tcb: seL4_CPtr, name: &[u8]) {
-    core::ptr::copy_nonoverlapping(name.as_ptr() as *mut u8, (&mut (*seL4_GetIPCBuffer()).msg).as_mut_ptr() as *mut u8,name.len());
+    core::ptr::copy_nonoverlapping(
+        name.as_ptr() as *mut u8,
+        (&mut (*seL4_GetIPCBuffer()).msg).as_mut_ptr() as *mut u8,
+        name.len(),
+    );
     let mut unused0 = 0;
     let mut unused1 = 0;
     let mut unused2 = 0;
     let mut unused3 = 0;
-    x86_sys_send_recv(SyscallId::DebugNameThread as seL4_Word, tcb, &mut unused0, 0, &mut unused1,
-                      &mut unused2, &mut unused3);
+    x86_sys_send_recv(
+        SyscallId::DebugNameThread as seL4_Word,
+        tcb,
+        &mut unused0,
+        0,
+        &mut unused1,
+        &mut unused2,
+        &mut unused3,
+    );
 }
 
 #[inline(always)]
 #[cfg(feature = "SEL4_DANGEROUS_CODE_INJECTION")]
-pub unsafe fn seL4_DebugRun(userfn: extern fn(*mut u8), userarg: *mut u8) {
+pub unsafe fn seL4_DebugRun(userfn: extern "C" fn(*mut u8), userarg: *mut u8) {
     let userfnptr = userfn as *mut ();
-    x86_sys_send_null(SyscallId::DebugRun as seL4_Word, userfnptr as seL4_Word, userarg as seL4_Word);
+    x86_sys_send_null(
+        SyscallId::DebugRun as seL4_Word,
+        userfnptr as seL4_Word,
+        userarg as seL4_Word,
+    );
     asm!("" ::: "%edi", "memory" : "volatile");
 }
 
@@ -623,7 +797,15 @@ pub unsafe fn seL4_BenchmarkResetLog() -> seL4_Word {
 
     let mut ret = 0;
 
-    x86_sys_send_recv(SyscallId::BenchmarkResetLog as seL4_Word, 0, &mut ret, 0, &mut unused0 as *mut _ as usize as seL4_Word, &mut unused1 as *mut _ as usize as seL4_Word, &mut unused2 as *mut _ as usize as seL4_Word);
+    x86_sys_send_recv(
+        SyscallId::BenchmarkResetLog as seL4_Word,
+        0,
+        &mut ret,
+        0,
+        &mut unused0 as *mut _ as usize as seL4_Word,
+        &mut unused1 as *mut _ as usize as seL4_Word,
+        &mut unused2 as *mut _ as usize as seL4_Word,
+    );
 
     ret
 }
@@ -641,8 +823,15 @@ pub unsafe fn seL4_BenchmarkSetLogBuffer(mut frame_cptr: seL4_Word) -> seL4_Word
     let mut unused0 = 0;
     let mut unused1 = 0;
     let mut unused2 = 0;
-    x86_sys_send_recv(SyscallId::BenchmarkSetLogBuffer as seL4_Word,
-                      frame_cptr, &mut cap, 0, &mut unused0 as *mut _ as usize as seL4_Word, &mut unused1 as *mut _ as usize as seL4_Word, &mut unused2 as *mut _ as usize as seL4_Word);
+    x86_sys_send_recv(
+        SyscallId::BenchmarkSetLogBuffer as seL4_Word,
+        frame_cptr,
+        &mut cap,
+        0,
+        &mut unused0 as *mut _ as usize as seL4_Word,
+        &mut unused1 as *mut _ as usize as seL4_Word,
+        &mut unused2 as *mut _ as usize as seL4_Word,
+    );
     frame_cptr
 }
 
@@ -667,8 +856,15 @@ pub unsafe fn seL4_BenchmarkGetThreadUtilization(tcb: seL4_Word) {
     let mut unused1 = 0;
     let mut unused2 = 0;
     let mut unused3 = 0;
-    x86_sys_send_recv(SyscallId::BenchmarkGetThreadUtilisation as seL4_Word, tcb, &mut unused0 as *mut _ as usize as seL4_Word, 0,
-                      &mut unused1 as *mut _ as usize as seL4_Word, &mut unused2 as *mut _ as usize as seL4_Word, &mut unused3 as *mut _ as usize as seL4_Word);
+    x86_sys_send_recv(
+        SyscallId::BenchmarkGetThreadUtilisation as seL4_Word,
+        tcb,
+        &mut unused0 as *mut _ as usize as seL4_Word,
+        0,
+        &mut unused1 as *mut _ as usize as seL4_Word,
+        &mut unused2 as *mut _ as usize as seL4_Word,
+        &mut unused3 as *mut _ as usize as seL4_Word,
+    );
 }
 
 #[inline(always)]
@@ -678,6 +874,13 @@ pub unsafe fn seL4_BenchmarkGetThreadUtilization(tcb: seL4_Word) {
     let mut unused1 = 0;
     let mut unused2 = 0;
     let mut unused3 = 0;
-    x86_sys_send_recv(SyscallId::BenchmarkResetThreadUtilisation as seL4_Word, tcb, &mut unused0 as *mut _ as usize as seL4_Word, 0,
-                      &mut unused1 as *mut _ as usize as seL4_Word, &mut unused2 as *mut _ as usize as seL4_Word, &mut unused3 as *mut _ as usize as seL4_Word);
+    x86_sys_send_recv(
+        SyscallId::BenchmarkResetThreadUtilisation as seL4_Word,
+        tcb,
+        &mut unused0 as *mut _ as usize as seL4_Word,
+        0,
+        &mut unused1 as *mut _ as usize as seL4_Word,
+        &mut unused2 as *mut _ as usize as seL4_Word,
+        &mut unused3 as *mut _ as usize as seL4_Word,
+    );
 }

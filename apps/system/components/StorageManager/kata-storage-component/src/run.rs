@@ -53,11 +53,7 @@ pub unsafe extern "C" fn storage_write(
         Ok(key) => {
             // TODO(sleffler): de-badge reply cap to get bundle_id
             CANTRIP_STORAGE
-                .write(
-                    "fubar",
-                    key,
-                    slice::from_raw_parts(c_raw_value, c_raw_value_len),
-                )
+                .write("fubar", key, slice::from_raw_parts(c_raw_value, c_raw_value_len))
                 .into()
         }
         Err(_) => StorageManagerError::SmeKeyInvalid,
@@ -76,6 +72,4 @@ pub unsafe extern "C" fn storage_delete(c_key: *const cstr_core::c_char) -> Stor
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn storage_capscan() {
-    let _ = Camkes::capscan();
-}
+pub unsafe extern "C" fn storage_capscan() { let _ = Camkes::capscan(); }

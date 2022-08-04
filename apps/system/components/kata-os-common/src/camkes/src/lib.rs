@@ -70,11 +70,7 @@ impl Camkes {
         unsafe {
             allocator::ALLOCATOR.init(heap.as_mut_ptr() as usize, heap.len());
         }
-        trace!(
-            "setup heap: start_addr {:p} size {}",
-            heap.as_ptr(),
-            heap.len()
-        );
+        trace!("setup heap: start_addr {:p} size {}", heap.as_ptr(), heap.len());
     }
 
     pub fn init_slot_allocator(self: &Camkes, first_slot: seL4_CPtr, last_slot: seL4_CPtr) {
@@ -110,14 +106,10 @@ impl Camkes {
     }
 
     // Returns the path specified with init_recv_path.
-    pub fn get_recv_path(self: &Camkes) -> seL4_CPath {
-        self.recv_path
-    }
+    pub fn get_recv_path(self: &Camkes) -> seL4_CPath { self.recv_path }
 
     // Returns the component name.
-    pub fn get_name(self: &Camkes) -> &'static str {
-        self.name
-    }
+    pub fn get_name(self: &Camkes) -> &'static str { self.name }
 
     // Returns the current receive path from the IPCBuffer.
     pub fn get_current_recv_path(self: &Camkes) -> seL4_CPath {
@@ -180,9 +172,7 @@ impl Camkes {
     }
 
     // Clears any capability attached to a CAmkES RPC reply msg.
-    pub fn clear_reply_cap() {
-        Camkes::set_reply_cap(0);
-    }
+    pub fn clear_reply_cap() { Camkes::set_reply_cap(0); }
 
     // Wrappers for sel4_sys::debug_assert macros.
     pub fn debug_assert_slot_empty(tag: &str, path: &seL4_CPath) {

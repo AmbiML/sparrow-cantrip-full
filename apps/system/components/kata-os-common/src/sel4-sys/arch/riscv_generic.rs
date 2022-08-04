@@ -6,10 +6,10 @@ pub type seL4_Page = seL4_RISCV_Page;
 pub type seL4_PageTable = seL4_RISCV_PageTable;
 pub type seL4_VMAttributes = seL4_RISCV_VMAttributes;
 
+pub use seL4_ObjectType::seL4_RISCV_4K_Page as seL4_SmallPageObject;
 pub use seL4_ObjectType::seL4_RISCV_Mega_Page as seL4_LargePageObject;
 pub use seL4_ObjectType::seL4_RISCV_PageTableObject as seL4_PageDirectoryObject;
 pub use seL4_ObjectType::seL4_RISCV_PageTableObject as seL4_PageTableObject;
-pub use seL4_ObjectType::seL4_RISCV_4K_Page as seL4_SmallPageObject;
 
 pub use seL4_RISCV_Default_VMAttributes as seL4_Default_VMAttributes;
 
@@ -31,7 +31,12 @@ pub unsafe fn seL4_Page_Map(
         // NB: executable
         seL4_RISCV_Page_Map(sel4_page, sel4_pd, vaddr, rights, vm_attribs)
     } else {
-        seL4_RISCV_Page_Map(sel4_page, sel4_pd, vaddr, rights,
-                            seL4_RISCV_VMAttributes::ExecuteNever)
+        seL4_RISCV_Page_Map(
+            sel4_page,
+            sel4_pd,
+            vaddr,
+            rights,
+            seL4_RISCV_VMAttributes::ExecuteNever,
+        )
     }
 }

@@ -17,9 +17,7 @@ pub unsafe extern "C" fn pre_init() {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn timer__init() {
-    TIMER_SRV.lock().init();
-}
+pub unsafe extern "C" fn timer__init() { TIMER_SRV.lock().init(); }
 
 extern "C" {
     fn timer_get_sender_id() -> seL4_Word;
@@ -78,6 +76,4 @@ pub unsafe extern "C" fn timer_interrupt_handle() {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn timer_capscan() {
-    let _ = Camkes::capscan();
-}
+pub unsafe extern "C" fn timer_capscan() { let _ = Camkes::capscan(); }

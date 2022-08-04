@@ -36,9 +36,7 @@ pub type SecurityReplyData = [u8; SECURITY_REPLY_DATA_SIZE];
 
 // Interface to any seL4 caapbility associated with the request.
 pub trait SecurityCapability {
-    fn get_container_cap(&self) -> Option<seL4_CPtr> {
-        None
-    }
+    fn get_container_cap(&self) -> Option<seL4_CPtr> { None }
     // TODO(sleffler): assert/log where no cap
     fn set_container_cap(&mut self, _cap: seL4_CPtr) {}
 }
@@ -57,12 +55,8 @@ pub struct InstallRequest {
     pub pkg_contents: ObjDescBundle,
 }
 impl SecurityCapability for InstallRequest {
-    fn get_container_cap(&self) -> Option<seL4_CPtr> {
-        Some(self.pkg_contents.cnode)
-    }
-    fn set_container_cap(&mut self, cap: seL4_CPtr) {
-        self.pkg_contents.cnode = cap;
-    }
+    fn get_container_cap(&self) -> Option<seL4_CPtr> { Some(self.pkg_contents.cnode) }
+    fn set_container_cap(&mut self, cap: seL4_CPtr) { self.pkg_contents.cnode = cap; }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -118,12 +112,8 @@ pub struct LoadApplicationResponse {
     pub bundle_frames: ObjDescBundle,
 }
 impl SecurityCapability for LoadApplicationResponse {
-    fn get_container_cap(&self) -> Option<seL4_CPtr> {
-        Some(self.bundle_frames.cnode)
-    }
-    fn set_container_cap(&mut self, cap: seL4_CPtr) {
-        self.bundle_frames.cnode = cap;
-    }
+    fn get_container_cap(&self) -> Option<seL4_CPtr> { Some(self.bundle_frames.cnode) }
+    fn set_container_cap(&mut self, cap: seL4_CPtr) { self.bundle_frames.cnode = cap; }
 }
 
 // SecurityRequestLoadModel
@@ -141,12 +131,8 @@ pub struct LoadModelResponse {
     pub model_frames: ObjDescBundle,
 }
 impl SecurityCapability for LoadModelResponse {
-    fn get_container_cap(&self) -> Option<seL4_CPtr> {
-        Some(self.model_frames.cnode)
-    }
-    fn set_container_cap(&mut self, cap: seL4_CPtr) {
-        self.model_frames.cnode = cap;
-    }
+    fn get_container_cap(&self) -> Option<seL4_CPtr> { Some(self.model_frames.cnode) }
+    fn set_container_cap(&mut self, cap: seL4_CPtr) { self.model_frames.cnode = cap; }
 }
 
 // SecurityRequestReadKey
@@ -374,11 +360,7 @@ pub fn cantrip_security_uninstall(bundle_id: &str) -> Result<(), SecurityRequest
 #[allow(dead_code)]
 pub fn cantrip_security_size_buffer(bundle_id: &str) -> Result<usize, SecurityRequestError> {
     let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
-    cantrip_security_request(
-        SecurityRequest::SrSizeBuffer,
-        &SizeBufferRequest { bundle_id },
-        reply,
-    )?;
+    cantrip_security_request(SecurityRequest::SrSizeBuffer, &SizeBufferRequest { bundle_id }, reply)?;
     let response = postcard::from_bytes::<SizeBufferResponse>(reply)
         .map_err(|_| SecurityRequestError::SreDeserializeFailed)?;
     Ok(response.buffer_size)
@@ -474,11 +456,7 @@ pub fn cantrip_security_read_key(
     keyval: &mut [u8],
 ) -> Result<(), SecurityRequestError> {
     let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
-    cantrip_security_request(
-        SecurityRequest::SrReadKey,
-        &ReadKeyRequest { bundle_id, key },
-        reply,
-    )?;
+    cantrip_security_request(SecurityRequest::SrReadKey, &ReadKeyRequest { bundle_id, key }, reply)?;
     let response = postcard::from_bytes::<ReadKeyResponse>(reply)
         .map_err(|_| SecurityRequestError::SreDeserializeFailed)?;
     keyval.copy_from_slice(response.value);

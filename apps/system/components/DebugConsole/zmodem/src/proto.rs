@@ -209,9 +209,7 @@ fn unescape(escaped_byte: u8) -> u8 {
     }
 }
 
-fn is_escaped(byte: u8) -> bool {
-    !matches!(byte, ZCRCE | ZCRCG | ZCRCQ | ZCRCW)
-}
+fn is_escaped(byte: u8) -> bool { !matches!(byte, ZCRCE | ZCRCG | ZCRCQ | ZCRCW) }
 
 /// Reads out one byte
 fn read_byte<R>(r: &mut R) -> io::Result<u8>
@@ -454,18 +452,12 @@ mod tests {
     fn test_recv_zlde_frame() {
         let i = vec![ZLDE, ZCRCE, 237, 174];
         let mut v = vec![];
-        assert_eq!(
-            recv_zlde_frame(ZBIN, &mut i.as_slice(), &mut v).unwrap(),
-            Some(ZCRCE)
-        );
+        assert_eq!(recv_zlde_frame(ZBIN, &mut i.as_slice(), &mut v).unwrap(), Some(ZCRCE));
         assert_eq!(&v[..], []);
 
         let i = vec![ZLDE, 0x00, ZLDE, ZCRCW, 221, 205];
         let mut v = vec![];
-        assert_eq!(
-            recv_zlde_frame(ZBIN, &mut i.as_slice(), &mut v).unwrap(),
-            Some(ZCRCW)
-        );
+        assert_eq!(recv_zlde_frame(ZBIN, &mut i.as_slice(), &mut v).unwrap(), Some(ZCRCW));
         assert_eq!(&v[..], [0x00]);
 
         let i = vec![

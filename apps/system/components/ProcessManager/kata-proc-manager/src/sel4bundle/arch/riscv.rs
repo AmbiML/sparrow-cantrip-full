@@ -17,15 +17,11 @@ pub const PAGE_SIZE: usize = 4096; // Base/small page size
 pub const STACK_ALIGNMENT_BYTES: usize = 16;
 pub const REG_ARGS: seL4_Word = 4; // Number of regs for passing thread args
 
-fn MASK(pow2_bits: usize) -> usize {
-    (1 << pow2_bits) - 1
-}
+fn MASK(pow2_bits: usize) -> usize { (1 << pow2_bits) - 1 }
 
 // NB: used to setup copy_addr_pt
 pub fn PD_SLOT(vaddr: usize) -> usize {
     (vaddr >> (seL4_PageTableIndexBits + seL4_PageBits)) & MASK(seL4_PageDirIndexBits)
 }
 // NB: used by tcb_args::maybe_spill_tcb_args
-pub fn PT_SLOT(vaddr: usize) -> usize {
-    (vaddr >> seL4_PageBits) & MASK(seL4_PageTableIndexBits)
-}
+pub fn PT_SLOT(vaddr: usize) -> usize { (vaddr >> seL4_PageBits) & MASK(seL4_PageTableIndexBits) }

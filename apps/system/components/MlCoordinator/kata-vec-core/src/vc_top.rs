@@ -120,9 +120,7 @@ pub fn set_intr_test(intr_test: IntrTest) {
     }
 }
 
-pub fn get_ctrl() -> Ctrl {
-    unsafe { Ctrl::from_bytes(ptr::read_volatile(CSR)[3].to_ne_bytes()) }
-}
+pub fn get_ctrl() -> Ctrl { unsafe { Ctrl::from_bytes(ptr::read_volatile(CSR)[3].to_ne_bytes()) } }
 
 pub fn set_ctrl(ctrl: Ctrl) {
     unsafe {

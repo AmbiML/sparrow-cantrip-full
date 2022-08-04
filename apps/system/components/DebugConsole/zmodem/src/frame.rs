@@ -82,13 +82,9 @@ impl Frame {
         out
     }
 
-    pub fn get_frame_type(&self) -> u8 {
-        self.ftype
-    }
+    pub fn get_frame_type(&self) -> u8 { self.ftype }
 
-    pub fn get_header(&self) -> u8 {
-        self.header
-    }
+    pub fn get_header(&self) -> u8 { self.header }
 }
 
 fn get_crc(header: u8, buf: &[u8]) -> Vec<u8> {

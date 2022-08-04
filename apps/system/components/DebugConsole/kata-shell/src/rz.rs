@@ -26,9 +26,7 @@ enum UploadError {
     MallocFailed,
 }
 impl From<UploadError> for io::Error {
-    fn from(_err: UploadError) -> io::Error {
-        io::Error
-    }
+    fn from(_err: UploadError) -> io::Error { io::Error }
 }
 
 // TODO(sleffler): use ObjDesc::size_bytes
@@ -63,18 +61,12 @@ impl Upload {
             next_free: 0,
         }
     }
-    pub fn crc32(&self) -> u32 {
-        self.digest.sum32()
-    }
+    pub fn crc32(&self) -> u32 { self.digest.sum32() }
     pub fn len(&self) -> usize {
         (self.frames.count() * PAGE_SIZE) - (self.mapped_bytes - self.next_free)
     }
-    pub fn finish(&mut self) {
-        self.unmap_current_frame().expect("finish");
-    }
-    pub fn frames(&self) -> &ObjDescBundle {
-        &self.frames
-    }
+    pub fn finish(&mut self) { self.unmap_current_frame().expect("finish"); }
+    pub fn frames(&self) -> &ObjDescBundle { &self.frames }
 
     // Unmap the current page and reset state.
     fn unmap_current_frame(&mut self) -> Result<(), UploadError> {
@@ -119,9 +111,7 @@ impl Upload {
     }
 }
 impl Drop for Upload {
-    fn drop(&mut self) {
-        self.finish();
-    }
+    fn drop(&mut self) { self.finish(); }
 }
 
 impl io::Write for Upload {
@@ -161,9 +151,7 @@ impl io::Write for Upload {
         Ok(buf.len())
     }
 
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
+    fn flush(&mut self) -> io::Result<()> { Ok(()) }
 }
 
 /// Receives using ZMODEM and wraps the result as an Upload.

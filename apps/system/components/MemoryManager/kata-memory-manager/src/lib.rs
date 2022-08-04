@@ -47,7 +47,5 @@ impl MemoryManagerInterface for CantripMemoryManager {
     fn stats(&self) -> Result<MemoryManagerStats, MemoryError> {
         self.manager.lock().as_ref().unwrap().stats()
     }
-    fn debug(&self) -> Result<(), MemoryError> {
-        self.manager.lock().as_ref().unwrap().debug()
-    }
+    fn debug(&self) -> Result<(), MemoryError> { self.manager.lock().as_ref().unwrap().debug() }
 }

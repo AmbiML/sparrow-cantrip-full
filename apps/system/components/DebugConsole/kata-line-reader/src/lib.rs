@@ -13,15 +13,11 @@ pub enum LineReadError {
 }
 
 impl From<io::Error> for LineReadError {
-    fn from(err: io::Error) -> LineReadError {
-        LineReadError::IO(err)
-    }
+    fn from(err: io::Error) -> LineReadError { LineReadError::IO(err) }
 }
 
 impl From<core::str::Utf8Error> for LineReadError {
-    fn from(err: core::str::Utf8Error) -> LineReadError {
-        LineReadError::Encoding(err)
-    }
+    fn from(err: core::str::Utf8Error) -> LineReadError { LineReadError::Encoding(err) }
 }
 
 impl fmt::Display for LineReadError {
@@ -39,9 +35,7 @@ pub struct LineReader {
     buf: [u8; LINE_MAX],
 }
 impl Default for LineReader {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
 
 fn get_u8(reader: &mut dyn io::Read) -> io::Result<u8> {

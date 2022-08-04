@@ -109,9 +109,7 @@ fn make_guard(guard_bits: seL4_Word, guard_size: seL4_Word) -> seL4_Word {
     ((guard_bits) & ((1 << 18) - 1)) | ((guard_size << 18) | ((1 << 4) - 1))
 }
 
-fn roundup(a: usize, b: usize) -> usize {
-    ((a + b - 1) / b) * b
-}
+fn roundup(a: usize, b: usize) -> usize { ((a + b - 1) / b) * b }
 
 #[allow(dead_code)]
 fn is_path_empty((root, index, depth): (seL4_CPtr, seL4_CPtr, u8)) -> bool {
@@ -199,11 +197,7 @@ impl seL4BundleImpl {
         bundle: &Bundle,
         bundle_frames: &ObjDescBundle,
     ) -> Result<Self, ProcessManagerError> {
-        trace!(
-            "seL4BundleImpl::new {:?} bundle_frames {}",
-            bundle,
-            bundle_frames
-        );
+        trace!("seL4BundleImpl::new {:?} bundle_frames {}", bundle, bundle_frames);
 
         sel4_sys::debug_assert_slot_cnode!(bundle_frames.cnode);
 
@@ -247,11 +241,7 @@ impl seL4BundleImpl {
             ObjDesc::new(seL4_EndpointObject, 1, SDK_EP_SLOT),
             ObjDesc::new(seL4_ReplyObject, 1, SDK_REPLY_SLOT),
             // SchedContext for main thread
-            ObjDesc::new(
-                seL4_SchedContextObject,
-                seL4_MinSchedContextBits,
-                SCHED_CONTEXT_SLOT,
-            ),
+            ObjDesc::new(seL4_SchedContextObject, seL4_MinSchedContextBits, SCHED_CONTEXT_SLOT),
             // VSpace root (PD)
             ObjDesc::new(seL4_PageTableObject, 1, PD_SLOT),
             // VSpace page table (PT)
@@ -408,12 +398,7 @@ impl seL4BundleImpl {
 
                 // Frame is now setup, map it into the VSpace at the
                 // page-aligned virtual address.
-                trace!(
-                    "map slot {} vaddr 0x{:x} {:?}",
-                    frame.cptr,
-                    frame_vaddr,
-                    rights
-                );
+                trace!("map slot {} vaddr 0x{:x} {:?}", frame.cptr, frame_vaddr, rights);
                 arch::map_page(frame, pd, frame_vaddr, *rights, vm_attribs)?;
                 vaddr += frame.size_bytes().unwrap();
             }
@@ -468,12 +453,7 @@ impl seL4BundleImpl {
         self.stack_base = vaddr;
         for index in 0..stack_frames.retype_count() {
             let frame = &stack_frames.new_at(index);
-            trace!(
-                "map stack slot {} vaddr 0x{:x} {:?}",
-                frame.cptr,
-                vaddr,
-                rights_rwn
-            );
+            trace!("map stack slot {} vaddr 0x{:x} {:?}", frame.cptr, vaddr, rights_rwn);
             arch::map_page(frame, pd, vaddr, rights_rwn, vm_attribs)?;
             vaddr += frame.size_bytes().unwrap();
         }
@@ -549,11 +529,7 @@ impl seL4BundleImpl {
         }
 
         let mut sp = self.tcb_sp;
-        assert_eq!(
-            sp % arch::STACK_ALIGNMENT_BYTES,
-            0,
-            "TCB stack pointer mis-aligned"
-        );
+        assert_eq!(sp % arch::STACK_ALIGNMENT_BYTES, 0, "TCB stack pointer mis-aligned");
 
         // XXX nonsense values for testing
         let argv: &[seL4_Word] = &[0x11112222, 0x22223333, 0x44445555];

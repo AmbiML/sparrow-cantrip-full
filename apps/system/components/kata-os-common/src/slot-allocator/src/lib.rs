@@ -36,9 +36,7 @@ impl Slots {
         self.bits = Some(bitvec![u8, Lsb0; 0; size].into_boxed_bitslice());
         self.name = name;
     }
-    fn used_slots(&self) -> usize {
-        self.used
-    }
+    fn used_slots(&self) -> usize { self.used }
     fn free_slots(&self) -> usize {
         let bits = self.bits.as_ref().unwrap();
         bits.len() - self.used
@@ -147,19 +145,13 @@ impl CantripSlotAllocator {
     }
 
     /// Returns the base slot number.
-    pub fn base_slot(&self) -> usize {
-        self.base_slot
-    }
+    pub fn base_slot(&self) -> usize { self.base_slot }
 
     /// Returns the number of slots in use.
-    pub fn used_slots(&self) -> usize {
-        (*self.slots.lock()).used_slots()
-    }
+    pub fn used_slots(&self) -> usize { (*self.slots.lock()).used_slots() }
 
     /// Returns the number of slots available.
-    pub fn free_slots(&self) -> usize {
-        (*self.slots.lock()).free_slots()
-    }
+    pub fn free_slots(&self) -> usize { (*self.slots.lock()).free_slots() }
 
     pub fn alloc(&self, count: usize) -> Option<usize> {
         (*self.slots.lock())

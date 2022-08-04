@@ -30,9 +30,7 @@ impl CSpaceSlot {
 
     // Release ownership of the slot; this inhibits the normal cleanup
     // done by drop.
-    pub fn release(&mut self) {
-        self.slot = seL4_CPtr::MAX;
-    }
+    pub fn release(&mut self) { self.slot = seL4_CPtr::MAX; }
 
     // Returns the (root, index, depth) seL4 path for the slot.
     pub fn get_path(&self) -> (seL4_CPtr, seL4_CPtr, u8) {

@@ -96,10 +96,7 @@ impl MLCoordinator {
                 container_slot.release(); // NB: take ownership
                 let ret_status = match MlCore::load_image(&model_frames) {
                     Err(e) => {
-                        error!(
-                            "Load of {}:{} failed: {:?}",
-                            &model.bundle_id, &model.model_id, e
-                        );
+                        error!("Load of {}:{} failed: {:?}", &model.bundle_id, &model.model_id, e);
                         // May have corrupted TCM.
                         self.loaded_model = None;
                         self.statistics.load_failures += 1;

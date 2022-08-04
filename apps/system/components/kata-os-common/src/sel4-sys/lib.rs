@@ -256,9 +256,7 @@ pub struct seL4_IPCBuffer {
 }
 
 impl ::core::clone::Clone for seL4_IPCBuffer {
-    fn clone(&self) -> Self {
-        *self
-    }
+    fn clone(&self) -> Self { *self }
 }
 
 // From libsel4/include/sel4/shared_types.h; this is defined in C as an enum
@@ -317,15 +315,9 @@ pub struct seL4_UntypedDesc {
     align: [seL4_Word; 0],
 }
 impl seL4_UntypedDesc {
-    pub fn is_device(&self) -> bool {
-        self.isDevice != 0
-    }
-    pub fn is_tainted(&self) -> bool {
-        self.isTainted != 0
-    }
-    pub fn size_bits(&self) -> usize {
-        self.sizeBits as usize
-    }
+    pub fn is_device(&self) -> bool { self.isDevice != 0 }
+    pub fn is_tainted(&self) -> bool { self.isTainted != 0 }
+    pub fn size_bits(&self) -> usize { self.sizeBits as usize }
 }
 
 // explicitly *not* Copy. the array at the end is tricky to handle.

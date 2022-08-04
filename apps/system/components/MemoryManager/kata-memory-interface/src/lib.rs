@@ -138,14 +138,10 @@ impl ObjDescBundle {
     }
 
     // Returns whether there are any object descriptors.
-    pub fn is_empty(&self) -> bool {
-        self.objs.len() == 0
-    }
+    pub fn is_empty(&self) -> bool { self.objs.len() == 0 }
 
     // Returns the number of object descriptors.
-    pub fn len(&self) -> usize {
-        self.objs.len()
-    }
+    pub fn len(&self) -> usize { self.objs.len() }
 
     // Returns the count of objects specified by the object descriptors.
     pub fn count(&self) -> usize {
@@ -357,9 +353,7 @@ impl From<MemoryError> for MemoryManagerError {
 }
 impl From<Result<(), MemoryError>> for MemoryManagerError {
     fn from(result: Result<(), MemoryError>) -> MemoryManagerError {
-        result.map_or_else(MemoryManagerError::from, |_v| {
-            MemoryManagerError::MmeSuccess
-        })
+        result.map_or_else(MemoryManagerError::from, |_v| MemoryManagerError::MmeSuccess)
     }
 }
 impl From<MemoryManagerError> for Result<(), MemoryManagerError> {
@@ -405,11 +399,8 @@ pub fn cantrip_object_alloc_in_toplevel(
     objs: Vec<ObjDesc>,
 ) -> Result<ObjDescBundle, MemoryManagerError> {
     // Request the objects using the dedicated MemoryManager container.
-    let mut request = ObjDescBundle::new(
-        unsafe { MEMORY_RECV_CNODE },
-        unsafe { MEMORY_RECV_CNODE_DEPTH },
-        objs,
-    );
+    let mut request =
+        ObjDescBundle::new(unsafe { MEMORY_RECV_CNODE }, unsafe { MEMORY_RECV_CNODE_DEPTH }, objs);
     cantrip_object_alloc(&request)?;
     match request.move_objects_to_toplevel() {
         Err(_) => {
@@ -558,9 +549,7 @@ pub fn cantrip_reply_alloc() -> Result<ObjDescBundle, MemoryManagerError> {
 // Wrapper for allocating 4K pages.
 #[inline]
 pub fn cantrip_frame_alloc(space_bytes: usize) -> Result<ObjDescBundle, MemoryManagerError> {
-    fn howmany(value: usize, unit: usize) -> usize {
-        (value + (unit - 1)) / unit
-    }
+    fn howmany(value: usize, unit: usize) -> usize { (value + (unit - 1)) / unit }
     // NB: always allocate 4K pages
     let mut objs = ObjDescBundle::new(
         unsafe { MEMORY_RECV_CNODE },
@@ -581,9 +570,7 @@ pub fn cantrip_frame_alloc(space_bytes: usize) -> Result<ObjDescBundle, MemoryMa
 // Like cantrip_frame_alloc but also create a CNode to hold the frames.
 #[inline]
 pub fn cantrip_frame_alloc_in_cnode(space_bytes: usize) -> Result<ObjDescBundle, MemoryManagerError> {
-    fn howmany(value: usize, unit: usize) -> usize {
-        (value + (unit - 1)) / unit
-    }
+    fn howmany(value: usize, unit: usize) -> usize { (value + (unit - 1)) / unit }
     // NB: always allocate 4K pages
     let npages = howmany(space_bytes, 1 << seL4_PageBits);
     // XXX horrible band-aid to workaround Retype "fanout" limit of 256
@@ -596,11 +583,7 @@ pub fn cantrip_frame_alloc_in_cnode(space_bytes: usize) -> Result<ObjDescBundle,
             ObjDesc::new(seL4_RISCV_4K_Page, npages - 256, /*cptr=*/ 256),
         ])
     } else {
-        cantrip_object_alloc_in_cnode(vec![ObjDesc::new(
-            seL4_RISCV_4K_Page,
-            npages,
-            /*cptr=*/ 0,
-        )])
+        cantrip_object_alloc_in_cnode(vec![ObjDesc::new(seL4_RISCV_4K_Page, npages, /*cptr=*/ 0)])
     }
 }
 

@@ -44,9 +44,7 @@ pub static mut TIMER_SRV: Mutex<CantripTimerService> = Mutex::new(CantripTimerSe
 });
 
 impl CantripTimerService {
-    pub fn init(&mut self) {
-        self.timer.setup();
-    }
+    pub fn init(&mut self) { self.timer.setup(); }
 
     pub fn completed_timers(&mut self, client_id: seL4_Word) -> u32 {
         assert!(0 < client_id && client_id <= NUM_CLIENTS);

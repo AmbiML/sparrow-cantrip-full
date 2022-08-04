@@ -1091,7 +1091,11 @@ impl<'a> CantripOsModel<'a> {
         // NB: tcb_args::maybe_spill_tcb_args may write arg data to the
         // stack causing the stack pointer to be adjusted.
         sp = self.maybe_spill_tcb_args(cdl_tcb, sp)?;
-        assert_eq!(sp % arch::STACK_ALIGNMENT_BYTES, 0, "Spilled TCB stack pointer mis-aligned");
+        assert_eq!(
+            sp % arch::STACK_ALIGNMENT_BYTES,
+            0,
+            "Spilled TCB stack pointer mis-aligned"
+        );
 
         unsafe {
             seL4_TCB_WriteRegisters(

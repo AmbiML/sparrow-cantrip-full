@@ -67,8 +67,8 @@ pub type seL4_ARM_VSpace = seL4_CPtr;
 #[cfg(feature = "arch_generic")]
 include!("arm_generic.rs");
 
-pub use seL4_ARM_PageUpperDirectoryObject as seL4_PageUpperDirectoryObject;
 pub use seL4_ARM_PageGlobalDirectoryObject as seL4_PageGlobalDirectoryObject;
+pub use seL4_ARM_PageUpperDirectoryObject as seL4_PageUpperDirectoryObject;
 
 error_types!(u64);
 
@@ -122,12 +122,9 @@ pub enum seL4_ARM_VMAttributes {
     ExecuteNever = 4,
 }
 impl From<u32> for seL4_ARM_VMAttributes {
-    fn from(val: u32) -> seL4_ARM_VMAttributes {
-        unsafe { ::core::mem::transmute(val & 7) }
-    }
+    fn from(val: u32) -> seL4_ARM_VMAttributes { unsafe { ::core::mem::transmute(val & 7) } }
 }
-pub const seL4_ARM_Default_VMAttributes: seL4_ARM_VMAttributes =
-    seL4_ARM_VMAttributes::Default;
+pub const seL4_ARM_Default_VMAttributes: seL4_ARM_VMAttributes = seL4_ARM_VMAttributes::Default;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -171,7 +168,7 @@ impl seL4_ObjectType {
         match self {
             seL4_TCBObject => Some(seL4_TCBBits),
             seL4_EndpointObject => Some(seL4_EndpointBits),
-            seL4_NotificationObject =>  Some(seL4_EndpointBits),
+            seL4_NotificationObject => Some(seL4_EndpointBits),
             #[cfg(feature = "CONFIG_KERNEL_MCS")]
             seL4_ReplyObject => Some(seL4_ReplyBits),
             #[cfg(feature = "CONFIG_KERNEL_MCS")]
@@ -193,9 +190,7 @@ impl seL4_ObjectType {
     }
 }
 impl From<seL4_ObjectType> for seL4_Word {
-    fn from(type_: seL4_ObjectType) -> seL4_Word {
-        type_ as seL4_Word
-    }
+    fn from(type_: seL4_ObjectType) -> seL4_Word { type_ as seL4_Word }
 }
 
 #[inline(always)]
@@ -210,9 +205,7 @@ pub unsafe fn seL4_GetIPCBuffer() -> *mut seL4_IPCBuffer {
 }
 
 #[inline(always)]
-pub unsafe fn seL4_GetMR(regnum: usize) -> seL4_Word {
-    (*seL4_GetIPCBuffer()).msg[regnum]
-}
+pub unsafe fn seL4_GetMR(regnum: usize) -> seL4_Word { (*seL4_GetIPCBuffer()).msg[regnum] }
 
 #[inline(always)]
 pub unsafe fn seL4_SetMR(regnum: usize, value: seL4_Word) {
@@ -220,14 +213,10 @@ pub unsafe fn seL4_SetMR(regnum: usize, value: seL4_Word) {
 }
 
 #[inline(always)]
-pub unsafe fn seL4_GetUserData() -> seL4_Word {
-    (*seL4_GetIPCBuffer()).userData
-}
+pub unsafe fn seL4_GetUserData() -> seL4_Word { (*seL4_GetIPCBuffer()).userData }
 
 #[inline(always)]
-pub unsafe fn seL4_SetUserData(data: seL4_Word) {
-    (*seL4_GetIPCBuffer()).userData = data;
-}
+pub unsafe fn seL4_SetUserData(data: seL4_Word) { (*seL4_GetIPCBuffer()).userData = data; }
 
 #[inline(always)]
 pub unsafe fn seL4_GetBadge(index: usize) -> seL4_Word {
@@ -247,9 +236,11 @@ pub unsafe fn seL4_SetCap(index: usize, cptr: seL4_CPtr) {
 #[inline(always)]
 pub unsafe fn seL4_GetCapReceivePath() -> (seL4_CPtr, seL4_CPtr, seL4_CPtr) {
     let ipcbuffer = seL4_GetIPCBuffer();
-    ((*ipcbuffer).receiveCNode,
-     (*ipcbuffer).receiveIndex,
-     (*ipcbuffer).receiveDepth)
+    (
+        (*ipcbuffer).receiveCNode,
+        (*ipcbuffer).receiveIndex,
+        (*ipcbuffer).receiveDepth,
+    )
 }
 
 #[inline(always)]

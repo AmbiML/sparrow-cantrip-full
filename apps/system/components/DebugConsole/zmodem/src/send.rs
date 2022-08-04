@@ -32,9 +32,7 @@ enum State {
 }
 
 impl State {
-    fn new() -> State {
-        State::WaitingInit
-    }
+    fn new() -> State { State::WaitingInit }
 
     fn next(self, frame: &Frame) -> State {
         match (self, frame.get_frame_type()) {

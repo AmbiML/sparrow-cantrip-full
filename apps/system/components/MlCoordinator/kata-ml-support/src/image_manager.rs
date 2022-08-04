@@ -146,17 +146,11 @@ impl ImageManager {
         ret
     }
 
-    fn tcm_top_size(&self) -> usize {
-        self.tcm_top - TCM_PADDR
-    }
+    fn tcm_top_size(&self) -> usize { self.tcm_top - TCM_PADDR }
 
-    fn tcm_bottom_size(&self) -> usize {
-        TCM_PADDR + TCM_SIZE - self.tcm_bottom
-    }
+    fn tcm_bottom_size(&self) -> usize { TCM_PADDR + TCM_SIZE - self.tcm_bottom }
 
-    fn tcm_free_space(&self) -> usize {
-        TCM_SIZE - self.tcm_top_size() - self.tcm_bottom_size()
-    }
+    fn tcm_free_space(&self) -> usize { TCM_SIZE - self.tcm_top_size() - self.tcm_bottom_size() }
 
     // Returns the size of the largest temporary data block of loaded images.
     fn required_temporary_data(&self) -> usize {
@@ -266,9 +260,7 @@ impl ImageManager {
     }
 
     // Returns true if the image is currently loaded in the TCM.
-    pub fn is_loaded(&mut self, id: &ImageId) -> bool {
-        self.get_image_index(id).is_some()
-    }
+    pub fn is_loaded(&mut self, id: &ImageId) -> bool { self.get_image_index(id).is_some() }
 
     // Loads an |image| onto the Vector Core's TCM, evicting models as
     // necessary. |on_flash_sizes| represents the on-disk sizes (ie fsize)
@@ -281,10 +273,7 @@ impl ImageManager {
         on_flash_sizes: ImageSizes,
         unpacked_sizes: ImageSizes,
     ) -> Result<(), &'static str> {
-        self.make_space(
-            unpacked_sizes.data_top_size(),
-            unpacked_sizes.temporary_data,
-        );
+        self.make_space(unpacked_sizes.data_top_size(), unpacked_sizes.temporary_data);
         let mut temp_top = self.tcm_top;
 
         MlCore::write_image_part(image, temp_top, on_flash_sizes.text, unpacked_sizes.text)?;
@@ -380,20 +369,14 @@ mod test {
     struct FakeImage;
 
     impl Read for FakeImage {
-        fn read(&mut self, _buf: &mut [u8]) -> Result<usize, cantrip_io::Error> {
-            Ok(0)
-        }
+        fn read(&mut self, _buf: &mut [u8]) -> Result<usize, cantrip_io::Error> { Ok(0) }
     }
 
-    fn fake_image() -> Box<dyn Read> {
-        Box::new(FakeImage {})
-    }
+    fn fake_image() -> Box<dyn Read> { Box::new(FakeImage {}) }
 
     // The on_flash_sizes are only used when writing the image to memory. For
     // these tests we want to ignore this, so just use zeroed sizes.
-    fn ignore_on_flash_sizes() -> ImageSizes {
-        ImageSizes::default()
-    }
+    fn ignore_on_flash_sizes() -> ImageSizes { ImageSizes::default() }
 
     fn constant_image_size(size: usize) -> ImageSizes {
         ImageSizes {
@@ -413,9 +396,7 @@ mod test {
         }
     }
 
-    fn default_id() -> ImageId {
-        make_id(1)
-    }
+    fn default_id() -> ImageId { make_id(1) }
 
     fn load_image(image_manager: &mut ImageManager, id: ImageId, unpacked_sizes: ImageSizes) {
         // fake_vec_core can't fail to load.
@@ -431,11 +412,7 @@ mod test {
     #[test]
     fn load_unload() {
         let mut image_manager = ImageManager::default();
-        load_image(
-            &mut image_manager,
-            default_id(),
-            constant_image_size(0x1000),
-        );
+        load_image(&mut image_manager, default_id(), constant_image_size(0x1000));
 
         let id = default_id();
 

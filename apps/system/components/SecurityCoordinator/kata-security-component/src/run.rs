@@ -194,11 +194,7 @@ fn read_key_request(
     let request =
         postcard::from_bytes::<ReadKeyRequest>(request_buffer).map_err(deserialize_failure)?;
 
-    trace!(
-        "READ KEY bundle_id {} key {}",
-        request.bundle_id,
-        request.key
-    );
+    trace!("READ KEY bundle_id {} key {}", request.bundle_id, request.key);
     let value = unsafe { CANTRIP_SECURITY.read_key(request.bundle_id, request.key) }?;
     let _ = postcard::to_slice(&ReadKeyResponse { value }, reply_buffer).map_err(serialize_failure);
     Ok(())
@@ -230,11 +226,7 @@ fn delete_key_request(
     let request =
         postcard::from_bytes::<DeleteKeyRequest>(request_buffer).map_err(deserialize_failure)?;
 
-    trace!(
-        "DELETE KEY bundle_id {} key {}",
-        request.bundle_id,
-        request.key
-    );
+    trace!("DELETE KEY bundle_id {} key {}", request.bundle_id, request.key);
     unsafe { CANTRIP_SECURITY.delete_key(request.bundle_id, request.key) }
 }
 

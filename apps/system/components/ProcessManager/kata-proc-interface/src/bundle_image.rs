@@ -41,9 +41,7 @@ enum BundleImageError {
     BadSectionIO,
 }
 impl From<seL4_Error> for BundleImageError {
-    fn from(_err: seL4_Error) -> BundleImageError {
-        BundleImageError::CapMoveFailed
-    }
+    fn from(_err: seL4_Error) -> BundleImageError { BundleImageError::CapMoveFailed }
 }
 
 // On-disk header format.
@@ -79,15 +77,9 @@ pub struct BundleImageSection {
     pub vaddr: usize,
 }
 impl BundleImageSection {
-    pub fn is_read(&self) -> bool {
-        (self.flags & SECTION_READ) != 0
-    }
-    pub fn is_write(&self) -> bool {
-        (self.flags & SECTION_WRITE) != 0
-    }
-    pub fn is_exec(&self) -> bool {
-        (self.flags & SECTION_EXEC) != 0
-    }
+    pub fn is_read(&self) -> bool { (self.flags & SECTION_READ) != 0 }
+    pub fn is_write(&self) -> bool { (self.flags & SECTION_WRITE) != 0 }
+    pub fn is_exec(&self) -> bool { (self.flags & SECTION_EXEC) != 0 }
     pub fn get_rights(&self) -> seL4_CapRights {
         seL4_CapRights::new(
             /*grantreply=*/ 0,
@@ -96,12 +88,8 @@ impl BundleImageSection {
             /*write=*/ self.is_write() as usize,
         )
     }
-    pub fn data_range(&self) -> Range<usize> {
-        0..self.fsize
-    }
-    pub fn zero_range(&self) -> Range<usize> {
-        self.fsize..self.msize
-    }
+    pub fn data_range(&self) -> Range<usize> { 0..self.fsize }
+    pub fn zero_range(&self) -> Range<usize> { self.fsize..self.msize }
 }
 
 // BundleImage is a loadable image that backs a Bundle. There are images
@@ -142,9 +130,7 @@ impl<'a> BundleImage<'a> {
         }
     }
 
-    pub fn finish(&mut self) {
-        self.unmap_current_frame().expect("finish");
-    }
+    pub fn finish(&mut self) { self.unmap_current_frame().expect("finish"); }
 
     // Read the current section header and setup to advance to the next
     // section on the next call. This is used in lieu of an iterator to
@@ -260,9 +246,7 @@ impl<'a> BundleImage<'a> {
     }
 }
 impl<'a> Drop for BundleImage<'a> {
-    fn drop(&mut self) {
-        self.finish();
-    }
+    fn drop(&mut self) { self.finish(); }
 }
 impl<'a> io::Seek for BundleImage<'a> {
     fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {

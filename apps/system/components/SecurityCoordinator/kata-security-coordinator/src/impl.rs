@@ -23,9 +23,7 @@ pub struct SeL4SecurityCoordinator {
     // TODO(sleffler): mailbox ipc state
 }
 impl SeL4SecurityCoordinator {
-    pub fn new() -> Self {
-        SeL4SecurityCoordinator {}
-    }
+    pub fn new() -> Self { SeL4SecurityCoordinator {} }
 }
 pub type CantripSecurityCoordinatorInterface = SeL4SecurityCoordinator;
 
@@ -112,11 +110,7 @@ impl SecurityCoordinatorInterface for SeL4SecurityCoordinator {
             SecurityRequest::SrReadKey => {
                 let request = postcard::from_bytes::<ReadKeyRequest>(&request_buffer[..])
                     .map_err(deserialize_failure)?;
-                trace!(
-                    "READ KEY bundle_id {} key {}",
-                    request.bundle_id,
-                    request.key,
-                );
+                trace!("READ KEY bundle_id {} key {}", request.bundle_id, request.key,);
                 // TODO(sleffler): fill-in
                 Err(SreReadFailed)
             }
@@ -135,11 +129,7 @@ impl SecurityCoordinatorInterface for SeL4SecurityCoordinator {
             SecurityRequest::SrDeleteKey => {
                 let request = postcard::from_bytes::<DeleteKeyRequest>(&request_buffer[..])
                     .map_err(deserialize_failure)?;
-                trace!(
-                    "DELETE KEY bundle_id {} key {}",
-                    request.bundle_id,
-                    request.key,
-                );
+                trace!("DELETE KEY bundle_id {} key {}", request.bundle_id, request.key,);
                 // TODO(sleffler): fill-in
                 Err(SreDeleteFailed)
             }

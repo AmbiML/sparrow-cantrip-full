@@ -73,33 +73,23 @@ impl fmt::Display for CommandError {
 }
 
 impl From<core::num::ParseIntError> for CommandError {
-    fn from(_err: core::num::ParseIntError) -> CommandError {
-        CommandError::BadArgs
-    }
+    fn from(_err: core::num::ParseIntError) -> CommandError { CommandError::BadArgs }
 }
 
 impl From<core::num::ParseFloatError> for CommandError {
-    fn from(_err: core::num::ParseFloatError) -> CommandError {
-        CommandError::BadArgs
-    }
+    fn from(_err: core::num::ParseFloatError) -> CommandError { CommandError::BadArgs }
 }
 
 impl From<core::str::ParseBoolError> for CommandError {
-    fn from(_err: core::str::ParseBoolError) -> CommandError {
-        CommandError::BadArgs
-    }
+    fn from(_err: core::str::ParseBoolError) -> CommandError { CommandError::BadArgs }
 }
 
 impl From<fmt::Error> for CommandError {
-    fn from(err: fmt::Error) -> CommandError {
-        CommandError::Formatter(err)
-    }
+    fn from(err: fmt::Error) -> CommandError { CommandError::Formatter(err) }
 }
 
 impl From<io::Error> for CommandError {
-    fn from(_err: io::Error) -> CommandError {
-        CommandError::IO
-    }
+    fn from(_err: io::Error) -> CommandError { CommandError::IO }
 }
 
 type CmdFn = fn(

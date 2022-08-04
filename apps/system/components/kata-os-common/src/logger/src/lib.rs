@@ -11,9 +11,7 @@ const MAX_MSG_LEN: usize = 2048;
 pub struct CantripLogger;
 
 impl log::Log for CantripLogger {
-    fn enabled(&self, _metadata: &Metadata) -> bool {
-        true
-    }
+    fn enabled(&self, _metadata: &Metadata) -> bool { true }
 
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {

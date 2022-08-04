@@ -27,9 +27,7 @@ pub enum StorageError {
 }
 
 impl From<postcard::Error> for StorageError {
-    fn from(_err: postcard::Error) -> StorageError {
-        StorageError::SerializeFailed
-    }
+    fn from(_err: postcard::Error) -> StorageError { StorageError::SerializeFailed }
 }
 
 pub trait StorageManagerInterface {
@@ -75,16 +73,12 @@ impl From<StorageError> for StorageManagerError {
 
 impl From<Result<(), StorageError>> for StorageManagerError {
     fn from(result: Result<(), StorageError>) -> StorageManagerError {
-        result.map_or_else(StorageManagerError::from, |_| {
-            StorageManagerError::SmeSuccess
-        })
+        result.map_or_else(StorageManagerError::from, |_| StorageManagerError::SmeSuccess)
     }
 }
 
 impl From<cstr_core::NulError> for StorageManagerError {
-    fn from(_err: cstr_core::NulError) -> StorageManagerError {
-        StorageManagerError::SmeKeyInvalid
-    }
+    fn from(_err: cstr_core::NulError) -> StorageManagerError { StorageManagerError::SmeKeyInvalid }
 }
 
 impl From<StorageManagerError> for Result<(), StorageManagerError> {

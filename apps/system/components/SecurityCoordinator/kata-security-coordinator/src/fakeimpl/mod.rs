@@ -60,18 +60,14 @@ Required=1
     }
 }
 impl Drop for BundleData {
-    fn drop(&mut self) {
-        let _ = cantrip_object_free_in_cnode(&self.pkg_contents);
-    }
+    fn drop(&mut self) { let _ = cantrip_object_free_in_cnode(&self.pkg_contents); }
 }
 
 pub struct FakeSecurityCoordinator {
     bundles: HashMap<String, BundleData>,
 }
 impl Default for FakeSecurityCoordinator {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
 impl FakeSecurityCoordinator {
     pub fn new() -> Self {
@@ -249,18 +245,12 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinator {
             // Send the _physical_ address of the message buffer to the security
             // core.
             let paddr = seL4_Page_GetAddress(frame_bundle.objs[0].cptr);
-            mailbox_api_send(
-                paddr.paddr as u32,
-                (MESSAGE_SIZE_DWORDS * size_of::<u32>()) as u32,
-            );
+            mailbox_api_send(paddr.paddr as u32, (MESSAGE_SIZE_DWORDS * size_of::<u32>()) as u32);
 
             // Wait for the response to arrive.
             let mut response_paddr: u32 = 0;
             let mut response_size: u32 = 0;
-            mailbox_api_receive(
-                &mut response_paddr as *mut u32,
-                &mut response_size as *mut u32,
-            );
+            mailbox_api_receive(&mut response_paddr as *mut u32, &mut response_size as *mut u32);
 
             // The security core should have replaced the first and last dwords
             // with 0x12345678 and 0x87654321.

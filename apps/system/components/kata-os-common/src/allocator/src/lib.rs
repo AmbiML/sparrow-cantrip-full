@@ -59,14 +59,10 @@ impl CantripHeap {
     }
 
     /// Returns an estimate of the amount of bytes in use.
-    pub fn used(&self) -> usize {
-        (*self.heap.lock()).used()
-    }
+    pub fn used(&self) -> usize { (*self.heap.lock()).used() }
 
     /// Returns an estimate of the amount of bytes available.
-    pub fn free(&self) -> usize {
-        (*self.heap.lock()).free()
-    }
+    pub fn free(&self) -> usize { (*self.heap.lock()).free() }
 }
 
 unsafe impl GlobalAlloc for CantripHeap {

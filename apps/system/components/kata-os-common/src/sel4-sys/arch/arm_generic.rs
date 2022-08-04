@@ -31,7 +31,6 @@ pub unsafe fn seL4_Page_Map(
         // NB: executable
         seL4_ARM_Page_Map(sel4_page, sel4_pd, vaddr, rights, vm_attribs)
     } else {
-        seL4_ARM_Page_Map(sel4_page, sel4_pd, vaddr, rights,
-                          seL4_ARM_VMAttributes::ExecuteNever)
+        seL4_ARM_Page_Map(sel4_page, sel4_pd, vaddr, rights, seL4_ARM_VMAttributes::ExecuteNever)
     }
 }

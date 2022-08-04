@@ -66,12 +66,8 @@ impl UntypedSlab {
             _next_paddr: ut.paddr,
         }
     }
-    fn _size(&self) -> usize {
-        l2tob(self.size_bits)
-    }
-    fn size_bits(&self) -> usize {
-        self.size_bits
-    }
+    fn _size(&self) -> usize { l2tob(self.size_bits) }
+    fn size_bits(&self) -> usize { self.size_bits }
 }
 pub struct MemoryManager {
     untypeds: SmallVec<[UntypedSlab; UNTYPED_SLAB_CAPACITY]>,
@@ -95,17 +91,11 @@ pub struct MemoryManager {
     out_of_memory: usize,
 }
 
-fn _howmany(value: usize, unit: usize) -> usize {
-    value + (unit - 1) / unit
-}
-fn _round_up(value: usize, align: usize) -> usize {
-    _howmany(value, align) * align
-}
+fn _howmany(value: usize, unit: usize) -> usize { value + (unit - 1) / unit }
+fn _round_up(value: usize, align: usize) -> usize { _howmany(value, align) * align }
 
 // Log2 bits to bytes.
-fn l2tob(size_bits: usize) -> usize {
-    1 << size_bits
-}
+fn l2tob(size_bits: usize) -> usize { 1 << size_bits }
 
 impl MemoryManager {
     // Creates a new MemoryManager instance. The allocator is seeded
@@ -161,41 +151,23 @@ impl MemoryManager {
     }
 
     // Total available space.
-    pub fn total_available_space(&self) -> usize {
-        self.total_bytes
-    }
+    pub fn total_available_space(&self) -> usize { self.total_bytes }
     // Current allocated space
-    pub fn allocated_space(&self) -> usize {
-        self.allocated_bytes
-    }
+    pub fn allocated_space(&self) -> usize { self.allocated_bytes }
     // Current free space.
-    pub fn free_space(&self) -> usize {
-        self.total_bytes - self.allocated_bytes
-    }
+    pub fn free_space(&self) -> usize { self.total_bytes - self.allocated_bytes }
     // Total space allocated over time
-    pub fn total_requested_space(&self) -> usize {
-        self.requested_bytes
-    }
+    pub fn total_requested_space(&self) -> usize { self.requested_bytes }
     // Current allocated space out of our control.
-    pub fn overhead_space(&self) -> usize {
-        self.overhead_bytes
-    }
+    pub fn overhead_space(&self) -> usize { self.overhead_bytes }
 
     // Current allocated objects
-    pub fn allocated_objs(&self) -> usize {
-        self.allocated_objs
-    }
+    pub fn allocated_objs(&self) -> usize { self.allocated_objs }
     // Total objects allocated over time
-    pub fn total_requested_objs(&self) -> usize {
-        self.requested_objs
-    }
+    pub fn total_requested_objs(&self) -> usize { self.requested_objs }
 
-    pub fn untyped_slab_too_small(&self) -> usize {
-        self.untyped_slab_too_small
-    }
-    pub fn out_of_memory(&self) -> usize {
-        self.out_of_memory
-    }
+    pub fn untyped_slab_too_small(&self) -> usize { self.untyped_slab_too_small }
+    pub fn out_of_memory(&self) -> usize { self.out_of_memory }
 
     fn retype_untyped(free_untyped: seL4_CPtr, root: seL4_CPtr, obj: &ObjDesc) -> seL4_Result {
         unsafe {

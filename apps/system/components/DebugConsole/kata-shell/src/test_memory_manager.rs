@@ -50,11 +50,7 @@ fn bootinfo_command(
     #[cfg(feature = "CONFIG_DEBUG_BUILD")]
     for ut in bootinfo_ref.untyped.start..bootinfo_ref.untyped.end {
         let cap_tag = unsafe { cantrip_os_common::sel4_sys::seL4_DebugCapIdentify(ut) };
-        assert_eq!(
-            cap_tag, 2,
-            "expected untyped (2), got {} for cap at {}",
-            cap_tag, ut
-        );
+        assert_eq!(cap_tag, 2, "expected untyped (2), got {} for cap at {}", cap_tag, ut);
     }
     Ok(())
 }

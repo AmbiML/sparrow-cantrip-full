@@ -23,9 +23,7 @@ pub unsafe extern "C" fn pre_init() {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn mlcoord__init() {
-    ML_COORD.lock().init();
-}
+pub unsafe extern "C" fn mlcoord__init() { ML_COORD.lock().init(); }
 
 #[no_mangle]
 pub unsafe extern "C" fn run() {
@@ -109,14 +107,10 @@ pub unsafe extern "C" fn mlcoord_cancel(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn host_req_handle() {
-    ML_COORD.lock().handle_host_req_interrupt();
-}
+pub unsafe extern "C" fn host_req_handle() { ML_COORD.lock().handle_host_req_interrupt(); }
 
 #[no_mangle]
-pub unsafe extern "C" fn finish_handle() {
-    ML_COORD.lock().handle_return_interrupt();
-}
+pub unsafe extern "C" fn finish_handle() { ML_COORD.lock().handle_return_interrupt(); }
 
 #[no_mangle]
 pub unsafe extern "C" fn instruction_fault_handle() {
@@ -124,16 +118,10 @@ pub unsafe extern "C" fn instruction_fault_handle() {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn data_fault_handle() {
-    ML_COORD.lock().handle_data_fault_interrupt();
-}
+pub unsafe extern "C" fn data_fault_handle() { ML_COORD.lock().handle_data_fault_interrupt(); }
 
 #[no_mangle]
-pub unsafe extern "C" fn mlcoord_debug_state() {
-    ML_COORD.lock().debug_state();
-}
+pub unsafe extern "C" fn mlcoord_debug_state() { ML_COORD.lock().debug_state(); }
 
 #[no_mangle]
-pub unsafe extern "C" fn mlcoord_capscan() {
-    let _ = Camkes::capscan();
-}
+pub unsafe extern "C" fn mlcoord_capscan() { let _ = Camkes::capscan(); }

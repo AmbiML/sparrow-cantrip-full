@@ -145,11 +145,8 @@ fn main() {
     ))
     .unwrap();
     println!("{}/types{}.rs", out_dir, cargo_target_pointer_width);
-    let bfout = File::create(&*format!(
-        "{}/types{}.rs",
-        out_dir, cargo_target_pointer_width
-    ))
-    .unwrap();
+    let bfout =
+        File::create(&*format!("{}/types{}.rs", out_dir, cargo_target_pointer_width)).unwrap();
     let mut cmd = Command::new("/usr/bin/env");
     cmd.args(&[
         &python_bin,

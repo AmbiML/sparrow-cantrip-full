@@ -29,9 +29,7 @@ pub struct Rx {
     dataport: &'static [u8],
 }
 impl Default for Rx {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
 
 impl Rx {
@@ -65,9 +63,7 @@ pub struct Tx {
     dataport: &'static mut [u8],
 }
 impl Default for Tx {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
 
 impl Tx {

@@ -65,9 +65,7 @@ impl ProcessManager {
         }
     }
 
-    pub fn capacity(&self) -> usize {
-        self.bundles.capacity()
-    }
+    pub fn capacity(&self) -> usize { self.bundles.capacity() }
 }
 
 impl PackageManagementInterface for ProcessManager {
@@ -200,21 +198,11 @@ mod tests {
     }
     struct FakeBundleImpl {}
     impl<'a> BundleImplInterface for FakeBundleImpl<'a> {
-        fn start(&mut self) -> Result<(), ProcessManagerError> {
-            Ok(())
-        }
-        fn stop(&mut self) -> Result<(), ProcessManagerError> {
-            Ok(())
-        }
-        fn resume(&self) -> Result<(), ProcessManagerError> {
-            Ok(())
-        }
-        fn suspend(&self) -> Result<(), ProcessManagerError> {
-            Ok(())
-        }
-        fn capscan(&self) -> Result<(), ProcessManagerError> {
-            Ok(())
-        }
+        fn start(&mut self) -> Result<(), ProcessManagerError> { Ok(()) }
+        fn stop(&mut self) -> Result<(), ProcessManagerError> { Ok(()) }
+        fn resume(&self) -> Result<(), ProcessManagerError> { Ok(()) }
+        fn suspend(&self) -> Result<(), ProcessManagerError> { Ok(()) }
+        fn capscan(&self) -> Result<(), ProcessManagerError> { Ok(()) }
     }
     impl ProcessManagerInterface for FakeManager {
         fn install(&mut self, pkg_buffer: *const u8, pkg_buffer_size: u32) -> Result<String, pme> {
@@ -235,9 +223,7 @@ mod tests {
             assert!(self.bundles.contains_key(&bundle.app_id));
             Ok(Box::new(FakeBundleImpl))
         }
-        fn stop(&mut self, bundle_impl: &mut dyn BundleImplInterface) -> Result<(), pme> {
-            Ok(())
-        }
+        fn stop(&mut self, bundle_impl: &mut dyn BundleImplInterface) -> Result<(), pme> { Ok(()) }
         fn capscan(&mut self, bundle_impl: &mut dyn BundleImplInterface) -> Result<(), pme> {
             Ok(())
         }

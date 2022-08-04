@@ -83,67 +83,27 @@ extern "C" {
 //------------------------------------------------------------------------------
 // Directly manipulate the mailbox registers.
 
-unsafe fn get_intr_state() -> u32 {
-    mailbox_mmio.offset(0).read_volatile()
-}
-unsafe fn get_INTR_ENABLE() -> u32 {
-    mailbox_mmio.offset(1).read_volatile()
-}
-unsafe fn get_INTR_TEST() -> u32 {
-    mailbox_mmio.offset(2).read_volatile()
-}
-unsafe fn get_MBOXW() -> u32 {
-    mailbox_mmio.offset(3).read_volatile()
-}
-unsafe fn get_MBOXR() -> u32 {
-    mailbox_mmio.offset(4).read_volatile()
-}
-unsafe fn get_STATUS() -> u32 {
-    mailbox_mmio.offset(5).read_volatile()
-}
-unsafe fn get_ERROR() -> u32 {
-    mailbox_mmio.offset(6).read_volatile()
-}
-unsafe fn get_WIRQT() -> u32 {
-    mailbox_mmio.offset(7).read_volatile()
-}
-unsafe fn get_RIRQT() -> u32 {
-    mailbox_mmio.offset(8).read_volatile()
-}
-unsafe fn get_CTRL() -> u32 {
-    mailbox_mmio.offset(9).read_volatile()
-}
+unsafe fn get_intr_state() -> u32 { mailbox_mmio.offset(0).read_volatile() }
+unsafe fn get_INTR_ENABLE() -> u32 { mailbox_mmio.offset(1).read_volatile() }
+unsafe fn get_INTR_TEST() -> u32 { mailbox_mmio.offset(2).read_volatile() }
+unsafe fn get_MBOXW() -> u32 { mailbox_mmio.offset(3).read_volatile() }
+unsafe fn get_MBOXR() -> u32 { mailbox_mmio.offset(4).read_volatile() }
+unsafe fn get_STATUS() -> u32 { mailbox_mmio.offset(5).read_volatile() }
+unsafe fn get_ERROR() -> u32 { mailbox_mmio.offset(6).read_volatile() }
+unsafe fn get_WIRQT() -> u32 { mailbox_mmio.offset(7).read_volatile() }
+unsafe fn get_RIRQT() -> u32 { mailbox_mmio.offset(8).read_volatile() }
+unsafe fn get_CTRL() -> u32 { mailbox_mmio.offset(9).read_volatile() }
 
-unsafe fn set_INTR_STATE(x: u32) {
-    mailbox_mmio.offset(0).write_volatile(x);
-}
-unsafe fn set_INTR_ENABLE(x: u32) {
-    mailbox_mmio.offset(1).write_volatile(x);
-}
-unsafe fn set_INTR_TEST(x: u32) {
-    mailbox_mmio.offset(2).write_volatile(x);
-}
-unsafe fn set_MBOXW(x: u32) {
-    mailbox_mmio.offset(3).write_volatile(x);
-}
-unsafe fn set_MBOXR(x: u32) {
-    mailbox_mmio.offset(4).write_volatile(x);
-}
-unsafe fn set_STATUS(x: u32) {
-    mailbox_mmio.offset(5).write_volatile(x);
-}
-unsafe fn set_ERROR(x: u32) {
-    mailbox_mmio.offset(6).write_volatile(x);
-}
-unsafe fn set_WIRQT(x: u32) {
-    mailbox_mmio.offset(7).write_volatile(x);
-}
-unsafe fn set_RIRQT(x: u32) {
-    mailbox_mmio.offset(8).write_volatile(x);
-}
-unsafe fn set_CTRL(x: u32) {
-    mailbox_mmio.offset(9).write_volatile(x);
-}
+unsafe fn set_INTR_STATE(x: u32) { mailbox_mmio.offset(0).write_volatile(x); }
+unsafe fn set_INTR_ENABLE(x: u32) { mailbox_mmio.offset(1).write_volatile(x); }
+unsafe fn set_INTR_TEST(x: u32) { mailbox_mmio.offset(2).write_volatile(x); }
+unsafe fn set_MBOXW(x: u32) { mailbox_mmio.offset(3).write_volatile(x); }
+unsafe fn set_MBOXR(x: u32) { mailbox_mmio.offset(4).write_volatile(x); }
+unsafe fn set_STATUS(x: u32) { mailbox_mmio.offset(5).write_volatile(x); }
+unsafe fn set_ERROR(x: u32) { mailbox_mmio.offset(6).write_volatile(x); }
+unsafe fn set_WIRQT(x: u32) { mailbox_mmio.offset(7).write_volatile(x); }
+unsafe fn set_RIRQT(x: u32) { mailbox_mmio.offset(8).write_volatile(x); }
+unsafe fn set_CTRL(x: u32) { mailbox_mmio.offset(9).write_volatile(x); }
 
 //------------------------------------------------------------------------------
 // Directly manipulate the hardware FIFOs. Synchronous and busy-waits. Not

@@ -93,9 +93,7 @@ pub enum seL4_ObjectType {
     seL4_LastObjectType,
 }
 impl From<seL4_ObjectType> for seL4_Word {
-    fn from(type_: seL4_ObjectType) -> seL4_Word {
-        type_ as seL4_Word
-    }
+    fn from(type_: seL4_ObjectType) -> seL4_Word { type_ as seL4_Word }
 }
 
 #[repr(u32)]
@@ -108,12 +106,9 @@ pub enum seL4_X86_VMAttributes {
     WriteCombining = 4,
 }
 impl From<u32> for seL4_X86_VMAttributes {
-    fn from(val: u32) -> seL4_x86_VMAttributes {
-        unsafe { ::core::mem::transmute(val & 7) }
-    }
+    fn from(val: u32) -> seL4_x86_VMAttributes { unsafe { ::core::mem::transmute(val & 7) } }
 }
-pub const seL4_X86_Default_VMAttributes: seL4_X86_VMAttributes =
-    seL4_X86_VMAttributes::WriteBack;
+pub const seL4_X86_Default_VMAttributes: seL4_X86_VMAttributes = seL4_X86_VMAttributes::WriteBack;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -237,9 +232,7 @@ pub unsafe fn seL4_GetIPCBuffer() -> *mut seL4_IPCBuffer {
 }
 
 #[inline(always)]
-pub unsafe fn seL4_GetMR(regnum: usize) -> seL4_Word {
-    (*seL4_GetIPCBuffer()).msg[regnum]
-}
+pub unsafe fn seL4_GetMR(regnum: usize) -> seL4_Word { (*seL4_GetIPCBuffer()).msg[regnum] }
 
 #[inline(always)]
 pub unsafe fn seL4_SetMR(regnum: usize, value: seL4_Word) {
@@ -247,14 +240,10 @@ pub unsafe fn seL4_SetMR(regnum: usize, value: seL4_Word) {
 }
 
 #[inline(always)]
-pub unsafe fn seL4_GetUserData() -> seL4_Word {
-    (*seL4_GetIPCBuffer()).userData
-}
+pub unsafe fn seL4_GetUserData() -> seL4_Word { (*seL4_GetIPCBuffer()).userData }
 
 #[inline(always)]
-pub unsafe fn seL4_SetUserData(data: seL4_Word) {
-    (*seL4_GetIPCBuffer()).userData = data;
-}
+pub unsafe fn seL4_SetUserData(data: seL4_Word) { (*seL4_GetIPCBuffer()).userData = data; }
 
 #[inline(always)]
 pub unsafe fn seL4_GetBadge(index: usize) -> seL4_Word {
@@ -274,9 +263,11 @@ pub unsafe fn seL4_SetCap(index: usize, cptr: seL4_CPtr) {
 #[inline(always)]
 pub unsafe fn seL4_GetCapReceivePath() -> (seL4_CPtr, seL4_CPtr, seL4_CPtr) {
     let ipcbuffer = seL4_GetIPCBuffer();
-    ((*ipcbuffer).receiveCNode,
-     (*ipcbuffer).receiveIndex,
-     (*ipcbuffer).receiveDepth)
+    (
+        (*ipcbuffer).receiveCNode,
+        (*ipcbuffer).receiveIndex,
+        (*ipcbuffer).receiveDepth,
+    )
 }
 
 #[inline(always)]

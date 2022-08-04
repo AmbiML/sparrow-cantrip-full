@@ -23,12 +23,7 @@ impl StorageManagerInterface for CantripStorageManager {
         Ok(cantrip_security_read_key(bundle_id, key, &mut keyval).map(|_| keyval)?)
     }
     fn write(&self, bundle_id: &str, key: &str, value: &[u8]) -> Result<(), StorageError> {
-        trace!(
-            "write bundle_id:{} key:{} value:{:?}",
-            bundle_id,
-            key,
-            value
-        );
+        trace!("write bundle_id:{} key:{} value:{:?}", bundle_id, key, value);
 
         Ok(cantrip_security_write_key(bundle_id, key, value)?)
     }
