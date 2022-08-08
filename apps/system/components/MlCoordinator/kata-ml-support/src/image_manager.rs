@@ -329,6 +329,18 @@ impl ImageManager {
     /// Zeroes out the temporary data section.
     pub fn clear_temp_data(&self) { MlCore::clear_tcm(self.tcm_bottom, self.tcm_bottom_size()); }
 
+    /// Gets the output header for |id|.
+    pub fn output_header(&self, id: &ImageId) -> Option<OutputHeader> {
+        match self.get_image_index(id) {
+            Some(idx) => {
+                let image = &self.images[idx].as_ref().unwrap();
+                let addr = image.data_top_addr + image.sizes.model_output_offset();
+                Some(MlCore::get_output_header(addr))
+            }
+            None => None,
+        }
+    }
+
     fn ids_at(&self, idx: ImageIdx) -> (&str, &str) {
         match self.images[idx].as_ref() {
             Some(image) => (&image.id.bundle_id, &image.id.model_id),

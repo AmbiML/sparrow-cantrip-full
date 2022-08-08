@@ -33,8 +33,8 @@ struct Statistics {
 }
 
 pub struct MLCoordinator {
-    /// The currently running model index, if any.
-    running_model: Option<ModelIdx>,
+    /// The currently running model, if any.
+    running_model: Option<ImageId>,
     /// A list of all models that have been requested for oneshot or periodic
     /// execution.
     models: [Option<LoadableModel>; MAX_MODELS],
@@ -233,7 +233,7 @@ impl MLCoordinator {
 
         self.image_manager.set_wmmu(&model.id);
 
-        self.running_model = Some(next_idx);
+        self.running_model = Some(model.id.clone());
         MlCore::run(); // Start core at default PC.
 
         Ok(())
@@ -244,17 +244,25 @@ impl MLCoordinator {
             fn finish_acknowledge() -> u32;
         }
 
-        // TODO(jesionowski): Move the result from TCM to SRAM,
-        // update the input/model.
-        let return_code = MlCore::get_return_code();
-        let fault = MlCore::get_fault_register();
+        if let Some(image_id) = self.running_model.as_ref() {
+            if let Some(output_header) = self.image_manager.output_header(image_id) {
+                // TODO(jesionowski): Move the result from TCM to SRAM,
+                // update the input/model.
 
-        // TODO(jesionowski): Signal the application that there was a failure.
-        if return_code != 0 {
-            error!(
-                "vctop execution failed with code {}, fault pc: {:#010X}",
-                return_code, fault
-            );
+                if output_header.return_code != 0 {
+                    // TODO(jesionowski): Signal the application that there was a failure.
+                    error!(
+                        "vctop execution failed with code {}, fault pc: {:#010X}",
+                        output_header.return_code, output_header.epc
+                    );
+                }
+            } else {
+                // This can happen during normal execution if mlcancel happens
+                // during an execution.
+                warn!("Executable finished running but image is not loaded.");
+            }
+        } else {
+            error!("Unexpected return interrupt with no running model.")
         }
 
         self.running_model = None;
@@ -432,10 +440,9 @@ impl MLCoordinator {
     }
 
     pub fn debug_state(&self) {
-        match self.running_model {
-            Some(idx) => {
-                let (bundle, model) = self.ids_at(idx);
-                info!("Running model: {}:{}", bundle, model);
+        match &self.running_model {
+            Some(id) => {
+                info!("Running model: {}:{}", id.bundle_id, id.model_id);
             }
             None => info!("No running model."),
         }

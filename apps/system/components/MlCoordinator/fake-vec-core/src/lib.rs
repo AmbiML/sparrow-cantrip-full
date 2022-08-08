@@ -5,12 +5,12 @@ extern crate alloc;
 
 use alloc::boxed::Box;
 use cantrip_io::Read;
-use cantrip_ml_shared::Permission;
+use cantrip_ml_shared::{OutputHeader, Permission, WindowId};
 
 pub fn enable_interrupts(_enable: bool) {}
 
 pub fn set_wmmu_window(
-    _window_id: usize,
+    _window_id: WindowId,
     _start_address: usize,
     _length: usize,
     _permission: Permission,
@@ -42,6 +42,4 @@ pub fn clear_tcm(_addr: usize, _len: usize) {}
 
 pub fn wait_for_clear_to_finish() {}
 
-pub fn get_return_code() -> u32 { 0 }
-
-pub fn get_fault_register() -> u32 { 0 }
+pub fn get_output_header(_addr: usize) -> OutputHeader { OutputHeader::default() }

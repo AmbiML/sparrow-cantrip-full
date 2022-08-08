@@ -10,11 +10,15 @@ mod vc_top;
 use core::mem::size_of;
 use core::slice;
 use cantrip_io::Read;
-use cantrip_ml_shared::{Permission, WindowId, TCM_PADDR, TCM_SIZE};
+use cantrip_ml_shared::{OutputHeader, Permission, WindowId, TCM_PADDR, TCM_SIZE};
 use log::{error, trace};
 
 extern "C" {
     static TCM: *mut u32;
+}
+
+fn get_tcm_slice() -> &'static mut [u32] {
+    unsafe { slice::from_raw_parts_mut(TCM, TCM_SIZE / size_of::<u32>()) }
 }
 
 pub fn enable_interrupts(enable: bool) {
@@ -57,12 +61,12 @@ pub fn run() {
 
 /// Writes the section of the image from |start_address| to
 /// |start_address + on_flash_size| into the TCM. Zeroes the section from
-/// |on_flash_size| to |unpacked_size|. Returns None if the write failed.
+/// |on_flash_size| to |in_memory_size|. Returns None if the write failed.
 pub fn write_image_part<R: Read>(
     image: &mut R,
     start_address: usize,
     on_flash_size: usize,
-    unpacked_size: usize,
+    in_memory_size: usize,
 ) -> Option<()> {
     let start = start_address - TCM_PADDR;
 
@@ -70,7 +74,7 @@ pub fn write_image_part<R: Read>(
         "Writing {:x} bytes to 0x{:x}, {:x} unpacked size",
         on_flash_size,
         start_address,
-        unpacked_size
+        in_memory_size
     );
 
     let tcm_slice = unsafe { slice::from_raw_parts_mut(TCM as *mut u8, TCM_SIZE) };
@@ -81,7 +85,7 @@ pub fn write_image_part<R: Read>(
     };
 
     // TODO(jesionowski): Use hardware clear when TCM_SIZE fits into INIT_END.
-    tcm_slice[start + on_flash_size..start + unpacked_size].fill(0x00);
+    tcm_slice[start + on_flash_size..start + in_memory_size].fill(0x00);
 
     Some(())
 }
@@ -160,19 +164,15 @@ pub fn clear_tcm(addr: usize, byte_length: usize) {
 #[allow(dead_code)]
 pub fn wait_for_clear_to_finish() { while !vc_top::get_init_status().init_done() {} }
 
-// TODO(jesionowski): Remove these when error handling is refactored.
-// The status will be faulty iff the interrupt line is raised, and
-// we won't have the fault registers on Springbok.
-fn get_tcm_slice() -> &'static mut [u32] {
-    unsafe { slice::from_raw_parts_mut(TCM, TCM_SIZE / size_of::<u32>()) }
-}
+/// Transmutes a copy of the bytes at |addr| into an OutputHeader.
+pub fn get_output_header(addr: usize) -> OutputHeader {
+    assert!(addr >= TCM_PADDR);
+    assert!(addr + size_of::<OutputHeader>() <= TCM_PADDR + TCM_SIZE);
 
-pub fn get_return_code() -> u32 {
-    const RC_OFFSET: usize = 0x3FFFEE;
-    get_tcm_slice()[RC_OFFSET]
-}
+    let offset: isize = (addr - TCM_PADDR).try_into().unwrap();
 
-pub fn get_fault_register() -> u32 {
-    const FAULT_OFFSET: usize = 0x3FFFEF;
-    get_tcm_slice()[FAULT_OFFSET]
+    unsafe {
+        let ptr = TCM.offset(offset) as *const OutputHeader;
+        *ptr
+    }
 }

@@ -20,10 +20,10 @@ pub struct ImageId {
 /// description of each section. Sizes are in bytes.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ImageSizes {
-    pub text: usize,
     pub model_input: usize,
-    pub model_output: usize,
+    pub text: usize,
     pub constant_data: usize,
+    pub model_output: usize,
     pub static_data: usize,
     pub temporary_data: usize,
 }
@@ -48,6 +48,19 @@ impl ImageSizes {
             && self.static_data != 0
             && self.temporary_data != 0
     }
+
+    pub fn model_output_offset(&self) -> usize { self.text + self.constant_data }
+}
+
+/// After execution our ML executable populates the top of .model_output with
+/// the return code, the address of the fault if the RC is non-zero, and the
+/// length of the output that follows.
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C)]
+pub struct OutputHeader {
+    pub return_code: u32,
+    pub epc: u32,
+    pub output_length: u32,
 }
 
 /// The page size of the WMMU.
