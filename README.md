@@ -45,7 +45,7 @@ To use crates from Sparrow you can reference them from a local repository or
 directly from GitHub using git; e.g. in a Config.toml:
 ```
 cantrip-os-common = { path = "../system/components/cantrip-os-common" }
-cantrip-os-common = { git = "https://github.com/google/AmbiML/sparrow/cantrip" }
+cantrip-os-common = { git = "https://github.com/AmbiML/sparrow/cantrip" }
 ```
 NB: the git usage depends on cargo's support for searching for a crate
 named "cantrip-os-common" in the cantrip repo.
