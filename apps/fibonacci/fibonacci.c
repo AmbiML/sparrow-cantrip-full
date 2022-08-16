@@ -22,18 +22,17 @@ char minisel_tls[4096] __attribute__((__aligned__(4096)));
 
 __attribute__((naked)) void _start() {
   asm volatile(
-    ".option push                  \n"
-    ".option norelax               \n"
-    "la gp, __global_pointer$      \n"
-    "la x4, minisel_tls            \n"
-    "addi sp,sp,-16                \n"
-    "sw a0, 12(sp)                 \n"
-    "sw a1, 8(sp)                  \n"
-    "sw a2, 4(sp)                  \n"
-    "sw a3, 0(sp)                  \n"
-    ".option pop                   \n"
-    "j main                        \n"
-  );
+      ".option push                  \n"
+      ".option norelax               \n"
+      "la gp, __global_pointer$      \n"
+      "la x4, minisel_tls            \n"
+      "addi sp,sp,-16                \n"
+      "sw a0, 12(sp)                 \n"
+      "sw a1, 8(sp)                  \n"
+      "sw a2, 4(sp)                  \n"
+      "sw a3, 0(sp)                  \n"
+      ".option pop                   \n"
+      "j main                        \n");
 }
 
 // How many Fibonacci numbers to write to the log.
@@ -57,9 +56,9 @@ void minisel_printf(const char *fmt, ...) {
         int printing = 0;
         for (int d = 1000000000; d > 1; d /= 10) {
           int n = (arg / d) % 10;
-          if (printing || n > 0 ) {
-              seL4_DebugPutChar('0' + n);
-              printing = 1;
+          if (printing || n > 0) {
+            seL4_DebugPutChar('0' + n);
+            printing = 1;
           }
         }
         seL4_DebugPutChar('0' + (arg % 10));
@@ -100,7 +99,7 @@ void fibonacci_increment(fibonacci_state_t *state) {
 }
 
 void wait(interrupt_count_t interrupt_count_to_wait,
-                 interrupt_count_t *counter) {
+          interrupt_count_t *counter) {
   for (interrupt_count_t i = 0; i < interrupt_count_to_wait; ++i) {
     asm volatile("wfi");
     ++*counter;
@@ -125,8 +124,7 @@ uint64_t rdtime(void) {
   }
 }
 
-void fibonacci_log(int pid,
-                   const fibonacci_state_t *fibonacci_state,
+void fibonacci_log(int pid, const fibonacci_state_t *fibonacci_state,
                    interrupt_count_t interrupt_count) {
 // TODO(sleffler): bring in snprintf
 #if 0
@@ -138,18 +136,16 @@ void fibonacci_log(int pid,
            virtual_seconds(interrupt_count));
   minisel_printf(log_buf);
 #else
-  minisel_printf("[%d]: "
-           "n == %d; "
-           "f == %x; "
-           "interrupt_count == %d; "
-           "rdtime == %d; "
-           "virt_sec ~= %d\n",
-           pid,
-           (uint32_t)fibonacci_state->n,
-           (uint32_t)fibonacci_state->f1,
-           (uint32_t)interrupt_count,
-           (uint32_t)rdtime(),
-           (uint32_t)virtual_seconds(interrupt_count));
+  minisel_printf(
+      "[%d]: "
+      "n == %d; "
+      "f == %x; "
+      "interrupt_count == %d; "
+      "rdtime == %d; "
+      "virt_sec ~= %d\n",
+      pid, (uint32_t)fibonacci_state->n, (uint32_t)fibonacci_state->f1,
+      (uint32_t)interrupt_count, (uint32_t)rdtime(),
+      (uint32_t)virtual_seconds(interrupt_count));
 #endif
 }
 

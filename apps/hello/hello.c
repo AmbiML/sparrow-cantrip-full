@@ -20,18 +20,17 @@ char minisel_tls[4096] __attribute__((__aligned__(4096)));
 
 __attribute__((naked)) void _start() {
   asm volatile(
-    ".option push                  \n"
-    ".option norelax               \n"
-    "la gp, __global_pointer$      \n"
-    "la x4, minisel_tls            \n"
-    "addi sp,sp,-16                \n"
-    "sw a0, 12(sp)                 \n"
-    "sw a1, 8(sp)                  \n"
-    "sw a2, 4(sp)                  \n"
-    "sw a3, 0(sp)                  \n"
-    ".option pop                   \n"
-    "j main                        \n"
-  );
+      ".option push                  \n"
+      ".option norelax               \n"
+      "la gp, __global_pointer$      \n"
+      "la x4, minisel_tls            \n"
+      "addi sp,sp,-16                \n"
+      "sw a0, 12(sp)                 \n"
+      "sw a1, 8(sp)                  \n"
+      "sw a2, 4(sp)                  \n"
+      "sw a3, 0(sp)                  \n"
+      ".option pop                   \n"
+      "j main                        \n");
 }
 
 // only prints 32-bit "%x" hex values
@@ -61,7 +60,7 @@ int main(int a0, int a1, int a2, int a3) {
   minisel_printf("\na0 %x a1 %x a2 %x a3 %x\n", a0, a1, a2, a3);
 
   minisel_printf("Done, sleeping in WFI loop\n");
-  while(1) {
+  while (1) {
     asm("wfi");
   }
 }
