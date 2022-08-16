@@ -1,28 +1,44 @@
-// The Image Manager is responsible for loading and unloading multiple images
-// into the Vector Core's tightly coupled memory. It tracks which image section
-// is where and evicts images on the core when necessary.
+// Copyright 2022 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
-// Design doc: go/sparrow-vc-memory.
-
-// The memory is divided into "top" and "bottom" regions.
-// The bottom region is shared between each model. It contains uninitialized
-// values and the stack and heap. This space is shared in order to fit more
-// models in memory. (This requires us to clear the memory between
-// models from different applications.)
-// The top region contains the sensor frames and the segments of each
-// image. On system initialization the Sensor Manager requests an allocation,
-// meaning the top of the memory will always contain those frames. Applications
-// then request models to be loaded. These are allocated downward in a linear
-// fashion. Images contain 6 different sections, of which 4 are loaded
-// contiguously together (text, constant_data, model_output, static_data).
-// All sections are described in go/sparrow-vc-memory.
-
-// The expected most common usage patterns are:
-// * There is only one model resident in memory.
-// * There are two models resident in memory.
-// * There are two models and each are too large to fit into memory together,
-//   so they're unloaded and loaded on demand.
-// Based on these expectations eviction is done on a FILO basis.
+/*!
+ * The Image Manager is responsible for loading and unloading multiple images
+ * into the Vector Core's tightly coupled memory. It tracks which image section
+ * is where and evicts images on the core when necessary.
+ *
+ * Design doc: go/sparrow-vc-memory.
+ *
+ * The memory is divided into "top" and "bottom" regions.
+ * The bottom region is shared between each model. It contains uninitialized
+ * values and the stack and heap. This space is shared in order to fit more
+ * models in memory. (This requires us to clear the memory between
+ * models from different applications.)
+ * The top region contains the sensor frames and the segments of each
+ * image. On system initialization the Sensor Manager requests an allocation,
+ * meaning the top of the memory will always contain those frames. Applications
+ * then request models to be loaded. These are allocated downward in a linear
+ * fashion. Images contain 6 different sections, of which 4 are loaded
+ * contiguously together (text, constant_data, model_output, static_data).
+ * All sections are described in go/sparrow-vc-memory.
+ *
+ * The expected most common usage patterns are:
+ *   There is only one model resident in memory.
+ *   There are two models resident in memory.
+ *   There are two models and each are too large to fit into memory together,
+ *   so they're unloaded and loaded on demand.
+ * Based on these expectations eviction is done on a FILO basis.
+ */
 
 extern crate alloc;
 

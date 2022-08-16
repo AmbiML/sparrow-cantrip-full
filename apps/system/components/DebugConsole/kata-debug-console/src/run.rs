@@ -1,13 +1,27 @@
-//! Cantrip OS command line interface
-
-// This brief bootstrap of Rust-in-Cantrip prototypes a minimal modular design
-// for the DebugConsole CLI use case.
+// Copyright 2022 Google LLC
 //
-// * cantrip_io Read/Write interface (or move to std::, but that requires alloc)
-// * cantrip_uart_client implementation of the cantrip_io interface
-// * cantrip_line_reader
-// * cantrip_shell
-// * cantrip_debug_console main entry point fn run()
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+//! Cantrip OS command line interface
+//!
+//! This brief bootstrap of Rust-in-Cantrip prototypes a minimal modular design
+//! for the DebugConsole CLI use case.
+//!
+//! * cantrip_io Read/Write interface (or move to std::, but that requires alloc)
+//! * cantrip_uart_client implementation of the cantrip_io interface
+//! * cantrip_line_reader
+//! * cantrip_shell
+//! * cantrip_debug_console main entry point fn run()
 
 #![no_std]
 
