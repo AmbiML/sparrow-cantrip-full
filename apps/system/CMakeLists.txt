@@ -1,14 +1,16 @@
+# Copyright 2022 Google LLC
 #
-# Copyright 2018, Data61
-# Commonwealth Scientific and Industrial Research Organisation (CSIRO)
-# ABN 41 687 119 230.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# This software may be distributed and modified according to the terms of
-# the BSD 2-Clause license. Note that NO WARRANTY is provided.
-# See "LICENSE_BSD2.txt" for details.
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
-# @TAG(DATA61_BSD)
-#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 cmake_minimum_required(VERSION 3.7.2)
 
@@ -67,6 +69,18 @@ RustAddLibrary(
 
 DeclareCAmkESComponent(ProcessManager
   LIBS cantrip_process_manager
+  INCLUDES interfaces
+  $ENV{OUT}/cantrip/components
+)
+
+RustAddLibrary(
+  cantrip_sdk_runtime
+  SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/components/SDKRuntime
+  LIB_FILENAME libcantrip_sdk_runtime.a
+)
+
+DeclareCAmkESComponent(SDKRuntime
+  LIBS cantrip_sdk_runtime
   INCLUDES interfaces
   $ENV{OUT}/cantrip/components
 )

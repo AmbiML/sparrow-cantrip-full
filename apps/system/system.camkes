@@ -1,14 +1,16 @@
-/*
- * Copyright 2017, Data61
- * Commonwealth Scientific and Industrial Research Organisation (CSIRO)
- * ABN 41 687 119 230.
- *
- * This software may be distributed and modified according to the terms of
- * the BSD 2-Clause license. Note that NO WARRANTY is provided.
- * See "LICENSE_BSD2.txt" for details.
- *
- * @TAG(DATA61_BSD)
- */
+// Copyright 2022 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 import <std_connector.camkes>;
 import <global-connectors.camkes>;
@@ -22,6 +24,7 @@ import "components/StorageManager/StorageManager.camkes";
 import "components/SecurityCoordinator/SecurityCoordinator.camkes"; 
 import "components/TimerService/TimerService.camkes";
 import "components/MailboxDriver/MailboxDriver.camkes";
+import "components/SDKRuntime/SDKRuntime.camkes";
 
 component OpenTitanUART {
     hardware;
@@ -80,6 +83,8 @@ assembly {
         component SecurityCoordinator security_coordinator;
         component StorageManager storage_manager;
         component TimerService timer_service;
+
+        component SDKRuntime sdk_runtime;
 
         // Built-in CPIO archive is visible only to DebugConsole.
         connection seL4HardwareMMIO cpio_archive(from debug_console.cpio_archive,
@@ -140,6 +145,10 @@ assembly {
         connection seL4RPCCall shell_storage(from debug_console.storage,
                                              to storage_manager.storage);
 
+        // Hookup SDKRuntime to DebugConsole for shell commands.
+        connection seL4RPCCall sdk_ping(from debug_console.sdk_runtime,
+                                        to sdk_runtime.sdk_runtime);
+
         // Note this allocates a 4KB shared memory region for pkg install
         // to pass an ObjDescArray
         connection seL4RPCOverMultiSharedData shell_package(
@@ -187,6 +196,7 @@ assembly {
             from storage_manager.logger,
             from timer_service.logger,
             from mailbox_driver.logger,
+            from sdk_runtime.logger,
             to debug_console.logger);
     }
 
