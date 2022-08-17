@@ -246,6 +246,8 @@ impl seL4BundleImpl {
         //
         // NB: beware the order of this must match *_SLOT above
         // TODO(sleffler): maybe construct the vec to avoid mismatches
+        // TODO(sleffler): the toplevel CNode has a fixed size which
+        //   can overflow when nframes is non-trivial
         let dynamic_objs = cantrip_object_alloc_in_toplevel(vec![
             // control/main-thread TCB
             ObjDesc::new(seL4_TCBObject, 1, TCB_SLOT),
