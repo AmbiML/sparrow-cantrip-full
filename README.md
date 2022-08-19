@@ -14,7 +14,10 @@ the seL4 source trees since it contains code not intended to go to upstream
 seL4.
 
 This uses the [standard CAmkES build system](https://docs.sel4.systems/projects/camkes/manual.html#running-a-simple-example)
-by symlinking CMakeLists.txt. It also symlinks settings.cmake, and so retains
+by symlinking CMakeLists.txt and assumes
+the [CAmkES dependencies](https://docs.sel4.systems/projects/buildsystem/host-dependencies.html#camkes-build-dependencies)
+are already installed.
+It also symlinks settings.cmake, and so retains
 the notion of "apps," which enables the build system to switch which assembly
 it builds using the CAMKES\_APP CMake cache value. CantripOS just has one app,
 *system*.
@@ -45,7 +48,7 @@ To use crates from Sparrow you can reference them from a local repository or
 directly from GitHub using git; e.g. in a Config.toml:
 ```
 cantrip-os-common = { path = "../system/components/cantrip-os-common" }
-cantrip-os-common = { git = "https://github.com/AmbiML/sparrow/cantrip" }
+cantrip-os-common = { git = "https://github.com/AmbiML/sparrow-cantrip" }
 ```
 NB: the git usage depends on cargo's support for searching for a crate
 named "cantrip-os-common" in the cantrip repo.
