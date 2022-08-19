@@ -23,7 +23,10 @@ __attribute__((naked)) void _start() {
       ".option push                  \n"
       ".option norelax               \n"
       "la gp, __global_pointer$      \n"
-      "la x4, minisel_tls            \n"
+      "la tp, minisel_tls            \n"
+      "lui t1,0                      \n"
+      "add t1,t1,tp                  \n"
+      "sw a0,0(t1) # __sel4_ipc_buffer>\n"
       "addi sp,sp,-16                \n"
       "sw a0, 12(sp)                 \n"
       "sw a1, 8(sp)                  \n"
@@ -57,7 +60,9 @@ void minisel_printf(const char *fmt, ...) {
 }
 
 int main(int a0, int a1, int a2, int a3) {
-  minisel_printf("\na0 %x a1 %x a2 %x a3 %x\n", a0, a1, a2, a3);
+  minisel_printf("\nI am a C app!\n");
+  minisel_printf("a0 %x a1 %x a2 %x a3 %x\n", a0, a1, a2, a3);
+  minisel_printf("__sel4_ipc_buffer %x\n", __sel4_ipc_buffer);
 
   minisel_printf("Done, sleeping in WFI loop\n");
   while (1) {
