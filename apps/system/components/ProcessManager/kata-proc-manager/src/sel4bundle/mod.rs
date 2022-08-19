@@ -546,7 +546,7 @@ impl seL4BundleImpl {
         assert_eq!(sp % arch::STACK_ALIGNMENT_BYTES, 0, "TCB stack pointer mis-aligned");
 
         // XXX nonsense values for testing
-        let argv: &[seL4_Word] = &[0x11112222, 0x22223333, 0x44445555];
+        let argv: &[seL4_Word] = &[self.tcb_ipcbuffer_addr, 0x11112222, 0x22223333, 0x44445555];
 
         // NB: tcb_args::maybe_spill_tcb_args may write arg data to the
         // stack causing the stack pointer to be adjusted.
