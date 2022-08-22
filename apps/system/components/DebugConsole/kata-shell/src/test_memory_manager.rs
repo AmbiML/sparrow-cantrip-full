@@ -33,40 +33,10 @@ use sel4_sys::seL4_WordBits;
 
 pub fn add_cmds(cmds: &mut HashMap<&str, CmdFn>) {
     cmds.extend([
-        ("test_bootinfo", bootinfo_command as CmdFn),
         ("test_malloc", malloc_command as CmdFn),
         ("test_mfree", mfree_command as CmdFn),
         ("test_obj_alloc", obj_alloc_command as CmdFn),
     ]);
-}
-
-fn bootinfo_command(
-    _args: &mut dyn Iterator<Item = &str>,
-    _input: &mut dyn io::BufRead,
-    output: &mut dyn io::Write,
-    _builtin_cpio: &[u8],
-) -> Result<(), CommandError> {
-    use cantrip_os_common::sel4_sys::seL4_BootInfo;
-    extern "C" {
-        fn sel4runtime_bootinfo() -> *const seL4_BootInfo;
-    }
-    let bootinfo_ref = unsafe { &*sel4runtime_bootinfo() };
-    writeln!(
-        output,
-        "{}:{} empty slots {}:{} untyped",
-        bootinfo_ref.empty.start,
-        bootinfo_ref.empty.end,
-        bootinfo_ref.untyped.start,
-        bootinfo_ref.untyped.end
-    )?;
-
-    // NB: seL4_DebugCapIdentify is only available in debug builds
-    #[cfg(feature = "CONFIG_DEBUG_BUILD")]
-    for ut in bootinfo_ref.untyped.start..bootinfo_ref.untyped.end {
-        let cap_tag = unsafe { cantrip_os_common::sel4_sys::seL4_DebugCapIdentify(ut) };
-        assert_eq!(cap_tag, 2, "expected untyped (2), got {} for cap at {}", cap_tag, ut);
-    }
-    Ok(())
 }
 
 fn malloc_command(
