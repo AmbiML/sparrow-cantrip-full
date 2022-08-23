@@ -51,19 +51,19 @@ const UNTYPED_SLAB_CAPACITY: usize = 64; // # slabs kept inline
 #[derive(Debug)]
 struct UntypedSlab {
     pub size_bits: usize,       // NB: only used to sort
+    pub free_bytes: usize,      // Available space in slab
     pub _base_paddr: seL4_Word, // Physical address of slab start
     pub _last_paddr: seL4_Word, // Physical address of slab end
     pub cptr: seL4_CPtr,        // seL4 untyped object
-    pub _next_paddr: seL4_Word, // Physical address of next available chunk
 }
 impl UntypedSlab {
-    fn new(ut: &seL4_UntypedDesc, cptr: seL4_CPtr) -> Self {
+    fn new(ut: &seL4_UntypedDesc, free_bytes: usize, cptr: seL4_CPtr) -> Self {
         UntypedSlab {
             size_bits: ut.size_bits(),
+            free_bytes,
             _base_paddr: ut.paddr,
             _last_paddr: ut.paddr + (1 << ut.size_bits()),
             cptr,
-            _next_paddr: ut.paddr,
         }
     }
     fn _size(&self) -> usize { l2tob(self.size_bits) }
@@ -123,30 +123,31 @@ impl MemoryManager {
         for (ut_index, ut) in untypeds.iter().enumerate() {
             #[cfg(feature = "CONFIG_NOISY_UNTYPEDS")]
             log::info!("slot {} {:?}", slots.start + ut_index, ut);
+            let slab_size = l2tob(ut.size_bits());
             if ut.is_device() {
                 m._device_untypeds
-                    .push(UntypedSlab::new(ut, slots.start + ut_index));
+                    .push(UntypedSlab::new(ut, slab_size, slots.start + ut_index));
             } else {
                 if ut.is_tainted() {
                     revoke_cap(slots.start + ut_index).expect("revoke untyped");
                 }
-                m.untypeds
-                    .push(UntypedSlab::new(ut, slots.start + ut_index));
                 // NB: must get current state of ut as it will reflect resources
                 //   allocated before we run.
                 let info = untyped_describe(slots.start + ut_index);
                 assert_eq!(info.sizeBits, ut.size_bits());
-                let size = l2tob(info.sizeBits);
+
                 // We only have the remainder available for allocations.
+                m.untypeds
+                    .push(UntypedSlab::new(ut, info.remainingBytes, slots.start + ut_index));
                 m.total_bytes += info.remainingBytes;
+
                 // Use overhead to track memory allocated out of our control.
-                m.overhead_bytes += size - info.remainingBytes;
+                m.overhead_bytes += slab_size - info.remainingBytes;
             }
         }
-        // Sort non-device slabs by descending size.
-        // TODO(sleffler): assumes slabs are empty, maybe sort by available space
+        // Sort non-device slabs by descending amount of free space.
         m.untypeds
-            .sort_unstable_by(|a, b| b.size_bits().cmp(&a.size_bits()));
+            .sort_unstable_by(|a, b| b.free_bytes.cmp(&a.free_bytes));
         m
     }
 
