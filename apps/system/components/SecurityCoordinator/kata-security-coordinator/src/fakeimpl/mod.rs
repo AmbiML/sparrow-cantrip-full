@@ -32,6 +32,7 @@ use cantrip_security_interface::*;
 use cantrip_storage_interface::KeyValueData;
 use log::trace;
 
+use sel4_sys::seL4_Error;
 use sel4_sys::seL4_PageBits;
 use sel4_sys::seL4_Page_GetAddress;
 use sel4_sys::seL4_Word;
@@ -110,8 +111,10 @@ pub type CantripSecurityCoordinatorInterface = FakeSecurityCoordinator;
 
 // Returns a deep copy (including seL4 objects) of |src|. The container
 // CNode is in the toplevel (allocated from the slot allocator).
-fn deep_copy(src: &ObjDescBundle) -> ObjDescBundle {
-    let dest = cantrip_frame_alloc_in_cnode(src.size_bytes()).expect("deep_copy:alloc");
+fn deep_copy(src: &ObjDescBundle) -> Result<ObjDescBundle, seL4_Error> {
+    let dest = cantrip_frame_alloc_in_cnode(src.size_bytes())
+        .map_err(|_| seL4_Error::seL4_NotEnoughMemory)?; // TODO(sleffler) From mapping
+    assert_eq!(src.count(), dest.count());
     // Src top-level slot & copy region
     let src_slot = CSpaceSlot::new();
     let mut src_region = CopyRegion::new(unsafe { ptr::addr_of_mut!(DEEP_COPY_SRC[0]) }, PAGE_SIZE);
@@ -123,12 +126,10 @@ fn deep_copy(src: &ObjDescBundle) -> ObjDescBundle {
         // Map src & dest frames and copy data.
         src_slot
             .copy_to(src.cnode, src_cptr, src.depth)
-            .and_then(|_| src_region.map(src_slot.slot))
-            .expect("src_map");
+            .and_then(|_| src_region.map(src_slot.slot))?;
         dest_slot
             .copy_to(dest.cnode, dest_cptr, dest.depth)
-            .and_then(|_| dest_region.map(dest_slot.slot))
-            .expect("dest_map");
+            .and_then(|_| dest_region.map(dest_slot.slot))?;
 
         unsafe {
             ptr::copy_nonoverlapping(
@@ -139,16 +140,10 @@ fn deep_copy(src: &ObjDescBundle) -> ObjDescBundle {
         }
 
         // Unmap & clear top-level slot required for mapping.
-        src_region
-            .unmap()
-            .and_then(|_| src_slot.delete())
-            .expect("src_unmap");
-        dest_region
-            .unmap()
-            .and_then(|_| dest_slot.delete())
-            .expect("dest_unmap");
+        src_region.unmap().and_then(|_| src_slot.delete())?;
+        dest_region.unmap().and_then(|_| dest_slot.delete())?;
     }
-    dest
+    Ok(dest)
 }
 
 impl SecurityCoordinatorInterface for FakeSecurityCoordinator {
@@ -182,7 +177,8 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinator {
         // Clone everything (struct + associated seL4 objects) so the
         // return is as though it was newly instantiated from flash.
         // XXX just return the package for now
-        Ok(deep_copy(&bundle_data.pkg_contents))
+        deep_copy(&bundle_data.pkg_contents)
+            .map_err(|_| SecurityRequestError::SreLoadApplicationFailed)
     }
     fn load_model(
         &self,
@@ -194,7 +190,7 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinator {
         // Clone everything (struct + associated seL4 objects) so the
         // return is as though it was newly instantiated from flash.
         // XXX just return the package for now
-        Ok(deep_copy(&bundle_data.pkg_contents))
+        deep_copy(&bundle_data.pkg_contents).map_err(|_| SecurityRequestError::SreLoadModelFailed)
     }
     fn read_key(&self, bundle_id: &str, key: &str) -> Result<&KeyValueData, SecurityRequestError> {
         let bundle = self.get_bundle(bundle_id)?;
