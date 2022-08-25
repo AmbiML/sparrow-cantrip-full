@@ -26,7 +26,7 @@ cantrip-ml-coordinator = { path = "../cantrip-ml-coordinator" }
 cantrip-ml-interface = { path = "../cantrip-ml-interface" }
 cantrip-ml-shared = { path = "../cantrip-ml-shared" }
 cantrip-timer-interface = { path = "../../TimerService/cantrip-timer-interface" }
-log = "0.4"
+log = { version = "0.4", features = ["release_max_level_info"] }
 spin = "0.9"
 
 [lib]

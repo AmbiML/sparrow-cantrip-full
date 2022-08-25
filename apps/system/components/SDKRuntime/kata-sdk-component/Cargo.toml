@@ -22,7 +22,7 @@ cstr_core = { version = "0.2.3", default-features = false }
 cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-sdk-interface = { path = "../cantrip-sdk-interface" }
 cantrip-sdk-runtime = { path = "../cantrip-sdk-runtime" }
-log = "0.4"
+log = { version = "0.4", features = ["release_max_level_info"] }
 postcard = { version = "0.7", features = ["alloc"], default-features = false }
 
 [lib]

@@ -11,7 +11,7 @@ sel4-config = { path = "../sel4-config" }
 CONFIG_PRINTING = []
 
 [dependencies]
-log = "0.4"
+log = { version = "0.4", features = ["release_max_level_info"] }
 allocator = { path = "../allocator" }
 logger = { path = "../logger" }
 sel4-sys = { path = "../sel4-sys" }

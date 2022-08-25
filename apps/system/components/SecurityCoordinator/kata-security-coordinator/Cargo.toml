@@ -28,5 +28,5 @@ cantrip-memory-interface = { path = "../../MemoryManager/cantrip-memory-interfac
 cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-security-interface = { path = "../cantrip-security-interface" }
 cantrip-storage-interface = { path = "../../StorageManager/cantrip-storage-interface" }
-log = "0.4"
+log = { version = "0.4", features = ["release_max_level_info"] }
 postcard = { version = "0.7", features = ["alloc"], default-features = false }

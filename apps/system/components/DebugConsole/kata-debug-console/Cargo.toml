@@ -31,7 +31,7 @@ cantrip-io = { path = "../cantrip-io" }
 cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-shell = { path = "../cantrip-shell" }
 cantrip-uart-client = { path = "../cantrip-uart-client" }
-log = "0.4"
+log = { version = "0.4", features = ["release_max_level_info"] }
 
 [lib]
 name = "cantrip_debug_console"

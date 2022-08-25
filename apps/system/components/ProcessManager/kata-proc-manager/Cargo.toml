@@ -39,7 +39,7 @@ cantrip-proc-interface = { path = "../cantrip-proc-interface" }
 cantrip-memory-interface = { path = "../../MemoryManager/cantrip-memory-interface" }
 cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-security-interface = { path = "../../SecurityCoordinator/cantrip-security-interface" }
-log = "0.4"
+log = { version = "0.4", features = ["release_max_level_info"] }
 smallstr = "0.2"
 spin = "0.9"
 static_assertions = "1.1"

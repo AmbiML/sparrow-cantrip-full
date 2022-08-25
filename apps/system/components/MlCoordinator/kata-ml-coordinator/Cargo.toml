@@ -30,5 +30,5 @@ cantrip-proc-interface = { path = "../../ProcessManager/cantrip-proc-interface" 
 cantrip-security-interface = { path = "../../SecurityCoordinator/cantrip-security-interface" }
 cantrip-timer-interface = { path = "../../TimerService/cantrip-timer-interface" }
 cantrip-vec-core = { path = "../cantrip-vec-core" }
-log = "0.4"
+log = { version = "0.4", features = ["release_max_level_info"] }
 spin = "0.9"

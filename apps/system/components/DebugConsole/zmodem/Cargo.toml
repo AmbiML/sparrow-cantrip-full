@@ -22,7 +22,7 @@ version = "0.1.0"
 crc = { version = "1.4.0", default_features = false }
 hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
 cantrip-io = { path = "../cantrip-io" }
-log = { version = "0.4.14", default-features = false }
+log = { version = "0.4", default-features = false, features = ["release_max_level_info"] }
 
 [dev-dependencies]
 env_logger = "0.9.0"

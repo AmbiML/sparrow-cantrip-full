@@ -23,6 +23,6 @@ cantrip-memory-interface = { path = "../../MemoryManager/cantrip-memory-interfac
 cantrip-io = { path = "../../DebugConsole/cantrip-io" }
 cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-security-interface = { path = "../../SecurityCoordinator/cantrip-security-interface" }
-log = "0.4"
+log = { version = "0.4", features = ["release_max_level_info"] }
 postcard = { version = "0.7", features = ["alloc"], default-features = false }
 serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }

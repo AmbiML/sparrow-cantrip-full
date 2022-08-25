@@ -12,6 +12,6 @@ CONFIG_NOISY_UNTYPEDS = []
 [dependencies]
 cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-memory-interface = { path = "../cantrip-memory-interface" }
-log = "0.4"
+log = { version = "0.4", features = ["release_max_level_info"] }
 smallvec = "1.2"
 spin = "0.9"

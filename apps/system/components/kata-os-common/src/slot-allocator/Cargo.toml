@@ -10,5 +10,5 @@ TRACE_OPS = []
 
 [dependencies]
 bitvec = { version = "1.0", default-features = false, features = ["alloc"] }
-log = "0.4"
+log = { version = "0.4", features = ["release_max_level_info"] }
 spin = "0.9"

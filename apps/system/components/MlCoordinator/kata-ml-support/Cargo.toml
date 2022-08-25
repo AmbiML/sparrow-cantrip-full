@@ -18,7 +18,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-log = "0.4"
+log = { version = "0.4", features = ["release_max_level_info"] }
 cantrip-io = { path = "../../DebugConsole/cantrip-io" }
 cantrip-ml-shared = { path = "../cantrip-ml-shared" }
 cantrip-vec-core = { path = "../cantrip-vec-core" }

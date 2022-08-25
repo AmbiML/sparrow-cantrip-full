@@ -21,4 +21,4 @@ path = "mod.rs"
 [dependencies]
 cstr_core = { version = "0.2.3", default-features = false }
 sel4-sys = { path = "../sel4-sys" }
-log = "0.4"
+log = { version = "0.4", features = ["release_max_level_info"] }

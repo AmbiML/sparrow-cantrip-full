@@ -64,5 +64,5 @@ cantrip-security-interface = { path = "../../SecurityCoordinator/cantrip-securit
 cantrip-storage-interface = { path = "../../StorageManager/cantrip-storage-interface" }
 cantrip-timer-interface = { path = "../../TimerService/cantrip-timer-interface" }
 cantrip-sdk-interface = { path = "../../SDKRuntime/cantrip-sdk-interface" }
-log = "0.4"
+log = { version = "0.4", features = ["release_max_level_info"] }
 zmodem = { path = "../zmodem" }

@@ -23,7 +23,7 @@ edition = "2021"
 cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-timer-interface = { path = "../cantrip-timer-interface" }
 cantrip-timer-service = { path = "../cantrip-timer-service" }
-log = "0.4"
+log = { version = "0.4", features = ["release_max_level_info"] }
 
 [lib]
 name = "cantrip_timer_component"

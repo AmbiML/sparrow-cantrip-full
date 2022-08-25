@@ -20,6 +20,6 @@ edition = "2021"
 [dependencies]
 cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-timer-interface = { path = "../cantrip-timer-interface" }
-log = "0.4"
+log = { version = "0.4", features = ["release_max_level_info"] }
 opentitan-timer = { path = "../opentitan-timer" }
 spin = "0.9"
