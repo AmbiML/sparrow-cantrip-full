@@ -25,5 +25,5 @@ component MailboxDriver {
   consumes Interrupt rtirq;
   consumes Interrupt eirq;
 
-  uses LoggerInterface logger;
+  maybe uses LoggerInterface logger;
 }

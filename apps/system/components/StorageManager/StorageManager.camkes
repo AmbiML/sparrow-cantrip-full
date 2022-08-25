@@ -21,7 +21,7 @@ import <StorageInterface.camkes>;
 component StorageManager {
   provides StorageInterface storage;
 
-  uses LoggerInterface logger;
+  maybe uses LoggerInterface logger;
   uses SecurityCoordinatorInterface security;
 
   // Enable CantripOS CAmkES support.

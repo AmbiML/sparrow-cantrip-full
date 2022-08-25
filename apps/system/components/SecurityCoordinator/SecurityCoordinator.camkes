@@ -22,7 +22,7 @@ import <MailboxInterface.camkes>;
 component SecurityCoordinator {
   provides SecurityCoordinatorInterface security;
 
-  uses LoggerInterface logger;
+  maybe uses LoggerInterface logger;
   uses MemoryInterface memory;
   uses MailboxAPI mailbox_api;
 

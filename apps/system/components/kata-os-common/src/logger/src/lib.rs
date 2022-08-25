@@ -13,6 +13,14 @@
 // limitations under the License.
 
 #![cfg_attr(not(test), no_std)]
+#![feature(linkage)]
+
+extern "C" {
+    // NB: components may not have a logging connection in which case
+    //   logger_log will be undefined/null.
+    #[linkage = "extern_weak"]
+    static logger_log: *const ();
+}
 
 use core2::io::{Cursor, Write};
 use cstr_core::CStr;
@@ -28,10 +36,12 @@ impl log::Log for CantripLogger {
     fn enabled(&self, _metadata: &Metadata) -> bool { true }
 
     fn log(&self, record: &Record) {
+        let typed_logger_log: Option<extern "C" fn(level: u8, msg: *const u8)> =
+            unsafe { core::mem::transmute(logger_log) };
+        if typed_logger_log.is_none() {
+            return;
+        }
         if self.enabled(record.metadata()) {
-            extern "C" {
-                fn logger_log(level: u8, msg: *const cstr_core::c_char);
-            }
             let mut buf = [0 as u8; MAX_MSG_LEN];
             let mut cur = Cursor::new(&mut buf[..]);
             // Log msgs are of the form: '<target>::<fmt'd-msg>
@@ -41,29 +51,27 @@ impl log::Log for CantripLogger {
                 cur.write(b"...\0").expect("write!");
                 ()
             });
-            unsafe {
-                // If an embedded nul is identified, replace the message; there
-                // are likely better solutions but this should not happen.
-                fn embedded_nul_cstr<'a>(
-                    buf: &'a mut [u8; MAX_MSG_LEN],
-                    record: &Record,
-                ) -> &'a cstr_core::CStr {
-                    let mut cur = Cursor::new(&mut buf[..]);
-                    write!(&mut cur, "{}::<embedded nul>\0", record.target()).expect("nul!");
-                    let pos = cur.position() as usize;
-                    CStr::from_bytes_with_nul(&buf[..pos]).unwrap()
-                }
-                // NB: this releases the ref on buf held by the Cursor
+            // If an embedded nul is identified, replace the message; there
+            // are likely better solutions but this should not happen.
+            fn embedded_nul_cstr<'a>(
+                buf: &'a mut [u8; MAX_MSG_LEN],
+                record: &Record,
+            ) -> &'a cstr_core::CStr {
+                let mut cur = Cursor::new(&mut buf[..]);
+                write!(&mut cur, "{}::<embedded nul>\0", record.target()).expect("nul!");
                 let pos = cur.position() as usize;
-                logger_log(
-                    record.level() as u8,
-                    match CStr::from_bytes_with_nul(&buf[..pos]) {
-                        Ok(cstr) => cstr,
-                        Err(_) => embedded_nul_cstr(&mut buf, record),
-                    }
-                    .as_ptr(),
-                );
+                CStr::from_bytes_with_nul(&buf[..pos]).unwrap()
             }
+            // NB: this releases the ref on buf held by the Cursor
+            let pos = cur.position() as usize;
+            (typed_logger_log.unwrap())(
+                record.level() as u8,
+                match CStr::from_bytes_with_nul(&buf[..pos]) {
+                    Ok(cstr) => cstr,
+                    Err(_) => embedded_nul_cstr(&mut buf, record),
+                }
+                .as_ptr(),
+            );
         }
     }
 

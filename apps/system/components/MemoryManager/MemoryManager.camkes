@@ -20,7 +20,7 @@ import <MemoryInterface.camkes>;
 component MemoryManager {
   provides MemoryInterface memory;
 
-  uses LoggerInterface logger;
+  maybe uses LoggerInterface logger;
 
   // Enable CantripOS CAmkES support.
   attribute int cantripos = true;

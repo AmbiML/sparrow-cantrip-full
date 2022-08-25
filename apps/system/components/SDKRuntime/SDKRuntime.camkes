@@ -20,7 +20,7 @@ import <SDKRuntimeInterface.camkes>;
 component SDKRuntime {
   provides SDKRuntimeInterface sdk_runtime;
 
-  uses LoggerInterface logger;
+  maybe uses LoggerInterface logger;
 
   // Enable CantripOS CAmkES support.
   attribute int cantripos = true;

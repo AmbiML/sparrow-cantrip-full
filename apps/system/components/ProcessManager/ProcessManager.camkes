@@ -24,7 +24,7 @@ component ProcessManager {
   provides PackageManagementInterface pkg_mgmt;
   provides ProcessControlInterface proc_ctrl;
 
-  uses LoggerInterface logger;
+  maybe uses LoggerInterface logger;
   uses MemoryInterface memory;
   uses SecurityCoordinatorInterface security;
 

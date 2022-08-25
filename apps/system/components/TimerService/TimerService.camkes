@@ -20,7 +20,7 @@ component TimerService {
   dataport Buf csr;
   consumes Interrupt timer_interrupt;
 
-  uses LoggerInterface logger;
+  maybe uses LoggerInterface logger;
 
   // Enable CantripOS CAmkES support.
   attribute int cantripos = true;
