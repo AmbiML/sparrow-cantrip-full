@@ -20,7 +20,6 @@ import "components/DebugConsole/DebugConsole.camkes";
 import "components/ProcessManager/ProcessManager.camkes";
 import "components/MlCoordinator/MlCoordinator.camkes";
 import "components/MemoryManager/MemoryManager.camkes";
-import "components/StorageManager/StorageManager.camkes";
 import "components/SecurityCoordinator/SecurityCoordinator.camkes"; 
 import "components/TimerService/TimerService.camkes";
 import "components/MailboxDriver/MailboxDriver.camkes";
@@ -81,7 +80,6 @@ assembly {
         component MlCoordinator ml_coordinator;
         component DebugConsole debug_console;
         component SecurityCoordinator security_coordinator;
-        component StorageManager storage_manager;
         component TimerService timer_service;
 
         component SDKRuntime sdk_runtime;
@@ -142,8 +140,6 @@ assembly {
                                              to process_manager.proc_ctrl);
         connection seL4RPCCall shell_ml(from debug_console.mlcoord,
                                         to ml_coordinator.mlcoord);
-        connection seL4RPCCall shell_storage(from debug_console.storage,
-                                             to storage_manager.storage);
 
         // Hookup SDKRuntime to DebugConsole for shell commands.
         connection seL4RPCCall sdk_ping(from debug_console.sdk_runtime,
@@ -172,7 +168,6 @@ assembly {
             from debug_console.security,   // NB: for debug/test
             from process_manager.security,
             from ml_coordinator.security,  // NB: for LoadModel
-            from storage_manager.security,
             to security_coordinator.security);
 
         // Connect the DebugConsole to the OpenTitanUARTDriver.
@@ -193,7 +188,6 @@ assembly {
             from ml_coordinator.logger,
             from memory_manager.logger,
             from security_coordinator.logger,
-            from storage_manager.logger,
             from timer_service.logger,
             from mailbox_driver.logger,
             from sdk_runtime.logger,

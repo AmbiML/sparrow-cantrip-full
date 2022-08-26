@@ -25,7 +25,6 @@ use cantrip_os_common::sel4_sys;
 use cantrip_os_common::slot_allocator::CANTRIP_CSPACE_SLOTS;
 use cantrip_security_coordinator::CANTRIP_SECURITY;
 use cantrip_security_interface::*;
-use cantrip_storage_interface::KEY_VALUE_DATA_SIZE;
 use log::trace;
 
 use SecurityRequestError::*;

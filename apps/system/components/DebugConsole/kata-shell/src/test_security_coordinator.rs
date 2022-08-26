@@ -25,7 +25,6 @@ use cantrip_io as io;
 use cantrip_memory_interface::cantrip_object_free_in_cnode;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_security_interface::*;
-use cantrip_storage_interface::KEY_VALUE_DATA_SIZE;
 
 pub fn add_cmds(cmds: &mut HashMap<&str, CmdFn>) {
     cmds.extend([
@@ -34,9 +33,6 @@ pub fn add_cmds(cmds: &mut HashMap<&str, CmdFn>) {
         ("get_manifest", get_manifest_command as CmdFn),
         ("load_application", load_application_command as CmdFn),
         ("load_model", load_model_command as CmdFn),
-        ("delete_key", delete_key_command as CmdFn),
-        ("read_key", read_key_command as CmdFn),
-        ("write_key", write_key_command as CmdFn),
         ("test_mailbox", test_mailbox_command as CmdFn),
     ]);
 }
@@ -119,65 +115,6 @@ fn load_model_command(
             let _ = cantrip_object_free_in_cnode(&frames);
         }
         Err(status) => writeln!(output, "LoadApplication failed: {:?}", status)?,
-    }
-    Ok(())
-}
-
-fn delete_key_command(
-    args: &mut dyn Iterator<Item = &str>,
-    _input: &mut dyn io::BufRead,
-    output: &mut dyn io::Write,
-    _builtin_cpio: &[u8],
-) -> Result<(), CommandError> {
-    let bundle_id = args.next().ok_or(CommandError::BadArgs)?;
-    let key = args.next().ok_or(CommandError::BadArgs)?;
-    match cantrip_security_delete_key(bundle_id, key) {
-        Ok(_) => {
-            writeln!(output, "Delete key \"{}\".", key)?;
-        }
-        Err(status) => {
-            writeln!(output, "Delete key \"{}\" failed: {:?}", key, status)?;
-        }
-    }
-    Ok(())
-}
-
-fn read_key_command(
-    args: &mut dyn Iterator<Item = &str>,
-    _input: &mut dyn io::BufRead,
-    output: &mut dyn io::Write,
-    _builtin_cpio: &[u8],
-) -> Result<(), CommandError> {
-    let bundle_id = args.next().ok_or(CommandError::BadArgs)?;
-    let key = args.next().ok_or(CommandError::BadArgs)?;
-    let mut keyval = [0u8; KEY_VALUE_DATA_SIZE];
-    match cantrip_security_read_key(bundle_id, key, &mut keyval) {
-        Ok(_) => {
-            writeln!(output, "Read key \"{}\" = {:?}.", key, keyval)?;
-        }
-        Err(status) => {
-            writeln!(output, "Read key \"{}\" failed: {:?}", key, status)?;
-        }
-    }
-    Ok(())
-}
-
-fn write_key_command(
-    args: &mut dyn Iterator<Item = &str>,
-    _input: &mut dyn io::BufRead,
-    output: &mut dyn io::Write,
-    _builtin_cpio: &[u8],
-) -> Result<(), CommandError> {
-    let bundle_id = args.next().ok_or(CommandError::BadArgs)?;
-    let key = args.next().ok_or(CommandError::BadArgs)?;
-    let value = args.collect::<Vec<&str>>().join(" ");
-    match cantrip_security_write_key(bundle_id, key, value.as_bytes()) {
-        Ok(_) => {
-            writeln!(output, "Write key \"{}\" = {:?}.", key, value)?;
-        }
-        Err(status) => {
-            writeln!(output, "Write key \"{}\" failed: {:?}", key, status)?;
-        }
     }
     Ok(())
 }

@@ -32,9 +32,9 @@ use cantrip_proc_interface::cantrip_pkg_mgmt_uninstall;
 use cantrip_proc_interface::cantrip_proc_ctrl_get_running_bundles;
 use cantrip_proc_interface::cantrip_proc_ctrl_start;
 use cantrip_proc_interface::cantrip_proc_ctrl_stop;
-use cantrip_storage_interface::cantrip_storage_delete;
-use cantrip_storage_interface::cantrip_storage_read;
-use cantrip_storage_interface::cantrip_storage_write;
+use cantrip_security_interface::cantrip_security_delete_key;
+use cantrip_security_interface::cantrip_security_read_key;
+use cantrip_security_interface::cantrip_security_write_key;
 
 use sel4_sys::seL4_CNode_Delete;
 use sel4_sys::seL4_CPtr;
@@ -295,9 +295,6 @@ fn capscan_command(
         Some("security") => {
             let _ = cantrip_security_interface::cantrip_security_capscan();
         }
-        Some("storage") => {
-            let _ = cantrip_storage_interface::cantrip_storage_capscan();
-        }
         Some("timer") => {
             let _ = cantrip_timer_interface::timer_service_capscan();
         }
@@ -486,8 +483,9 @@ fn kvdelete_command(
     output: &mut dyn io::Write,
     _builtin_cpio: &[u8],
 ) -> Result<(), CommandError> {
+    let bundle_id = args.next().ok_or(CommandError::BadArgs)?;
     let key = args.next().ok_or(CommandError::BadArgs)?;
-    match cantrip_storage_delete(key) {
+    match cantrip_security_delete_key(bundle_id, key) {
         Ok(_) => {
             writeln!(output, "Delete key \"{}\".", key)?;
         }
@@ -504,10 +502,12 @@ fn kvread_command(
     output: &mut dyn io::Write,
     _builtin_cpio: &[u8],
 ) -> Result<(), CommandError> {
+    let bundle_id = args.next().ok_or(CommandError::BadArgs)?;
     let key = args.next().ok_or(CommandError::BadArgs)?;
-    match cantrip_storage_read(key) {
-        Ok(value) => {
-            writeln!(output, "Read key \"{}\" = {:?}.", key, value)?;
+    let mut keyval = [0u8; cantrip_security_interface::KEY_VALUE_DATA_SIZE];
+    match cantrip_security_read_key(bundle_id, key, &mut keyval) {
+        Ok(_) => {
+            writeln!(output, "Read key \"{}\" = {:?}.", key, keyval)?;
         }
         Err(status) => {
             writeln!(output, "Read key \"{}\" failed: {:?}", key, status)?;
@@ -522,9 +522,10 @@ fn kvwrite_command(
     output: &mut dyn io::Write,
     _builtin_cpio: &[u8],
 ) -> Result<(), CommandError> {
+    let bundle_id = args.next().ok_or(CommandError::BadArgs)?;
     let key = args.next().ok_or(CommandError::BadArgs)?;
     let value = args.collect::<Vec<&str>>().join(" ");
-    match cantrip_storage_write(key, value.as_bytes()) {
+    match cantrip_security_write_key(bundle_id, key, value.as_bytes()) {
         Ok(_) => {
             writeln!(output, "Write key \"{}\" = {:?}.", key, value)?;
         }

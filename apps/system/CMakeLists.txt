@@ -98,18 +98,6 @@ DeclareCAmkESComponent(SecurityCoordinator
 )
 
 RustAddLibrary(
-  cantrip_storage_manager
-  SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/components/StorageManager
-  LIB_FILENAME libcantrip_storage_manager.a
-)
-
-DeclareCAmkESComponent(StorageManager
-  LIBS cantrip_storage_manager
-  INCLUDES interfaces
-  $ENV{OUT}/cantrip/components
-)
-
-RustAddLibrary(
   cantrip_timer_service
   SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/components/TimerService
   LIB_FILENAME libcantrip_timer_component.a

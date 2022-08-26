@@ -23,8 +23,6 @@ use cantrip_memory_interface::ObjDescBundle;
 use cantrip_os_common::camkes::Camkes;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_os_common::sel4_sys;
-use cantrip_storage_interface::KeyValueData;
-use cantrip_storage_interface::StorageError;
 use log::trace;
 use serde::{Deserialize, Serialize};
 
@@ -44,6 +42,10 @@ const SECURITY_REQUEST_DATA_SIZE: usize = 2048;
 
 pub const SECURITY_REPLY_DATA_SIZE: usize = 2048;
 pub type SecurityReplyData = [u8; SECURITY_REPLY_DATA_SIZE];
+
+// TODO(sleffler): temp constraint on value part of key-value pairs
+pub const KEY_VALUE_DATA_SIZE: usize = 100;
+pub type KeyValueData = [u8; KEY_VALUE_DATA_SIZE];
 
 // NB: struct's marked repr(C) are processed by cbindgen to get a .h file
 //   used in camkes C interfaces.
@@ -222,22 +224,6 @@ pub enum SecurityRequestError {
     SreWriteFailed,
     SreDeleteFailed,
     SreTestFailed,
-}
-
-impl From<SecurityRequestError> for StorageError {
-    fn from(err: SecurityRequestError) -> StorageError {
-        match err {
-            SecurityRequestError::SreBundleNotFound => StorageError::BundleNotFound,
-            SecurityRequestError::SreKeyNotFound => StorageError::KeyNotFound,
-            SecurityRequestError::SreValueInvalid => StorageError::ValueInvalid,
-            SecurityRequestError::SreKeyInvalid => StorageError::KeyInvalid,
-            SecurityRequestError::SreSerializeFailed => StorageError::SerializeFailed,
-            SecurityRequestError::SreReadFailed => StorageError::ReadFailed,
-            SecurityRequestError::SreWriteFailed => StorageError::WriteFailed,
-            SecurityRequestError::SreDeleteFailed => StorageError::DeleteFailed,
-            _ => StorageError::UnknownSecurityError, // NB: cannot happen
-        }
-    }
 }
 
 #[repr(C)]

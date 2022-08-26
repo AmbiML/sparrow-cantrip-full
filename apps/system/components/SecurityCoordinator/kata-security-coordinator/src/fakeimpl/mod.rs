@@ -29,7 +29,6 @@ use cantrip_os_common::copyregion::CopyRegion;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_os_common::sel4_sys;
 use cantrip_security_interface::*;
-use cantrip_storage_interface::KeyValueData;
 use log::trace;
 
 use sel4_sys::seL4_Error;
