@@ -36,7 +36,7 @@ impl log::Log for CantripLogger {
     fn enabled(&self, _metadata: &Metadata) -> bool { true }
 
     fn log(&self, record: &Record) {
-        let typed_logger_log: Option<extern "C" fn(level: u8, msg: *const u8)> =
+        let typed_logger_log: Option<extern "C" fn(level: u8, msg: *const cstr_core::c_char)> =
             unsafe { core::mem::transmute(logger_log) };
         if typed_logger_log.is_none() {
             return;
