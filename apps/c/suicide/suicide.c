@@ -33,7 +33,9 @@ __attribute__((naked)) void _start() {
 }
 
 int main(int a0, int a1, int a2, int a3) {
+#if CONFIG_PRINTING
   seL4_DebugPutString("Goodbye, cruel world!\n");
+#endif
   while (1) {
     char *p = 0x0;
     *p = 'g';
