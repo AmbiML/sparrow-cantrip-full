@@ -10,30 +10,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <kernel/gen_config.h>
-#include <sel4/arch/syscalls.h>
-#include <stdarg.h>
+#include <cantrip.h>
 #include <stdint.h>
-#include <stdio.h>
-
-__thread seL4_IPCBuffer *__sel4_ipc_buffer;
-
-char minisel_tls[4096] __attribute__((__aligned__(4096)));
-
-__attribute__((naked)) void _start() {
-  asm volatile(
-      ".option push                  \n"
-      ".option norelax               \n"
-      "la gp, __global_pointer$      \n"
-      "la x4, minisel_tls            \n"
-      "addi sp,sp,-16                \n"
-      "sw a0, 12(sp)                 \n"
-      "sw a1, 8(sp)                  \n"
-      "sw a2, 4(sp)                  \n"
-      "sw a3, 0(sp)                  \n"
-      ".option pop                   \n"
-      "j main                        \n");
-}
 
 // How many Fibonacci numbers to write to the log.
 #define LOG_FIBONACCI_LIMIT 80
@@ -41,41 +19,6 @@ __attribute__((naked)) void _start() {
 #define CONFIG_TIMER_TICK_MS 5
 #define INTERRUPTS_PER_VIRT_SEC (1000 / CONFIG_TIMER_TICK_MS)
 #define INTERRUPTS_PER_WAIT (1 * INTERRUPTS_PER_VIRT_SEC)
-
-// only prints 32-bit "%x" hex values
-void minisel_printf(const char *fmt, ...) {
-#if CONFIG_PRINTING
-  va_list args;
-  va_start(args, fmt);
-  for (; *fmt; fmt++) {
-    if (*fmt == '%') {
-      fmt++;
-      if (*fmt == 'd') {
-        uint32_t arg = va_arg(args, uint32_t);
-        // TODO(sleffler): total hack
-        int printing = 0;
-        for (int d = 1000000000; d > 1; d /= 10) {
-          int n = (arg / d) % 10;
-          if (printing || n > 0) {
-            seL4_DebugPutChar('0' + n);
-            printing = 1;
-          }
-        }
-        seL4_DebugPutChar('0' + (arg % 10));
-      } else if (*fmt == 'x') {
-        uint32_t arg = va_arg(args, uint32_t);
-        for (int i = 7; i >= 0; i--) {
-          int n = (arg >> (4 * i)) & 0xF;
-          seL4_DebugPutChar(n > 9 ? 'A' + n - 10 : '0' + n);
-        }
-      }
-    } else {
-      seL4_DebugPutChar(*fmt);
-    }
-  }
-  va_end(args);
-#endif
-}
 
 typedef uint64_t interrupt_count_t;
 
@@ -134,9 +77,9 @@ void fibonacci_log(int pid, const fibonacci_state_t *fibonacci_state,
            "%llu; rdtime == %llu; virt_sec ~= %.2f\n",
            fibonacci_state->n, fibonacci_state->f1, interrupt_count, rdtime(),
            virtual_seconds(interrupt_count));
-  minisel_printf(log_buf);
+  debug_printf(log_buf);
 #else
-  minisel_printf(
+  debug_printf(
       "[%d]: "
       "n == %d; "
       "f == %x; "
@@ -153,7 +96,7 @@ int main(int pid, int a1, int a2, int a3) {
   interrupt_count_t interrupt_count = 0;
   fibonacci_state_t fibonacci_state;
   fibonacci_init(&fibonacci_state);
-  minisel_printf("\nFibonacci: pid %d\n", pid);
+  debug_printf("\nFibonacci: pid %d\n", pid);
   while (1) {
     wait(INTERRUPTS_PER_WAIT, &interrupt_count);
     if (fibonacci_state.n >= LOG_FIBONACCI_LIMIT) {

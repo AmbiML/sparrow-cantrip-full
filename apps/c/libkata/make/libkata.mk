@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-APPNAME := fibonacci
-SOURCES := fibonacci.c
-
-LIBCANTRIP ?= ../libcantrip
-include $(LIBCANTRIP)/make/app.mk
+LIBCANTRIP_DIR      := $(BUILD_ROOT)/libcantrip
+LIBCANTRIP_INCLUDES := -I$(LIBCANTRIP_DIR)/include
+LIBCANTRIP_LIBS     := -L$(LIBCANTRIP_DIR) -lcantrip
