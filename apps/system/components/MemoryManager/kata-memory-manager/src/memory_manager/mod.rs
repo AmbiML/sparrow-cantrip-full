@@ -50,7 +50,7 @@ const UNTYPED_SLAB_CAPACITY: usize = 64; // # slabs kept inline
 // TODO(sleffler): support device-backed memory objects
 #[derive(Debug)]
 struct UntypedSlab {
-    pub size_bits: usize,       // NB: only used to sort
+    pub _size_bits: usize,      // NB: only used to sort
     pub free_bytes: usize,      // Available space in slab
     pub _base_paddr: seL4_Word, // Physical address of slab start
     pub _last_paddr: seL4_Word, // Physical address of slab end
@@ -59,15 +59,13 @@ struct UntypedSlab {
 impl UntypedSlab {
     fn new(ut: &seL4_UntypedDesc, free_bytes: usize, cptr: seL4_CPtr) -> Self {
         UntypedSlab {
-            size_bits: ut.size_bits(),
+            _size_bits: ut.size_bits(),
             free_bytes,
             _base_paddr: ut.paddr,
             _last_paddr: ut.paddr + (1 << ut.size_bits()),
             cptr,
         }
     }
-    fn _size(&self) -> usize { l2tob(self.size_bits) }
-    fn size_bits(&self) -> usize { self.size_bits }
 }
 pub struct MemoryManager {
     untypeds: SmallVec<[UntypedSlab; UNTYPED_SLAB_CAPACITY]>,
