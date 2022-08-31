@@ -25,7 +25,7 @@ use cantrip_os_common::camkes::Camkes;
 use cantrip_os_common::sel4_sys;
 use cantrip_os_common::slot_allocator;
 use cantrip_proc_interface::*;
-use cantrip_proc_manager::CANTRIP_PROC;
+use cantrip_proc_manager::CantripProcManager;
 use log::trace;
 
 use sel4_sys::seL4_CPtr;
@@ -33,6 +33,8 @@ use sel4_sys::seL4_CPtr;
 use slot_allocator::CANTRIP_CSPACE_SLOTS;
 
 static mut CAMKES: Camkes = Camkes::new("ProcessManager");
+// NB: CANTRIP_PROC cannot be used before setup is completed with a call to init()
+static mut CANTRIP_PROC: CantripProcManager = CantripProcManager::empty();
 
 // TODO(sleffler): 0 is valid
 static mut PKG_MGMT_RECV_SLOT: seL4_CPtr = 0;

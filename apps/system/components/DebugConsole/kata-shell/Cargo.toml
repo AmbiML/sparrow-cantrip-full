@@ -29,7 +29,6 @@ default = [
     "TEST_MEMORY_MANAGER",
     "TEST_ML_COORDINATOR",
     "TEST_PANIC",
-    "TEST_SDK_RUNTIME",
     "TEST_SECURITY_COORDINATOR",
     "TEST_TIMER_SERVICE",
 ]
@@ -62,6 +61,6 @@ cantrip-proc-interface = { path = "../../ProcessManager/cantrip-proc-interface" 
 cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-security-interface = { path = "../../SecurityCoordinator/cantrip-security-interface" }
 cantrip-timer-interface = { path = "../../TimerService/cantrip-timer-interface" }
-cantrip-sdk-interface = { path = "../../SDKRuntime/cantrip-sdk-interface" }
+cantrip-sdk-manager = { path = "../../SDKRuntime/cantrip-sdk-manager" }
 log = { version = "0.4", features = ["release_max_level_info"] }
 zmodem = { path = "../zmodem" }

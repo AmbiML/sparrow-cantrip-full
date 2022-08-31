@@ -20,5 +20,5 @@ includes = ["CamkesBindings.h"]
 
 [export]
 include = [
-    "SDKRuntimeError",
+    "SDKManagerError",
 ]

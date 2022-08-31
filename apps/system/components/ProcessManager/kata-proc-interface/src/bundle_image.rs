@@ -190,9 +190,20 @@ impl<'a> BundleImage<'a> {
             // XXX if unmap fails bounce is cleaned up on drop but we probably want it moved instead
             unsafe { seL4_Page_Unmap(self.bounce.slot) }
                 .map_err(|_| BundleImageError::PageUnmapFailed)?;
-            self.bounce
-                .move_from(self.frames.cnode, cptr, self.frames.depth)
-                .map_err(|_| BundleImageError::CapMoveFailed)?;
+            // XXX temp workaround for optimizer bug
+            //            self.bounce.move_from(self.frames.cnode, cptr, self.frames.depth).map_err(|_| BundleImageError::CapMoveFailed)?;
+            let src = self.bounce.get_path();
+            unsafe {
+                sel4_sys::seL4_CNode_Move(
+                    self.frames.cnode,
+                    cptr,
+                    self.frames.depth,
+                    src.0,
+                    src.1,
+                    src.2,
+                )
+            }
+            .map_err(|_| BundleImageError::CapMoveFailed)?;
         }
         self.last_frame = self.cur_frame;
         self.cur_frame = None;

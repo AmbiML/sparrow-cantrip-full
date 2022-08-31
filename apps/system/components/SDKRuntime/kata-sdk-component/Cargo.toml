@@ -16,14 +16,24 @@
 name = "cantrip-sdk-component"
 version = "0.1.0"
 edition = "2021"
+build = "build.rs"
+
+[build-dependencies]
+sel4-config = { path = "../../cantrip-os-common/src/sel4-config" }
+
+[features]
+CONFIG_KERNEL_MCS = []
 
 [dependencies]
 cstr_core = { version = "0.2.3", default-features = false }
 cantrip-os-common = { path = "../../cantrip-os-common" }
+cantrip-memory-interface = { path = "../../MemoryManager/cantrip-memory-interface" }
 cantrip-sdk-interface = { path = "../cantrip-sdk-interface" }
+cantrip-sdk-manager = { path = "../cantrip-sdk-manager" }
 cantrip-sdk-runtime = { path = "../cantrip-sdk-runtime" }
 log = { version = "0.4", features = ["release_max_level_info"] }
 postcard = { version = "0.7", features = ["alloc"], default-features = false }
+static_assertions = "1.1"
 
 [lib]
 name = "cantrip_sdk_runtime"

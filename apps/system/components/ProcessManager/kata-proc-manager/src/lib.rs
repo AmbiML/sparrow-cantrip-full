@@ -40,10 +40,6 @@ use sel4bundle::seL4BundleImpl;
 mod proc_manager;
 pub use proc_manager::ProcessManager;
 
-// NB: CANTRIP_PROC cannot be used before setup is completed with a call to init()
-#[cfg(not(test))]
-pub static mut CANTRIP_PROC: CantripProcManager = CantripProcManager::empty();
-
 // CantripProcManager bundles an instance of the ProcessManager that operates
 // on CantripOS interfaces and synchronizes public use with a Mutex. There is
 // a two-step dance to setup an instance because we want CANTRIP_PROC static
@@ -56,7 +52,7 @@ impl CantripProcManager {
     // Constructs a partially-initialized instance; to complete call init().
     // This is needed because we need a const fn for static setup and with
     // that constraint we cannot reference self.interface.
-    const fn empty() -> CantripProcManager {
+    pub const fn empty() -> CantripProcManager {
         CantripProcManager {
             manager: Mutex::new(None),
         }

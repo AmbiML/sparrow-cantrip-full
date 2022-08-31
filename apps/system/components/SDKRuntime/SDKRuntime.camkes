@@ -15,13 +15,22 @@
 // CantripOS SDKRuntime services.
 
 import <LoggerInterface.camkes>;
-import <SDKRuntimeInterface.camkes>;
+import <MemoryInterface.camkes>;
+import <SDKManagerInterface.camkes>;
 
 component SDKRuntime {
-  provides SDKRuntimeInterface sdk_runtime;
+  provides SDKManagerInterface sdk_manager;
+  control; // NB: SDKRuntimeInterface
 
   maybe uses LoggerInterface logger;
+  uses MemoryInterface memory;
 
   // Enable CantripOS CAmkES support.
   attribute int cantripos = true;
+
+  // Add free slots for minting endpoints.
+  attribute int cnode_headroom = 8;
+
+  // Copyregion for mapping application request data.
+  has copyregion SDK_PARAMS;
 }

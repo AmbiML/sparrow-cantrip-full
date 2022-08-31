@@ -141,9 +141,13 @@ assembly {
         connection seL4RPCCall shell_ml(from debug_console.mlcoord,
                                         to ml_coordinator.mlcoord);
 
-        // Hookup SDKRuntime to DebugConsole for shell commands.
-        connection seL4RPCCall sdk_ping(from debug_console.sdk_runtime,
-                                        to sdk_runtime.sdk_runtime);
+        // ProcessMaanager talks to the SDKManager (the privileged part of
+        // the SDKRuntime) to plumb a badged connection between applications
+        // and the SDKRuntime.
+        connection seL4RPCCall multi_sdk_manager(
+            from process_manager.sdk_manager,
+            from debug_console.sdk_manager,  // NB: for capscan support
+            to sdk_runtime.sdk_manager);
 
         // Note this allocates a 4KB shared memory region for pkg install
         // to pass an ObjDescArray
@@ -158,6 +162,7 @@ assembly {
             from debug_console.memory,
             from process_manager.memory,
             from security_coordinator.memory,
+            from sdk_runtime.memory,
             from ml_coordinator.memory,
             to memory_manager.memory);
 

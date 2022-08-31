@@ -13,11 +13,11 @@
 # limitations under the License.
 
 [package]
-name = "cantrip-sdk-interface"
+name = "cantrip-sdk-manager"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-postcard = { version = "0.7", features = ["alloc"], default-features = false }
-sel4-sys = { path = "../../cantrip-os-common/src/sel4-sys", default-features = false }
-serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
+cstr_core = "0.2.3"
+cantrip-os-common = { path = "../../cantrip-os-common" }
+postcard = { version = "0.7", default-features = false }

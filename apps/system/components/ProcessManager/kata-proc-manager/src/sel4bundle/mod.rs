@@ -38,6 +38,8 @@ use cantrip_proc_interface::Bundle;
 use cantrip_proc_interface::BundleImage;
 use cantrip_proc_interface::BundleImplInterface;
 use cantrip_proc_interface::ProcessManagerError;
+use cantrip_sdk_manager::cantrip_sdk_manager_get_endpoint;
+use cantrip_sdk_manager::cantrip_sdk_manager_release_endpoint;
 use log::{debug, error, info, trace};
 
 use io::Read;
@@ -54,7 +56,6 @@ use sel4_sys::seL4_EndpointObject;
 use sel4_sys::seL4_Error;
 use sel4_sys::seL4_MinSchedContextBits;
 use sel4_sys::seL4_PageTableObject;
-use sel4_sys::seL4_ReplyObject;
 use sel4_sys::seL4_Result;
 use sel4_sys::seL4_SchedContextObject;
 use sel4_sys::seL4_SmallPageObject;
@@ -151,17 +152,17 @@ const NOCAP: seL4_CPtr = 0;
 // Layout of the CNode holding dynamic_objs.  All entries are singletons
 // except for STACK_COUNT so symbols up to STACK_SLOT can also be used to
 // index into dynamic_objs. Perhaps too fragile...
+// TODO(sleffler): SDK runtime state should be seetup by SDK in case it
+//    needs more than 1 endpoint + 1 small frame
 const TCB_SLOT: usize = 0;
 const FAULT_EP_SLOT: usize = TCB_SLOT + 1;
-const SDK_EP_SLOT: usize = FAULT_EP_SLOT + 1;
-const SDK_REPLY_SLOT: usize = SDK_EP_SLOT + 1;
-const SCHED_CONTEXT_SLOT: usize = SDK_REPLY_SLOT + 1;
+const SCHED_CONTEXT_SLOT: usize = FAULT_EP_SLOT + 1;
 // TODO(sleffler): VSpace layout is arch-specific
 const PD_SLOT: usize = SCHED_CONTEXT_SLOT + 1;
 const PT_SLOT: usize = PD_SLOT + 1;
 const IPCBUFFER_SLOT: usize = PT_SLOT + 1;
-const SDK_RPC_FRAME_SLOT: usize = IPCBUFFER_SLOT + 1;
-const STACK_SLOT: usize = SDK_RPC_FRAME_SLOT + 1;
+const SDK_FRAME_SLOT: usize = IPCBUFFER_SLOT + 1;
+const STACK_SLOT: usize = SDK_FRAME_SLOT + 1;
 const STACK_COUNT: usize = 4; // 16K for stack (XXX get from manifest)
 const FRAME_SLOT: usize = STACK_SLOT + STACK_COUNT;
 // NB: FRAME_SLOT count is based on the BundleImage
@@ -192,7 +193,9 @@ pub struct seL4BundleImpl {
     tcb_ipcbuffer_addr: seL4_Word, // Address of IPCBuffer in app's VSpace
     tcb_pc: seL4_Word,             // Initial pc in app's VSpace
     tcb_sp: seL4_Word,             // Initial stack pointer in app's VSpace
-    stack_base: seL4_Word,         // Base address of stack in app's VSpace
+    sdk_ep_slot: seL4_CPtr,
+    sdk_frame_addr: seL4_Word, // Address of SDK frame in app's VSpace
+    stack_base: seL4_Word,     // Base address of stack in app's VSpace
 
     cspace_root_data: seL4_Word,
     cspace_root_depth: u8,
@@ -252,9 +255,6 @@ impl seL4BundleImpl {
             ObjDesc::new(seL4_TCBObject, 1, TCB_SLOT),
             // fault redirect to SDK/ProcessManager
             ObjDesc::new(seL4_EndpointObject, 1, FAULT_EP_SLOT),
-            // interface to SDK
-            ObjDesc::new(seL4_EndpointObject, 1, SDK_EP_SLOT),
-            ObjDesc::new(seL4_ReplyObject, 1, SDK_REPLY_SLOT),
             // SchedContext for main thread
             ObjDesc::new(seL4_SchedContextObject, seL4_MinSchedContextBits, SCHED_CONTEXT_SLOT),
             // VSpace root (PD)
@@ -263,8 +263,8 @@ impl seL4BundleImpl {
             ObjDesc::new(seL4_PageTableObject, 1, PT_SLOT),
             // IPC buffer frame
             ObjDesc::new(seL4_SmallPageObject, 1, IPCBUFFER_SLOT),
-            // RPC to SDK frame?
-            ObjDesc::new(seL4_SmallPageObject, 1, SDK_RPC_FRAME_SLOT),
+            // Frame for SDK RPC parameters
+            ObjDesc::new(seL4_SmallPageObject, 1, SDK_FRAME_SLOT),
             // Stack frames (guard frames are unpopulated PT slots)
             ObjDesc::new(seL4_SmallPageObject, STACK_COUNT, STACK_SLOT),
             // Page frames for application binary.
@@ -288,7 +288,6 @@ impl seL4BundleImpl {
 
         // XXX setup fault endpoint (allocate id)
         // XXX setup temporal fault endpoint (allocate id)
-        // XXX setup SDK runtime (e.g. badge)
 
         Ok(seL4BundleImpl {
             bundle_frames: bundle_frames.clone(),
@@ -306,6 +305,8 @@ impl seL4BundleImpl {
             tcb_ipcbuffer_addr: 0,
             tcb_pc: entry_point.unwrap_or(first_vaddr), // NB: filled in from BundleImage
             tcb_sp: 0,
+            sdk_ep_slot: FRAME_SLOT + nframes, // SDK endpoint goes at the end
+            sdk_frame_addr: 0,
             stack_base: 0,
 
             // 1-level CSpace addressing
@@ -444,6 +445,7 @@ impl seL4BundleImpl {
     //
     // NB: guard pages are unmapped frames (not a frame mapped read-only).
     // XXX verify resources are reclaimed on failure?
+    // TODO(sleffler): who zero's any of this (or maybe not needed)?
     fn init_vspace(&mut self) -> seL4_Result {
         let rights_rwn = seL4_CapRights::new(
             // NB: grant =>'s X on ARM+RISCV
@@ -455,6 +457,7 @@ impl seL4BundleImpl {
         let pd = &self.dynamic_objs.objs[PD_SLOT];
         let pt = &self.dynamic_objs.objs[PT_SLOT];
         let ipcbuffer_frame = &self.dynamic_objs.objs[IPCBUFFER_SLOT];
+        let sdk_frame = &self.dynamic_objs.objs[SDK_FRAME_SLOT];
         let stack_frames = &self.dynamic_objs.objs[STACK_SLOT];
 
         // Initializes the VSpace root (PD) in the ASID pool.
@@ -470,8 +473,6 @@ impl seL4BundleImpl {
         // Setup the stack & IPC buffer.
 
         // NB: no need for actual guard pages, just leave 'em unmapped.
-        // XXX but this would give a different fault than a write to a read-only
-        //   page, need to make sure this works
         let mut vaddr = roundup(vaddr_top, PAGE_SIZE);
         trace!("guard page vaddr 0x{:x}", vaddr);
         vaddr += PAGE_SIZE; // Guard page below stack
@@ -495,9 +496,22 @@ impl seL4BundleImpl {
             "map ipcbuffer slot {} vaddr 0x{:x} {:?}",
             ipcbuffer_frame.cptr,
             vaddr,
-            rights_rwn
+            rights_rwn,
         );
-        arch::map_page(ipcbuffer_frame, pd, vaddr, rights_rwn, vm_attribs)
+        arch::map_page(ipcbuffer_frame, pd, vaddr, rights_rwn, vm_attribs)?;
+        vaddr += ipcbuffer_frame.size_bytes().unwrap();
+
+        // Map SDK RPC frame.
+        self.sdk_frame_addr = vaddr;
+        trace!(
+            "map sdk_runtime slot {} vaddr 0x{:x} {:?}",
+            sdk_frame.cptr,
+            vaddr,
+            rights_rwn,
+        );
+        arch::map_page(sdk_frame, pd, vaddr, rights_rwn, vm_attribs)?;
+
+        Ok(())
     }
 
     // Sets up the TCB and related state (e.g. scheduler context).
@@ -558,8 +572,12 @@ impl seL4BundleImpl {
         let mut sp = self.tcb_sp;
         assert_eq!(sp % arch::STACK_ALIGNMENT_BYTES, 0, "TCB stack pointer mis-aligned");
 
-        // XXX nonsense values for testing
-        let argv: &[seL4_Word] = &[self.tcb_ipcbuffer_addr, 0x11112222, 0x22223333, 0x44445555];
+        let argv: &[seL4_Word] = &[
+            self.tcb_ipcbuffer_addr, // Used to setup __sel4_ipc_buffer
+            self.sdk_ep_slot,        // For SDKRuntime IPCs
+            SDK_FRAME_SLOT,          // NB: must wrt application CSpace
+            self.sdk_frame_addr,     // For SDKRuntime parameters
+        ];
 
         // NB: tcb_args::maybe_spill_tcb_args may write arg data to the
         // stack causing the stack pointer to be adjusted.
@@ -585,14 +603,23 @@ impl seL4BundleImpl {
 
     // Do the final work to construct the application's CSpace.
     fn init_cspace(&mut self) -> seL4_Result {
-        // Move everything back from the top-level CNode to the
-        // application's cspace_root and release the top-level
-        // CNode slots used during construction.
-        // XXX should we remove the TCB from the CNode?
-        // XXX verify no self-ref to the top-level CNode (so
-        //   frames etc cannot be modified)
+        // Install a badged SDK endpoint in the slot reserved for it.
+        let sdk_endpoint = CSpaceSlot::new();
+        cantrip_sdk_manager_get_endpoint(&self.tcb_name, &sdk_endpoint)
+            .map_err(|_| seL4_Error::seL4_NoError)?; // XXX error
+        sdk_endpoint.move_from(
+            self.cspace_root.objs[0].cptr,
+            self.sdk_ep_slot,
+            self.cspace_root_depth,
+        )?;
+
+        // Move everything back from the top-level CNode to the application's
+        // cspace_root and release the top-level CNode slots used during
+        // construction. Note this does not clobber the sdk_endpoint because
+        // that slot is carefully avoidded in dynamic_objs.
         self.dynamic_objs
             .move_objects_from_toplevel(self.cspace_root.objs[0].cptr, self.cspace_root_depth)?;
+
         // Keep a dup of the TCB in the top-level CNode for suspend/resume.
         // We do this after the bulk move to insure there's a free slot.
         self.cap_tcb.dup_to(
@@ -600,6 +627,7 @@ impl seL4BundleImpl {
             self.dynamic_objs.objs[TCB_SLOT].cptr,
             self.dynamic_objs.depth,
         )?;
+        // TODO(sleffler): remove the TCB from the CNode
         Ok(())
     }
 
@@ -628,6 +656,8 @@ impl BundleImplInterface for seL4BundleImpl {
     }
     fn stop(&mut self) -> Result<(), ProcessManagerError> {
         self.suspend()?;
+        cantrip_sdk_manager_release_endpoint(&self.tcb_name)
+            .map_err(|_| ProcessManagerError::StopFailed)?;
         cantrip_object_free_in_cnode(&self.bundle_frames)
             .map_err(|_| ProcessManagerError::StopFailed)?;
         cantrip_object_free_in_cnode(&self.dynamic_objs)

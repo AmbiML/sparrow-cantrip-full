@@ -38,6 +38,7 @@ cantrip-io = { path = "../../DebugConsole/cantrip-io" }
 cantrip-proc-interface = { path = "../cantrip-proc-interface" }
 cantrip-memory-interface = { path = "../../MemoryManager/cantrip-memory-interface" }
 cantrip-os-common = { path = "../../cantrip-os-common" }
+cantrip-sdk-manager = { path = "../../SDKRuntime/cantrip-sdk-manager" }
 cantrip-security-interface = { path = "../../SecurityCoordinator/cantrip-security-interface" }
 log = { version = "0.4", features = ["release_max_level_info"] }
 smallstr = "0.2"

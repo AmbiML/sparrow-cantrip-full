@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-procedure SDKRuntimeInterface {
-  include <SDKRuntimeInterfaceBindings.h>;
+procedure SDKManagerInterface {
+  include <SDKManagerInterfaceBindings.h>;
 
-  SDKRuntimeError sdk_ping();
+  void capscan();
+  SDKManagerError get_endpoint(in string bundle_id);
+  SDKManagerError release_endpoint(in string bundle_id);
 };

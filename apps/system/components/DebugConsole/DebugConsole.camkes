@@ -19,7 +19,7 @@ import <MlCoordinatorInterface.camkes>;
 import <MemoryInterface.camkes>;
 import <SecurityCoordinatorInterface.camkes>;
 import <TimerServiceInterface.camkes>;
-import <SDKRuntimeInterface.camkes>;
+import <SDKManagerInterface.camkes>;
 
 component DebugConsole {
   control;
@@ -38,8 +38,8 @@ component DebugConsole {
   uses PackageManagementInterface pkg_mgmt;
   uses ProcessControlInterface proc_ctrl;
   // TODO(b/200707300): for debugging
-  uses SecurityCoordinatorInterface security;
-  uses SDKRuntimeInterface sdk_runtime;
+  maybe uses SecurityCoordinatorInterface security;
+  maybe uses SDKManagerInterface sdk_manager;
 
   uses Timer timer;
 

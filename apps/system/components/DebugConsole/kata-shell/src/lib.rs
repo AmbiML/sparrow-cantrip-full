@@ -54,8 +54,6 @@ mod test_memory_manager;
 mod test_ml_coordinator;
 #[cfg(feature = "TEST_PANIC")]
 mod test_panic;
-#[cfg(feature = "TEST_SDK_RUNTIME")]
-mod test_sdk_runtime;
 #[cfg(feature = "TEST_SECURITY_COORDINATOR")]
 mod test_security_coordinator;
 #[cfg(feature = "TEST_TIMER_SERVICE")]
@@ -145,8 +143,6 @@ pub fn repl<T: io::BufRead>(output: &mut dyn io::Write, input: &mut T, builtin_c
     test_ml_coordinator::add_cmds(&mut cmds);
     #[cfg(feature = "TEST_PANIC")]
     test_panic::add_cmds(&mut cmds);
-    #[cfg(feature = "TEST_SDK_RUNTIME")]
-    test_sdk_runtime::add_cmds(&mut cmds);
     #[cfg(feature = "TEST_SECURITY_COORDINATOR")]
     test_security_coordinator::add_cmds(&mut cmds);
     #[cfg(feature = "TEST_TIMER_SERVICE")]
@@ -292,6 +288,9 @@ fn capscan_command(
         Some("mlcoord") => {
             let _ = cantrip_mlcoord_capscan();
         }
+        Some("sdk") => {
+            let _ = cantrip_sdk_manager::cantrip_sdk_manager_capscan();
+        }
         Some("security") => {
             let _ = cantrip_security_interface::cantrip_security_capscan();
         }
@@ -309,8 +308,8 @@ fn capscan_command(
             writeln!(output, "  memory (MemoryManager)")?;
             writeln!(output, "  process (ProcessManager)")?;
             writeln!(output, "  mlcoord (MlCoordinator)")?;
+            writeln!(output, "  sdk (SDKRuntime)")?;
             writeln!(output, "  securiy (SecurityCoordinator)")?;
-            writeln!(output, "  storage (StorageManager)")?;
             writeln!(output, "  timer (TimerService)")?;
             writeln!(output, "anything else is treated as a bundle_id")?;
         }

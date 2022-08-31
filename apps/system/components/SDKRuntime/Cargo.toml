@@ -17,6 +17,7 @@
 members = [
     "cantrip-sdk-component",
     "cantrip-sdk-interface",
+    "cantrip-sdk-manager",
     "cantrip-sdk-runtime",
 ]
 resolver = "2"
