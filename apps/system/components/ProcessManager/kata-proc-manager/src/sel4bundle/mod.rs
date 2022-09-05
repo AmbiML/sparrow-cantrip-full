@@ -595,7 +595,7 @@ impl seL4BundleImpl {
             .move_objects_from_toplevel(self.cspace_root.objs[0].cptr, self.cspace_root_depth)?;
         // Keep a dup of the TCB in the top-level CNode for suspend/resume.
         // We do this after the bulk move to insure there's a free slot.
-        self.cap_tcb.copy_to(
+        self.cap_tcb.dup_to(
             self.dynamic_objs.cnode,
             self.dynamic_objs.objs[TCB_SLOT].cptr,
             self.dynamic_objs.depth,

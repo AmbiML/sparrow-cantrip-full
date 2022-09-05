@@ -21,11 +21,14 @@ use slot_allocator::CANTRIP_CSPACE_SLOTS;
 
 use sel4_sys::seL4_CNode_Copy;
 use sel4_sys::seL4_CNode_Delete;
+use sel4_sys::seL4_CNode_Mint;
 use sel4_sys::seL4_CNode_Move;
+use sel4_sys::seL4_CNode_Mutate;
 use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_CapRights;
 use sel4_sys::seL4_Result;
 use sel4_sys::seL4_SetCapReceivePath;
+use sel4_sys::seL4_Word;
 use sel4_sys::seL4_WordBits;
 
 extern "C" {
@@ -43,8 +46,12 @@ impl CSpaceSlot {
     }
 
     // Release ownership of the slot; this inhibits the normal cleanup
-    // done by drop.
-    pub fn release(&mut self) { self.slot = seL4_CPtr::MAX; }
+    // done by drop. The slot that was being managed is returned.
+    pub fn release(&mut self) -> seL4_CPtr {
+        let slot = self.slot;
+        self.slot = seL4_CPtr::MAX;
+        slot
+    }
 
     // Returns the (root, index, depth) seL4 path for the slot.
     pub fn get_path(&self) -> (seL4_CPtr, seL4_CPtr, u8) {
@@ -58,10 +65,13 @@ impl CSpaceSlot {
     }
 
     // Copies the specified path to our slot.
-    pub fn copy_to(&self, src_root: seL4_CPtr, src_index: seL4_CPtr, src_depth: u8) -> seL4_Result {
-        let seL4_AllRights = seL4_CapRights::new(
-            /*grant_reply=*/ 1, /*grant=*/ 1, /*read=*/ 1, /*write=*/ 1,
-        );
+    pub fn copy_to(
+        &self,
+        src_root: seL4_CPtr,
+        src_index: seL4_CPtr,
+        src_depth: u8,
+        rights: seL4_CapRights,
+    ) -> seL4_Result {
         unsafe {
             seL4_CNode_Copy(
                 /*dest_root=*/ SELF_CNODE,
@@ -70,7 +80,38 @@ impl CSpaceSlot {
                 src_root,
                 src_index,
                 src_depth,
-                seL4_AllRights,
+                rights,
+            )
+        }
+    }
+
+    // Copies the specified path to our slot.
+    pub fn dup_to(&self, src_root: seL4_CPtr, src_index: seL4_CPtr, src_depth: u8) -> seL4_Result {
+        let seL4_AllRights = seL4_CapRights::new(
+            /*grant_reply=*/ 1, /*grant=*/ 1, /*read=*/ 1, /*write=*/ 1,
+        );
+        self.copy_to(src_root, src_index, src_depth, seL4_AllRights)
+    }
+
+    // Mints the specified path to our slot.
+    pub fn mint_to(
+        &self,
+        src_root: seL4_CPtr,
+        src_slot: seL4_CPtr,
+        src_depth: u8,
+        rights: seL4_CapRights,
+        badge: seL4_Word,
+    ) -> seL4_Result {
+        unsafe {
+            seL4_CNode_Mint(
+                /*dest_root=*/ SELF_CNODE,
+                /*dest_index= */ self.slot,
+                /*dest_depth=*/ seL4_WordBits as u8,
+                src_root,
+                src_slot,
+                src_depth,
+                rights,
+                badge,
             )
         }
     }
@@ -104,6 +145,27 @@ impl CSpaceSlot {
                 /*src_root=*/ SELF_CNODE,
                 /*src_index= */ self.slot,
                 /*src_depth=*/ seL4_WordBits as u8,
+            )
+        }
+    }
+
+    // Mutates the specified path to our slot.
+    pub fn mutate_to(
+        &self,
+        src_root: seL4_CPtr,
+        src_slot: seL4_CPtr,
+        src_depth: u8,
+        badge: seL4_Word,
+    ) -> seL4_Result {
+        unsafe {
+            seL4_CNode_Mutate(
+                /*dest_root=*/ SELF_CNODE,
+                /*dest_index= */ self.slot,
+                /*dest_depth=*/ seL4_WordBits as u8,
+                src_root,
+                src_slot,
+                src_depth,
+                badge,
             )
         }
     }

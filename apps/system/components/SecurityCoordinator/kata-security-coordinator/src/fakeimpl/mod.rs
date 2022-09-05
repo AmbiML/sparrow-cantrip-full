@@ -124,10 +124,10 @@ fn deep_copy(src: &ObjDescBundle) -> Result<ObjDescBundle, seL4_Error> {
     for (src_cptr, dest_cptr) in src.cptr_iter().zip(dest.cptr_iter()) {
         // Map src & dest frames and copy data.
         src_slot
-            .copy_to(src.cnode, src_cptr, src.depth)
+            .dup_to(src.cnode, src_cptr, src.depth)
             .and_then(|_| src_region.map(src_slot.slot))?;
         dest_slot
-            .copy_to(dest.cnode, dest_cptr, dest.depth)
+            .dup_to(dest.cnode, dest_cptr, dest.depth)
             .and_then(|_| dest_region.map(dest_slot.slot))?;
 
         unsafe {
