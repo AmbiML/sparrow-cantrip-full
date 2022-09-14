@@ -207,6 +207,15 @@ impl Camkes {
             sel4_sys::cap_identify(path.1)
         );
     }
+    pub fn debug_assert_slot_frame(tag: &str, path: &seL4_CPath) {
+        sel4_sys::debug_assert_slot_frame!(
+            path.1,
+            "{}: expected frame in slot {:?} but found cap type {:?}",
+            tag,
+            path,
+            sel4_sys::cap_identify(path.1)
+        );
+    }
 
     // Dumps the contents of the toplevel CNode to the serial console.
     pub fn capscan() -> seL4_Result {
