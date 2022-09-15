@@ -178,9 +178,6 @@ pub struct seL4BundleImpl {
     // CNode so long as the application is active.
     cspace_root: ObjDescBundle,
 
-    // Page index for first virtual address in BundleImage.
-    first_page: usize,
-
     // Application thread for start/suspend/resume. This starts out
     // in the cspace_root until after the CSpace is constructed when
     // we dup the capability into our top-level CNode for suspend/resume.
@@ -226,6 +223,8 @@ impl seL4BundleImpl {
                 "Bundle {} has no entry point, using 0x{:x}",
                 &bundle.app_id, first_vaddr
             );
+            // XXX should probably just return but need to verify
+            //    bundle_frames is reclaimed
         }
         // TODO(sleffler): reject empty image or no entry point?
         // TODO(sleffler): could sanity check memory requirements but
@@ -296,7 +295,6 @@ impl seL4BundleImpl {
             dynamic_objs,
             cspace_root,
             cap_tcb: CSpaceSlot::new(), // Top-level dup for suspend/resume
-            first_page: first_vaddr / PAGE_SIZE,
 
             affinity: 0,            // CPU 0
             domain: Domain::System, // TODO(jtgans,sleffler): Figure out how to use this correctly. b/238811077
@@ -322,26 +320,32 @@ impl seL4BundleImpl {
         })
     }
 
-    // Calculate how many pages are needed and (while we're here)
-    // identify an entry point.
+    // Calculate how many pages are needed and and identify the entry point.
+    // While we're here also verify segments are ordered by vaddr; this
+    // is required by load_application to handle gaps between segments.
     fn preprocess_bundle_image(bundle_frames: &ObjDescBundle) -> (usize, usize, Option<usize>) {
         let mut nframes = 0;
         let mut entry_point = None;
         let mut first_vaddr = usize::MAX;
+        let mut prev_vaddr = 0;
         let mut image = BundleImage::new(bundle_frames);
         while let Some(section) = image.next_section() {
             let vaddr = section.vaddr;
             if vaddr < first_vaddr {
                 first_vaddr = vaddr;
             }
+            assert!(vaddr >= prev_vaddr); // XXX return error instead
             if let Some(pc) = section.entry {
                 trace!("entry point 0x{:x}", pc);
+                // XXX reject multiple entry's
                 entry_point = Some(pc);
             }
             let first_frame = vaddr / PAGE_SIZE;
             let last_frame = roundup(vaddr + section.msize, PAGE_SIZE) / PAGE_SIZE;
-            nframes += last_frame - first_frame
+            nframes += last_frame - first_frame;
+            prev_vaddr = vaddr;
         }
+        trace!("nframes {} first_vaddr 0x{:x}", nframes, first_vaddr);
         (nframes, first_vaddr, entry_point)
     }
 
@@ -368,6 +372,10 @@ impl seL4BundleImpl {
             CopyRegion::new(unsafe { ptr::addr_of_mut!(LOAD_APPLICATION[0]) }, PAGE_SIZE);
 
         let mut vaddr_top = 0;
+        // Track last allocated page that was mapped to handle gaps between
+        // segments. Note page_offset is accumulated to handle multiple gaps.
+        let mut page_adjust = 0;
+        let mut prev_last_page = 0;
         while let Some(section) = image.next_section() {
             trace!("load {:?}", &section);
             let rights = &section.get_rights();
@@ -388,7 +396,9 @@ impl seL4BundleImpl {
             // do page-by-page copying or zero-filling.
             let first_page = vaddr / PAGE_SIZE;
             let last_page = roundup(vaddr + section.msize, PAGE_SIZE) / PAGE_SIZE;
-            let page_range = (first_page - self.first_page)..(last_page - self.first_page);
+            // NB: this assumes segments are ordered by vaddr.
+            page_adjust += first_page - prev_last_page;
+            let page_range = (first_page - page_adjust)..(last_page - page_adjust);
             for index in page_range {
                 let frame = &page_frames.new_at(index);
                 let frame_vaddr = (vaddr / PAGE_SIZE) * PAGE_SIZE;
@@ -418,6 +428,7 @@ impl seL4BundleImpl {
                 arch::map_page(frame, pd, frame_vaddr, *rights, vm_attribs)?;
                 vaddr += frame.size_bytes().unwrap();
             }
+            prev_last_page = last_page;
             if vaddr > vaddr_top {
                 // NB: leaves an unused frame in the gap but should not matter
                 vaddr_top = vaddr;
