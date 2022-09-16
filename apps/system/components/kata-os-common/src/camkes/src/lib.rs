@@ -25,6 +25,7 @@ use slot_allocator::CANTRIP_CSPACE_SLOTS;
 
 use sel4_sys::seL4_CNode_Delete;
 use sel4_sys::seL4_CPtr;
+use sel4_sys::seL4_GetCap;
 use sel4_sys::seL4_GetCapReceivePath;
 use sel4_sys::seL4_Result;
 use sel4_sys::seL4_SetCap;
@@ -162,6 +163,9 @@ impl Camkes {
         }
         RequestCapCleanup {}
     }
+
+    // Returns the capability attached to an seL4 IPC.
+    pub fn get_request_cap() -> seL4_CPtr { unsafe { seL4_GetCap(0) } }
 
     // Attaches a capability to a CAmkES RPC reply msg. seL4 will copy
     // the capabiltiy.
