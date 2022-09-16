@@ -12,7 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-APPNAME := hello
+MYDIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 
-LIBCANTRIP ?= ../libcantrip
-include ${LIBCANTRIP}/make/app.mk
+include $(MYDIR)/common.mk
+
+BUILD_DIR     := $(BUILD_ROOT)/$(APPNAME)
+INTERMEDIATES := ${BUILD_DIR}/lib${APPNAME}.a
+
+$(BUILD_DIR)/$(APPNAME).elf: lib${APPNAME} ${LIB_LIBC} | $(BUILD_DIR)
+	$(LD) $(LDFLAGS) -o $(BUILD_DIR)/$(APPNAME).elf $(INTERMEDIATES) $(LIB_LIBC)
+
+lib${APPNAME}:
+	SEL4_OUT_DIR=${OUT_CANTRIP}/kernel \
+		${CARGO} build ${CARGO_OPTS} --target-dir ${BUILD_DIR} --out-dir ${BUILD_DIR}
+
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
+
+clean:
+	rm -rf $(BUILD_DIR)
+
+.PHONY: clean lib${APPNAME}

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 [package]
-name = "hello"
+name = "fibonacci"
 version = "0.1.0"
 edition = "2021"
 build = "build.rs"
@@ -28,12 +28,11 @@ default = []
 CONFIG_PRINTING = []
 
 [lib]
-name = "hello"
-path = "hello.rs"
+name = "fibonacci"
+path = "fibonacci.rs"
 crate-type = ["staticlib"]
 
 [dependencies]
-cstr_core = { version = "0.2.3", default-features = false }
 cantrip-os-common = { path = "../../system/components/cantrip-os-common", default-features = false }
 cantrip-sdk-interface = { path = "../../system/components/SDKRuntime/cantrip-sdk-interface" }
 libcantrip = { path = "../libcantrip" }

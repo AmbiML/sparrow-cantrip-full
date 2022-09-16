@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-APPNAME := hello
-
-LIBCANTRIP ?= ../libcantrip
-include ${LIBCANTRIP}/make/app.mk
+BASE_ARCH_NAME := riscv
+ARCH_BITS      := 32
+FULL_ARCH_NAME := riscv32imac
+ARCH_PREFIX    := riscv32-unknown-elf
+ARCH           := rv32imac
+ABI            := ilp32
