@@ -44,6 +44,7 @@ use io::Read;
 use cantrip_io as io;
 
 use sel4_sys::seL4_ASIDPool_Assign;
+use sel4_sys::seL4_CNode_CapData;
 use sel4_sys::seL4_CNode_Move;
 use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_CapRights;
@@ -118,9 +119,8 @@ const_assert!(seL4_WordBits == 32 || seL4_WordBits == 64);
 
 // Constructs a CSpace guard word from bits & size (see the seL4 manual
 // for an explanation of how this is used).
-// TODO(sleffler): move to sel4-sys because it exposes internals
 fn make_guard(guard_bits: seL4_Word, guard_size: seL4_Word) -> seL4_Word {
-    ((guard_bits) & ((1 << 18) - 1)) | ((guard_size << 18) | ((1 << 4) - 1))
+    seL4_CNode_CapData::new(guard_bits, guard_size).words[0]
 }
 
 fn roundup(a: usize, b: usize) -> usize { ((a + b - 1) / b) * b }
@@ -309,7 +309,7 @@ impl seL4BundleImpl {
             stack_base: 0,
 
             // 1-level CSpace addressing
-            cspace_root_data: make_guard(seL4_WordBits - cspace_root_depth, 0),
+            cspace_root_data: make_guard(0, seL4_WordBits - cspace_root_depth),
             cspace_root_depth: cspace_root_depth as u8,
 
             vspace_root_data: make_guard(0, 0), // XXX unclear effect, need to investigate
