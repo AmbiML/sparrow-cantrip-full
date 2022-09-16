@@ -19,17 +19,18 @@ edition = "2021"
 
 [features]
 default = ["camkes_support"]
-camkes_support = []
+camkes_support = ["camkes", "copyregion", "cspace-slot", "slot-allocator"]
+capdl_support = ["capdl", "model"]
 
 [dependencies]
 allocator = { path = "src/allocator" }
-camkes = { path = "src/camkes" }
-capdl = { path = "src/capdl" }
-copyregion = { path = "src/copyregion" }
-cspace-slot = { path = "src/cspace-slot" }
+camkes = { path = "src/camkes", optional = true }
+capdl = { path = "src/capdl", optional = true }
+copyregion = { path = "src/copyregion", optional = true }
+cspace-slot = { path = "src/cspace-slot", optional = true }
 logger = { path = "src/logger" }
-model = { path = "src/model" }
+model = { path = "src/model", optional = true }
 panic = { path = "src/panic" }
 scheduling = { path = "src/scheduling" }
 sel4-sys = { path = "src/sel4-sys" }
-slot-allocator = { path = "src/slot-allocator" }
+slot-allocator = { path = "src/slot-allocator", optional = true }

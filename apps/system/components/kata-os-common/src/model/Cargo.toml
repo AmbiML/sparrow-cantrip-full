@@ -45,6 +45,6 @@ capdl = { path = "../capdl" }
 cpio = { git = "https://github.com/rcore-os/cpio" }
 cstr_core = "0.2.3"
 log = { version = "0.4", features = ["release_max_level_info"] }
-sel4-sys = { path = "../sel4-sys", features = ["arch_generic"] }
+sel4-sys = { path = "../sel4-sys", default-features = false, features = ["arch_generic"] }
 smallvec = "1.2"
 static_assertions = "1.1"

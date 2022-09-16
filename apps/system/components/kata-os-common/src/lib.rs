@@ -17,14 +17,17 @@
 pub extern crate allocator;
 #[cfg(feature = "camkes_support")]
 pub extern crate camkes;
+#[cfg(feature = "capdl_support")]
 pub extern crate capdl;
 #[cfg(feature = "camkes_support")]
 pub extern crate copyregion;
 #[cfg(feature = "camkes_support")]
 pub extern crate cspace_slot;
 pub extern crate logger;
+#[cfg(feature = "capdl_support")]
 pub extern crate model;
 pub extern crate panic;
 pub extern crate scheduling;
 pub extern crate sel4_sys;
+#[cfg(feature = "camkes_support")]
 pub extern crate slot_allocator;
