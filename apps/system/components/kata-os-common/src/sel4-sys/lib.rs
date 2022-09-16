@@ -13,6 +13,7 @@
 #![allow(bad_style, unused_parens, unused_assignments)]
 
 use core::mem::size_of;
+#[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
 use static_assertions::*;
 

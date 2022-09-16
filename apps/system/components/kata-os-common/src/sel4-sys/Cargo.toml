@@ -38,8 +38,9 @@ SEL4_OUT_DIR = "${ROOTDIR}out/cantrip/kernel"
 # Other syscalls api's are generated only when the associated config
 # knobs are set but do not affect the syscall ABI (e.g. CONFIG_PRINTING).
 [features]
-default = ["arch_generic"]
+default = ["arch_generic", "serde_support"]
 arch_generic = []
+serde_support = ["serde"]
 CONFIG_KERNEL_MCS = []
 CONFIG_PRINTING = []
 CONFIG_DEBUG_BUILD = []
@@ -62,4 +63,4 @@ path = "lib.rs"
 [dependencies]
 cfg-if = "1.0"
 static_assertions = "1.1"
-serde = { version = "1.0", default-features = false, features = ["derive"] }
+serde = { version = "1.0", default-features = false, features = ["derive"], optional = true }

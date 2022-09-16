@@ -51,7 +51,8 @@ include!("x86_generic.rs");
 error_types!(u32);
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub enum seL4_ObjectType {
     seL4_UntypedObject = 0,
     seL4_TCBObject,
