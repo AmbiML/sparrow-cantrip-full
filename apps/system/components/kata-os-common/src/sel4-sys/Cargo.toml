@@ -17,21 +17,10 @@ readme = "README.md"
 license = "MIT/Apache-2.0"
 build = "build.rs"
 
-# NB: the sel4-config crate tries to sync features to a kernel build by
+# NB: the sel4-config crate sync's features to a kernel build by
 #   parsing build artifacts (see the crate).
 [build-dependencies]
 sel4-config = { path = "../sel4-config" }
-
-# NB: used by build.rs
-[build-env]
-# Name of python3 interpreter executable, defaults to "python3"
-PYTHON = "python3"
-
-# Pathname to seL4 kernel source
-SEL4_DIR = "${ROOTDIR}cantrip/kernel"
-
-# Pathname to seL4 kernel build artifacts (used by sel4-config)
-SEL4_OUT_DIR = "${ROOTDIR}out/cantrip/kernel"
 
 # Beware CONFIG_KERNEL_MCS & CONFIG_SMP_SUPPORT must match the kernel
 # config for syscall numbering (aka invocation labeling) to line up.
