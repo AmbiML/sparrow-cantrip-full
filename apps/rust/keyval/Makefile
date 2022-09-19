@@ -12,31 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-[workspace]
+APPNAME := keyval
 
-members = [
-    "libcantrip",
-
-    "hello",
-    "fibonacci",
-    "keyval",
-    "panic",
-]
-resolver = "2"
-
-[profile.dev]
-opt-level = 0
-debug = true
-# TODO(b/223253186): workaround gdb DIE errors
-lto = false
-codegen-units = 1
-
-[profile.release]
-opt-level = "z"
-lto = "fat"
-codegen-units = 1
-split-debuginfo = "unpacked"
-
-[profile.release.build-override]
-opt-level = "z"
-codegen-units = 1
+LIBCANTRIP ?= ../libcantrip
+include ${LIBCANTRIP}/make/app.mk
