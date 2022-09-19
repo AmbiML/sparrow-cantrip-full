@@ -13,8 +13,6 @@
 // limitations under the License.
 
 //! CantripOS SDK application runtime interfaces.
-//! These can also be used from CantripOS services (for testing) by first
-//! setting up the CANTRIP_SDK_* data (e.g. using cantrip_sdk_manager_get_endpoint)
 
 #![cfg_attr(not(test), no_std)]
 
@@ -191,7 +189,7 @@ pub trait SDKRuntimeInterface {
 //   This would align request arguments to the page boundary which might
 //   be useful and having the reply inline would mean SDKRuntime could
 //   send a meaningful error back when unable to map the page frame.
-fn cantrip_sdk_request<'a, S: Serialize, D: Deserialize<'a>>(
+fn sdk_request<'a, S: Serialize, D: Deserialize<'a>>(
     request: SDKRuntimeRequest,
     request_args: &S,
 ) -> Result<D, SDKRuntimeError> {
@@ -225,17 +223,17 @@ fn cantrip_sdk_request<'a, S: Serialize, D: Deserialize<'a>>(
 /// Rust client-side wrapper for the ping method.
 #[inline]
 #[allow(dead_code)]
-pub fn cantrip_sdk_ping() -> Result<(), SDKRuntimeError> {
+pub fn sdk_ping() -> Result<(), SDKRuntimeError> {
     let header =
-        cantrip_sdk_request::<PingRequest, SDKReplyHeader>(SDKRuntimeRequest::Ping, &PingRequest {})?;
+        sdk_request::<PingRequest, SDKReplyHeader>(SDKRuntimeRequest::Ping, &PingRequest {})?;
     header.into()
 }
 
 /// Rust client-side wrapper for the log method.
 #[inline]
 #[allow(dead_code)]
-pub fn cantrip_sdk_log(msg: &str) -> Result<(), SDKRuntimeError> {
-    let header = cantrip_sdk_request::<LogRequest, SDKReplyHeader>(
+pub fn sdk_log(msg: &str) -> Result<(), SDKRuntimeError> {
+    let header = sdk_request::<LogRequest, SDKReplyHeader>(
         SDKRuntimeRequest::Log,
         &LogRequest {
             msg: msg.as_bytes(),
@@ -248,8 +246,8 @@ pub fn cantrip_sdk_log(msg: &str) -> Result<(), SDKRuntimeError> {
 // TODO(sleffler): _mut variant?
 #[inline]
 #[allow(dead_code)]
-pub fn cantrip_sdk_read_key<'a>(key: &str, keyval: &'a mut [u8]) -> Result<&'a [u8], SDKRuntimeError> {
-    let response = cantrip_sdk_request::<ReadKeyRequest, ReadKeyResponse>(
+pub fn sdk_read_key<'a>(key: &str, keyval: &'a mut [u8]) -> Result<&'a [u8], SDKRuntimeError> {
+    let response = sdk_request::<ReadKeyRequest, ReadKeyResponse>(
         SDKRuntimeRequest::ReadKey,
         &ReadKeyRequest { key },
     )?;
@@ -266,8 +264,8 @@ pub fn cantrip_sdk_read_key<'a>(key: &str, keyval: &'a mut [u8]) -> Result<&'a [
 /// Rust client-side wrapper for the write key method.
 #[inline]
 #[allow(dead_code)]
-pub fn cantrip_sdk_write_key(key: &str, value: &[u8]) -> Result<(), SDKRuntimeError> {
-    let header = cantrip_sdk_request::<WriteKeyRequest, SDKReplyHeader>(
+pub fn sdk_write_key(key: &str, value: &[u8]) -> Result<(), SDKRuntimeError> {
+    let header = sdk_request::<WriteKeyRequest, SDKReplyHeader>(
         SDKRuntimeRequest::WriteKey,
         &WriteKeyRequest { key, value },
     )?;
@@ -277,8 +275,8 @@ pub fn cantrip_sdk_write_key(key: &str, value: &[u8]) -> Result<(), SDKRuntimeEr
 /// Rust client-side wrapper for the delete key method.
 #[inline]
 #[allow(dead_code)]
-pub fn cantrip_sdk_delete_key(key: &str) -> Result<(), SDKRuntimeError> {
-    let header = cantrip_sdk_request::<DeleteKeyRequest, SDKReplyHeader>(
+pub fn sdk_delete_key(key: &str) -> Result<(), SDKRuntimeError> {
+    let header = sdk_request::<DeleteKeyRequest, SDKReplyHeader>(
         SDKRuntimeRequest::DeleteKey,
         &DeleteKeyRequest { key },
     )?;

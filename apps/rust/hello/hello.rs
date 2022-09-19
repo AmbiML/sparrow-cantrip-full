@@ -8,8 +8,8 @@
 
 extern crate libcantrip;
 use cantrip_os_common::logger::CantripLogger;
-use cantrip_sdk_interface::*;
 use log::info;
+use sdk_interface::*;
 
 // Message output is sent through the cantrip-os-logger which calls logger_log
 // to deliver data to the console. Redict to the sdk.
@@ -17,7 +17,7 @@ use log::info;
 #[allow(unused_variables)]
 pub fn logger_log(_level: u8, msg: *const cstr_core::c_char) {
     if let Ok(str) = unsafe { cstr_core::CStr::from_ptr(msg) }.to_str() {
-        let _ = cantrip_sdk_log(str);
+        let _ = sdk_log(str);
     }
 }
 
@@ -28,9 +28,9 @@ pub fn main() {
     log::set_logger(&CANTRIP_LOGGER).unwrap();
     log::set_max_level(log::LevelFilter::Trace);
 
-    match cantrip_sdk_ping() {
+    match sdk_ping() {
         Ok(_) => info!("ping!"),
-        Err(e) => info!("cantrip_sdk_ping failed: {:?}", e),
+        Err(e) => info!("sdk_ping failed: {:?}", e),
     }
     info!("I am a Rust app, hear me log!");
     info!("Done, wimper ...");

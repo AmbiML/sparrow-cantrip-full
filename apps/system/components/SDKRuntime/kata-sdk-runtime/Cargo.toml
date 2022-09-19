@@ -21,8 +21,8 @@ edition = "2021"
 hashbrown = { version = "0.11", features = ["ahash-compile-time-rng"] }
 cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-security-interface = { path = "../../SecurityCoordinator/cantrip-security-interface" }
-cantrip-sdk-interface = { path = "../cantrip-sdk-interface" }
 cantrip-sdk-manager = { path = "../cantrip-sdk-manager" }
 log = { version = "0.4", features = ["release_max_level_info"] }
+sdk-interface = { path = "../sdk-interface" }
 smallstr = "0.2"
 spin = "0.9"

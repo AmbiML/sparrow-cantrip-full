@@ -17,7 +17,7 @@ extern crate alloc;
 extern crate libcantrip;
 use alloc::format;
 use cantrip_os_common::allocator;
-use cantrip_sdk_interface::cantrip_sdk_log;
+use sdk_interface::sdk_log;
 
 // How many Fibonacci numbers to write to the log.
 const LOG_FIBONACCI_LIMIT: u64 = 80;
@@ -48,7 +48,7 @@ impl Fibonacci {
     }
 
     pub fn log(&self, interrupt_count: ICount) {
-        let _ = cantrip_sdk_log(&format!(
+        let _ = sdk_log(&format!(
             "n == {}; f == {:x}; interrupt_count == {}; rdtime == {}; virt_sec ~= {:2}",
             self.n,
             self.f1,
@@ -100,7 +100,7 @@ pub fn main() {
         allocator::ALLOCATOR.init(HEAP.as_mut_ptr() as _, HEAP.len());
     }
 
-    let _ = cantrip_sdk_log("Fibonacci");
+    let _ = sdk_log("Fibonacci");
     let mut interrupt_count: ICount = 0;
     let mut fib = Fibonacci::new();
     loop {

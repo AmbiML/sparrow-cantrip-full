@@ -34,6 +34,6 @@ crate-type = ["staticlib"]
 
 [dependencies]
 cantrip-os-common = { path = "../../system/components/cantrip-os-common", default-features = false }
-cantrip-sdk-interface = { path = "../../system/components/SDKRuntime/cantrip-sdk-interface" }
 libcantrip = { path = "../libcantrip" }
 log = "0.4"
+sdk-interface = { path = "../../system/components/SDKRuntime/sdk-interface" }

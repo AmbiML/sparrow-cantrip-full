@@ -40,18 +40,19 @@ use cantrip_os_common::camkes::{seL4_CPath, Camkes};
 use cantrip_os_common::copyregion::CopyRegion;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_os_common::sel4_sys;
-use cantrip_sdk_interface::KeyValueData;
-use cantrip_sdk_interface::SDKAppId;
-use cantrip_sdk_interface::SDKError;
-use cantrip_sdk_interface::SDKReplyHeader;
-use cantrip_sdk_interface::SDKRuntimeError;
-use cantrip_sdk_interface::SDKRuntimeInterface;
-use cantrip_sdk_interface::SDKRuntimeRequest;
-use cantrip_sdk_interface::SDKRUNTIME_REQUEST_DATA_SIZE;
 use cantrip_sdk_manager::SDKManagerError;
 use cantrip_sdk_manager::SDKManagerInterface;
 use cantrip_sdk_runtime::CantripSDKRuntime;
 use log::error;
+
+use sdk_interface::KeyValueData;
+use sdk_interface::SDKAppId;
+use sdk_interface::SDKError;
+use sdk_interface::SDKReplyHeader;
+use sdk_interface::SDKRuntimeError;
+use sdk_interface::SDKRuntimeInterface;
+use sdk_interface::SDKRuntimeRequest;
+use sdk_interface::SDKRUNTIME_REQUEST_DATA_SIZE;
 
 use sel4_sys::seL4_CNode_Delete;
 use sel4_sys::seL4_CPtr;
@@ -181,7 +182,7 @@ pub unsafe extern "C" fn run() -> ! {
                 .as_mut()
                 .split_at_mut(SDKRUNTIME_REQUEST_DATA_SIZE);
             let request_slice = &*request_slice; // NB: immutable alias
-            match postcard::take_from_bytes::<cantrip_sdk_interface::SDKRequestHeader>(request_slice) {
+            match postcard::take_from_bytes::<sdk_interface::SDKRequestHeader>(request_slice) {
                 Ok((header, args_slice)) => {
                     let app_id = sdk_runtime_badge as SDKAppId; // XXX safe?
                     if let Err(status) = match header.request {
@@ -240,7 +241,7 @@ fn log_request(
     request_slice: &[u8],
     _reply_slice: &mut [u8],
 ) -> Result<(), SDKError> {
-    let request = postcard::from_bytes::<cantrip_sdk_interface::LogRequest>(request_slice)
+    let request = postcard::from_bytes::<sdk_interface::LogRequest>(request_slice)
         .map_err(deserialize_failure)?;
     let msg = core::str::from_utf8(request.msg).map_err(|_| SDKError::InvalidString)?;
     unsafe { CANTRIP_SDK.log(app_id, msg) }
@@ -251,13 +252,13 @@ fn read_key_request(
     request_slice: &[u8],
     reply_slice: &mut [u8],
 ) -> Result<(), SDKError> {
-    let request = postcard::from_bytes::<cantrip_sdk_interface::ReadKeyRequest>(request_slice)
+    let request = postcard::from_bytes::<sdk_interface::ReadKeyRequest>(request_slice)
         .map_err(deserialize_failure)?;
     #[allow(clippy::uninit_assumed_init)]
     let mut keyval: KeyValueData = unsafe { ::core::mem::MaybeUninit::uninit().assume_init() };
     let value = unsafe { CANTRIP_SDK.read_key(app_id, request.key, &mut keyval)? };
     let _ = postcard::to_slice(
-        &cantrip_sdk_interface::ReadKeyResponse {
+        &sdk_interface::ReadKeyResponse {
             header: SDKReplyHeader::new(SDKRuntimeError::SDKSuccess),
             value,
         },
@@ -272,10 +273,10 @@ fn write_key_request(
     request_slice: &[u8],
     _reply_slice: &mut [u8],
 ) -> Result<(), SDKError> {
-    let request = postcard::from_bytes::<cantrip_sdk_interface::WriteKeyRequest>(request_slice)
+    let request = postcard::from_bytes::<sdk_interface::WriteKeyRequest>(request_slice)
         .map_err(deserialize_failure)?;
     // NB: the serialized data are variable length so copy to convert
-    let mut keyval = [0u8; cantrip_sdk_interface::KEY_VALUE_DATA_SIZE];
+    let mut keyval = [0u8; sdk_interface::KEY_VALUE_DATA_SIZE];
     keyval[..request.value.len()].copy_from_slice(request.value);
     unsafe { CANTRIP_SDK.write_key(app_id, request.key, &keyval) }
 }
@@ -285,7 +286,7 @@ fn delete_key_request(
     request_slice: &[u8],
     _reply_slice: &mut [u8],
 ) -> Result<(), SDKError> {
-    let request = postcard::from_bytes::<cantrip_sdk_interface::DeleteKeyRequest>(request_slice)
+    let request = postcard::from_bytes::<sdk_interface::DeleteKeyRequest>(request_slice)
         .map_err(deserialize_failure)?;
     unsafe { CANTRIP_SDK.delete_key(app_id, request.key) }
 }

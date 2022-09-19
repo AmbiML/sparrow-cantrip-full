@@ -13,7 +13,7 @@ use alloc::string::String;
 use cantrip_os_common::allocator;
 use cantrip_os_common::logger::CantripLogger;
 use cantrip_os_common::sel4_sys;
-use cantrip_sdk_interface::*;
+use sdk_interface::*;
 use SDKRuntimeError::*;
 
 // Message output is sent through the cantrip-os-logger which calls logger_log
@@ -46,30 +46,30 @@ pub fn main(_a0: u32, _a1: u32, _a2: u32, _a3: u32) {
 
     const KEY: &str = "foo";
     let mut keyval: KeyValueData = [0u8; KEY_VALUE_DATA_SIZE];
-    let _ = match cantrip_sdk_read_key(KEY, &mut keyval) {
-        Err(SDKReadKeyFailed) => cantrip_sdk_log("read(foo) failed as expected"),
-        Err(e) => cantrip_sdk_log(&format!("read error {:?}", e)),
-        Ok(kv) => cantrip_sdk_log(&format!("read returned {:?}", kv)),
+    let _ = match sdk_read_key(KEY, &mut keyval) {
+        Err(SDKReadKeyFailed) => sdk_log("read(foo) failed as expected"),
+        Err(e) => sdk_log(&format!("read error {:?}", e)),
+        Ok(kv) => sdk_log(&format!("read returned {:?}", kv)),
     };
     keyval
         .split_at_mut(3)
         .0
         .copy_from_slice(String::from("123").as_bytes());
-    let _ = match cantrip_sdk_write_key(KEY, &keyval) {
-        Ok(_) => cantrip_sdk_log("write ok"),
-        Err(e) => cantrip_sdk_log(&format!("write error {:?}", e)),
+    let _ = match sdk_write_key(KEY, &keyval) {
+        Ok(_) => sdk_log("write ok"),
+        Err(e) => sdk_log(&format!("write error {:?}", e)),
     };
-    let _ = match cantrip_sdk_read_key(KEY, &mut keyval) {
-        Err(SDKReadKeyFailed) => cantrip_sdk_log("read(foo) failed as expected"),
-        Err(e) => cantrip_sdk_log(&format!("read failed: {:?}", e)),
-        Ok(kv) => cantrip_sdk_log(&format!("read returned {:?}", kv)),
+    let _ = match sdk_read_key(KEY, &mut keyval) {
+        Err(SDKReadKeyFailed) => sdk_log("read(foo) failed as expected"),
+        Err(e) => sdk_log(&format!("read failed: {:?}", e)),
+        Ok(kv) => sdk_log(&format!("read returned {:?}", kv)),
     };
-    let _ = match cantrip_sdk_delete_key(KEY) {
-        Ok(_) => cantrip_sdk_log("delete ok"),
-        Err(e) => cantrip_sdk_log(&format!("delete error {:?}", e)),
+    let _ = match sdk_delete_key(KEY) {
+        Ok(_) => sdk_log("delete ok"),
+        Err(e) => sdk_log(&format!("delete error {:?}", e)),
     };
-    let _ = match cantrip_sdk_delete_key(KEY) {
-        Ok(_) => cantrip_sdk_log("delete ok (for missing key)"),
-        Err(e) => cantrip_sdk_log(&format!("delete error {:?}", e)),
+    let _ = match sdk_delete_key(KEY) {
+        Ok(_) => sdk_log("delete ok (for missing key)"),
+        Err(e) => sdk_log(&format!("delete error {:?}", e)),
     };
 }
