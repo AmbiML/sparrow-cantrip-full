@@ -44,13 +44,6 @@ _start:
     la t1, CANTRIP_SDK_PARAMS
     sw a3, 0(t1)
 
-    /* XXX included only for testing */
-    addi sp, sp, -16
-    sw a0, 12(sp)
-    sw a1, 8(sp)
-    sw a2, 4(sp)
-    sw a3, 0(sp)
-
     .option pop
 
     j main
