@@ -17,6 +17,7 @@
 import <LoggerInterface.camkes>;
 import <MemoryInterface.camkes>;
 import <SDKManagerInterface.camkes>;
+import <SecurityCoordinatorInterface.camkes>;
 
 component SDKRuntime {
   provides SDKManagerInterface sdk_manager;
@@ -24,6 +25,7 @@ component SDKRuntime {
 
   maybe uses LoggerInterface logger;
   uses MemoryInterface memory;
+  uses SecurityCoordinatorInterface security;
 
   // Enable CantripOS CAmkES support.
   attribute int cantripos = true;

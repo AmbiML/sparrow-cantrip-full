@@ -58,6 +58,11 @@ pub const SDKRUNTIME_REQUEST_DATA_SIZE: usize = PAGE_SIZE / 2;
 ///     on 64-bit platforms these are 64-bits.
 pub type SDKAppId = usize;
 
+// TODO(sleffler): temp constraint on value part of key-value pairs
+// TOOD(sleffler): dup's security coordinator but we don't want a dependency
+pub const KEY_VALUE_DATA_SIZE: usize = 100;
+pub type KeyValueData = [u8; KEY_VALUE_DATA_SIZE];
+
 /// All RPC request must have an SDKRequestHeader at the front.
 #[derive(Serialize, Deserialize)]
 pub struct SDKRequestHeader {
@@ -95,11 +100,39 @@ pub struct LogRequest<'a> {
     pub msg: &'a [u8],
 }
 
+/// SDKRuntimeRequest::ReadKey
+#[derive(Serialize, Deserialize)]
+pub struct ReadKeyRequest<'a> {
+    pub key: &'a str,
+}
+#[derive(Serialize, Deserialize)]
+pub struct ReadKeyResponse<'a> {
+    pub header: SDKReplyHeader,
+    pub value: &'a [u8],
+}
+
+/// SDKRuntimeRequest::WriteKey
+#[derive(Serialize, Deserialize)]
+pub struct WriteKeyRequest<'a> {
+    pub key: &'a str,
+    pub value: &'a [u8],
+}
+
+/// SDKRuntimeRequest::DeleteKey
+#[derive(Serialize, Deserialize)]
+pub struct DeleteKeyRequest<'a> {
+    pub key: &'a str,
+}
+
 #[repr(C)] // XXX needed?
 #[derive(Clone, Copy, Eq, PartialEq, Serialize, Deserialize, Debug)]
 pub enum SDKRuntimeRequest {
     Ping = 0, // Check runtime is alive
     Log,      // Log message: [msg: &str]
+
+    ReadKey,   // Read key: [key: &str, &mut [u8]] -> value: &[u8]
+    WriteKey,  // Write key: [key: &str, value: &KeyValueData]
+    DeleteKey, // Delete key: [key: &str]
 }
 
 /// Rust interface for the SDKRuntime.
@@ -119,6 +152,21 @@ pub trait SDKRuntimeInterface {
 
     /// Logs |msg| through the system logger.
     fn log(&self, app_id: SDKAppId, msg: &str) -> Result<(), SDKError>;
+
+    /// Returns any value for the specified |key| in the app's  private key-value store.
+    /// Data are written to |keyval| and returned as a slice.
+    fn read_key<'a>(
+        &self,
+        app_id: SDKAppId,
+        key: &str,
+        keyval: &'a mut [u8],
+    ) -> Result<&'a [u8], SDKError>;
+
+    /// Writes |value| for the specified |key| in the app's private key-value store.
+    fn write_key(&self, app_id: SDKAppId, key: &str, value: &KeyValueData) -> Result<(), SDKError>;
+
+    /// Deletes the specified |key| in the app's private key-value store.
+    fn delete_key(&self, app_id: SDKAppId, key: &str) -> Result<(), SDKError>;
 }
 
 /// Rust client-side request processing. Note there is no CAmkES stub to
@@ -192,6 +240,47 @@ pub fn cantrip_sdk_log(msg: &str) -> Result<(), SDKRuntimeError> {
         &LogRequest {
             msg: msg.as_bytes(),
         },
+    )?;
+    header.into()
+}
+
+/// Rust client-side wrapper for the read key method.
+// TODO(sleffler): _mut variant?
+#[inline]
+#[allow(dead_code)]
+pub fn cantrip_sdk_read_key<'a>(key: &str, keyval: &'a mut [u8]) -> Result<&'a [u8], SDKRuntimeError> {
+    let response = cantrip_sdk_request::<ReadKeyRequest, ReadKeyResponse>(
+        SDKRuntimeRequest::ReadKey,
+        &ReadKeyRequest { key },
+    )?;
+    match response.header.status {
+        SDKRuntimeError::SDKSuccess => {
+            let (left, _) = keyval.split_at_mut(response.value.len());
+            left.copy_from_slice(response.value);
+            Ok(left)
+        }
+        e => Err(e),
+    }
+}
+
+/// Rust client-side wrapper for the write key method.
+#[inline]
+#[allow(dead_code)]
+pub fn cantrip_sdk_write_key(key: &str, value: &[u8]) -> Result<(), SDKRuntimeError> {
+    let header = cantrip_sdk_request::<WriteKeyRequest, SDKReplyHeader>(
+        SDKRuntimeRequest::WriteKey,
+        &WriteKeyRequest { key, value },
+    )?;
+    header.into()
+}
+
+/// Rust client-side wrapper for the delete key method.
+#[inline]
+#[allow(dead_code)]
+pub fn cantrip_sdk_delete_key(key: &str) -> Result<(), SDKRuntimeError> {
+    let header = cantrip_sdk_request::<DeleteKeyRequest, SDKReplyHeader>(
+        SDKRuntimeRequest::DeleteKey,
+        &DeleteKeyRequest { key },
     )?;
     header.into()
 }

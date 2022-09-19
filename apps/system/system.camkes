@@ -173,6 +173,7 @@ assembly {
             from debug_console.security,   // NB: for debug/test
             from process_manager.security,
             from ml_coordinator.security,  // NB: for LoadModel
+            from sdk_runtime.security,     // NB: for key-value store
             to security_coordinator.security);
 
         // Connect the DebugConsole to the OpenTitanUARTDriver.

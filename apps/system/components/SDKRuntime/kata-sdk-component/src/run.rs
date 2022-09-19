@@ -40,9 +40,11 @@ use cantrip_os_common::camkes::{seL4_CPath, Camkes};
 use cantrip_os_common::copyregion::CopyRegion;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_os_common::sel4_sys;
+use cantrip_sdk_interface::KeyValueData;
 use cantrip_sdk_interface::SDKAppId;
 use cantrip_sdk_interface::SDKError;
 use cantrip_sdk_interface::SDKReplyHeader;
+use cantrip_sdk_interface::SDKRuntimeError;
 use cantrip_sdk_interface::SDKRuntimeInterface;
 use cantrip_sdk_interface::SDKRuntimeRequest;
 use cantrip_sdk_interface::SDKRUNTIME_REQUEST_DATA_SIZE;
@@ -185,6 +187,15 @@ pub unsafe extern "C" fn run() -> ! {
                     if let Err(status) = match header.request {
                         SDKRuntimeRequest::Ping => ping_request(app_id, args_slice, reply_slice),
                         SDKRuntimeRequest::Log => log_request(app_id, args_slice, reply_slice),
+                        SDKRuntimeRequest::ReadKey => {
+                            read_key_request(app_id, args_slice, reply_slice)
+                        }
+                        SDKRuntimeRequest::WriteKey => {
+                            write_key_request(app_id, args_slice, reply_slice)
+                        }
+                        SDKRuntimeRequest::DeleteKey => {
+                            delete_key_request(app_id, args_slice, reply_slice)
+                        }
                     } {
                         reply_error(status, reply_slice);
                     }
@@ -207,6 +218,10 @@ pub unsafe extern "C" fn run() -> ! {
 // SDK RPC request handling: unmarshal request, dispatch to CANTRIP_SDK,
 // and marshal reply.
 
+fn serialize_failure(e: postcard::Error) -> SDKError {
+    error!("serialize failed: {:?}", e);
+    SDKError::SerializeFailed
+}
 fn deserialize_failure(e: postcard::Error) -> SDKError {
     error!("deserialize failed: {:?}", e);
     SDKError::DeserializeFailed
@@ -229,6 +244,50 @@ fn log_request(
         .map_err(deserialize_failure)?;
     let msg = core::str::from_utf8(request.msg).map_err(|_| SDKError::InvalidString)?;
     unsafe { CANTRIP_SDK.log(app_id, msg) }
+}
+
+fn read_key_request(
+    app_id: SDKAppId,
+    request_slice: &[u8],
+    reply_slice: &mut [u8],
+) -> Result<(), SDKError> {
+    let request = postcard::from_bytes::<cantrip_sdk_interface::ReadKeyRequest>(request_slice)
+        .map_err(deserialize_failure)?;
+    #[allow(clippy::uninit_assumed_init)]
+    let mut keyval: KeyValueData = unsafe { ::core::mem::MaybeUninit::uninit().assume_init() };
+    let value = unsafe { CANTRIP_SDK.read_key(app_id, request.key, &mut keyval)? };
+    let _ = postcard::to_slice(
+        &cantrip_sdk_interface::ReadKeyResponse {
+            header: SDKReplyHeader::new(SDKRuntimeError::SDKSuccess),
+            value,
+        },
+        reply_slice,
+    )
+    .map_err(serialize_failure)?;
+    Ok(())
+}
+
+fn write_key_request(
+    app_id: SDKAppId,
+    request_slice: &[u8],
+    _reply_slice: &mut [u8],
+) -> Result<(), SDKError> {
+    let request = postcard::from_bytes::<cantrip_sdk_interface::WriteKeyRequest>(request_slice)
+        .map_err(deserialize_failure)?;
+    // NB: the serialized data are variable length so copy to convert
+    let mut keyval = [0u8; cantrip_sdk_interface::KEY_VALUE_DATA_SIZE];
+    keyval[..request.value.len()].copy_from_slice(request.value);
+    unsafe { CANTRIP_SDK.write_key(app_id, request.key, &keyval) }
+}
+
+fn delete_key_request(
+    app_id: SDKAppId,
+    request_slice: &[u8],
+    _reply_slice: &mut [u8],
+) -> Result<(), SDKError> {
+    let request = postcard::from_bytes::<cantrip_sdk_interface::DeleteKeyRequest>(request_slice)
+        .map_err(deserialize_failure)?;
+    unsafe { CANTRIP_SDK.delete_key(app_id, request.key) }
 }
 
 // SDKManager RPC handling; these arrive via CAmkES so have a C linkage.

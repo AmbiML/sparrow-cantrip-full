@@ -18,6 +18,7 @@
 use cantrip_os_common::camkes::seL4_CPath;
 use cantrip_os_common::sel4_sys;
 use cantrip_sdk_interface::error::SDKError;
+use cantrip_sdk_interface::KeyValueData;
 use cantrip_sdk_interface::SDKAppId;
 use cantrip_sdk_interface::SDKRuntimeInterface;
 use cantrip_sdk_manager::SDKManagerError;
@@ -68,5 +69,31 @@ impl SDKRuntimeInterface for CantripSDKRuntime {
     }
     fn log(&self, app_id: SDKAppId, msg: &str) -> Result<(), SDKError> {
         self.runtime.lock().as_ref().unwrap().log(app_id, msg)
+    }
+    fn read_key<'a>(
+        &self,
+        app_id: SDKAppId,
+        key: &str,
+        keyval: &'a mut [u8],
+    ) -> Result<&'a [u8], SDKError> {
+        self.runtime
+            .lock()
+            .as_ref()
+            .unwrap()
+            .read_key(app_id, key, keyval)
+    }
+    fn write_key(&self, app_id: SDKAppId, key: &str, value: &KeyValueData) -> Result<(), SDKError> {
+        self.runtime
+            .lock()
+            .as_ref()
+            .unwrap()
+            .write_key(app_id, key, value)
+    }
+    fn delete_key(&self, app_id: SDKAppId, key: &str) -> Result<(), SDKError> {
+        self.runtime
+            .lock()
+            .as_ref()
+            .unwrap()
+            .delete_key(app_id, key)
     }
 }

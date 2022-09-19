@@ -18,10 +18,14 @@ use cantrip_os_common::camkes::seL4_CPath;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_os_common::sel4_sys;
 use cantrip_sdk_interface::error::SDKError;
+use cantrip_sdk_interface::KeyValueData;
 use cantrip_sdk_interface::SDKAppId;
 use cantrip_sdk_interface::SDKRuntimeInterface;
 use cantrip_sdk_manager::SDKManagerError;
 use cantrip_sdk_manager::SDKManagerInterface;
+use cantrip_security_interface::cantrip_security_delete_key;
+use cantrip_security_interface::cantrip_security_read_key;
+use cantrip_security_interface::cantrip_security_write_key;
 use log::{error, info};
 use smallstr::SmallString;
 
@@ -142,6 +146,46 @@ impl SDKRuntimeInterface for SDKRuntime {
         match self.apps.get(&app_id) {
             Some(app) => {
                 info!("[{}] {}", app.id, msg);
+                Ok(())
+            }
+            None => Err(SDKError::InvalidBadge),
+        }
+    }
+
+    /// Returns any value for the specified |key| in the app's  private key-value store.
+    fn read_key<'a>(
+        &self,
+        app_id: SDKAppId,
+        key: &str,
+        keyval: &'a mut [u8],
+    ) -> Result<&'a [u8], SDKError> {
+        match self.apps.get(&app_id) {
+            Some(app) => {
+                cantrip_security_read_key(&app.id, key, keyval)
+                    .map_err(|_| SDKError::ReadKeyFailed)?; // XXX
+                Ok(keyval)
+            }
+            None => Err(SDKError::InvalidBadge),
+        }
+    }
+
+    /// Writes |value| for the specified |key| in the app's private key-value store.
+    fn write_key(&self, app_id: SDKAppId, key: &str, value: &KeyValueData) -> Result<(), SDKError> {
+        match self.apps.get(&app_id) {
+            Some(app) => {
+                cantrip_security_write_key(&app.id, key, value)
+                    .map_err(|_| SDKError::WriteKeyFailed)?; // XXX
+                Ok(())
+            }
+            None => Err(SDKError::InvalidBadge),
+        }
+    }
+
+    /// Deletes the specified |key| in the app's private key-value store.
+    fn delete_key(&self, app_id: SDKAppId, key: &str) -> Result<(), SDKError> {
+        match self.apps.get(&app_id) {
+            Some(app) => {
+                cantrip_security_delete_key(&app.id, key).map_err(|_| SDKError::DeleteKeyFailed)?; // XXX
                 Ok(())
             }
             None => Err(SDKError::InvalidBadge),
