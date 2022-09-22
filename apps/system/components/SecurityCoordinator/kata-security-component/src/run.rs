@@ -22,7 +22,6 @@ use core::slice;
 use cantrip_os_common::camkes::Camkes;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_os_common::sel4_sys;
-use cantrip_os_common::slot_allocator::CANTRIP_CSPACE_SLOTS;
 use cantrip_security_coordinator::CANTRIP_SECURITY;
 use cantrip_security_interface::*;
 use log::trace;
@@ -43,7 +42,7 @@ pub unsafe extern "C" fn pre_init() {
     // Complete CANTRIP_SECURITY setup after Global allocator is setup.
     CANTRIP_SECURITY.init();
 
-    SECURITY_RECV_SLOT = CANTRIP_CSPACE_SLOTS.alloc(1).unwrap();
+    SECURITY_RECV_SLOT = CSpaceSlot::new().release();
 }
 
 #[no_mangle]
@@ -92,13 +91,11 @@ fn install_request(
         postcard::from_bytes::<InstallRequest>(request_buffer).map_err(deserialize_failure)?; // XXX clear_path
 
     // Move the container CNode so it's not clobbered.
-    // XXX who should be responsible for this
     let mut container_slot = CSpaceSlot::new();
     container_slot
         .move_to(recv_path.0, recv_path.1, recv_path.2 as u8)
         .map_err(|_| SecurityRequestError::SreCapMoveFailed)?; // XXX expect?
-    request.set_container_cap(container_slot.slot);
-    container_slot.release();
+    request.set_container_cap(container_slot.release());
 
     let bundle_id = unsafe { CANTRIP_SECURITY.install(&request.pkg_contents) }?;
     let _ = postcard::to_slice(
