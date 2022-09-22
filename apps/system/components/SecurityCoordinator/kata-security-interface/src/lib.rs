@@ -305,6 +305,11 @@ pub fn cantrip_security_request<T: Serialize + SecurityCapability>(
                 reply_buffer as *mut _,
             )
         } else {
+            // NB: guard against a received badge being treated as an
+            // outbound capability. This is needed because the code CAmkES
+            // generates for security_request always enables possible xmit
+            // of 1 capability.
+            Camkes::clear_request_cap();
             security_request(
                 request,
                 request_buffer.len() as u32,
@@ -335,6 +340,10 @@ pub fn cantrip_security_echo(request: &str) -> Result<String, SecurityRequestErr
 #[inline]
 #[allow(dead_code)]
 pub fn cantrip_security_install(pkg_contents: &ObjDescBundle) -> Result<String, SecurityRequestError> {
+    Camkes::debug_assert_slot_cnode(
+        "cantrip_security_install",
+        &Camkes::top_level_path(pkg_contents.cnode),
+    );
     let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
     cantrip_security_request(
         SecurityRequest::SrInstall,
