@@ -164,6 +164,13 @@ impl Camkes {
         RequestCapCleanup {}
     }
 
+    // Clears any capability attached to a CAmkES RPC request msg.
+    pub fn clear_request_cap() {
+        unsafe {
+            seL4_SetCap(0, 0);
+        }
+    }
+
     // Returns the capability attached to an seL4 IPC.
     pub fn get_request_cap() -> seL4_CPtr { unsafe { seL4_GetCap(0) } }
 
@@ -219,6 +226,17 @@ impl Camkes {
             path,
             sel4_sys::cap_identify(path.1)
         );
+    }
+
+    // debug_assert wrappers for the current recv_path.
+    pub fn debug_assert_recv_path_empty(&self, tag: &str) {
+        Self::debug_assert_slot_empty(tag, &self.get_current_recv_path());
+    }
+    pub fn debug_assert_recv_path_cnode(&self, tag: &str) {
+        Self::debug_assert_slot_cnode(tag, &self.get_current_recv_path());
+    }
+    pub fn debug_assert_recv_path_frame(&self, tag: &str) {
+        Self::debug_assert_slot_frame(tag, &self.get_current_recv_path());
     }
 
     // Dumps the contents of the toplevel CNode to the serial console.
