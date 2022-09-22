@@ -60,8 +60,9 @@ pub unsafe fn seL4_ReplyWithMRs(
 }
 
 #[inline(always)]
-pub unsafe fn seL4_Recv(mut src: seL4_CPtr, sender: *mut seL4_Word) -> seL4_MessageInfo {
+pub unsafe fn seL4_Recv(src: seL4_CPtr, sender: *mut seL4_Word) -> seL4_MessageInfo {
     let mut info: seL4_Word;
+    let mut badge: seL4_Word;
     let mut msg0 = ::core::mem::MaybeUninit::uninit().assume_init();
     let mut msg1 = ::core::mem::MaybeUninit::uninit().assume_init();
     let mut msg2 = ::core::mem::MaybeUninit::uninit().assume_init();
@@ -69,7 +70,7 @@ pub unsafe fn seL4_Recv(mut src: seL4_CPtr, sender: *mut seL4_Word) -> seL4_Mess
 
     asm!("ecall",
         in("a7") swinum!(SyscallId::Recv),
-        inout("a0") src,
+        inout("a0") src => badge,
         out("a1") info,
         out("a2") msg0,
         out("a3") msg1,
@@ -82,14 +83,15 @@ pub unsafe fn seL4_Recv(mut src: seL4_CPtr, sender: *mut seL4_Word) -> seL4_Mess
     seL4_SetMR(2, msg2);
     seL4_SetMR(3, msg3);
 
-    opt_assign!(sender, src);
+    opt_assign!(sender, badge);
 
     seL4_MessageInfo { words: [info] }
 }
 
 #[inline(always)]
-pub unsafe fn seL4_NBRecv(mut src: seL4_CPtr, sender: *mut seL4_Word) -> seL4_MessageInfo {
+pub unsafe fn seL4_NBRecv(src: seL4_CPtr, sender: *mut seL4_Word) -> seL4_MessageInfo {
     let mut info: seL4_Word;
+    let mut badge: seL4_Word;
     let mut msg0 = ::core::mem::MaybeUninit::uninit().assume_init();
     let mut msg1 = ::core::mem::MaybeUninit::uninit().assume_init();
     let mut msg2 = ::core::mem::MaybeUninit::uninit().assume_init();
@@ -97,7 +99,7 @@ pub unsafe fn seL4_NBRecv(mut src: seL4_CPtr, sender: *mut seL4_Word) -> seL4_Me
 
     asm!("ecall",
         in("a7") swinum!(SyscallId::NBRecv),
-        inout("a0") src,
+        inout("a0") src => badge,
         out("a1") info,
         out("a2") msg0,
         out("a3") msg1,
@@ -110,18 +112,19 @@ pub unsafe fn seL4_NBRecv(mut src: seL4_CPtr, sender: *mut seL4_Word) -> seL4_Me
     seL4_SetMR(2, msg2);
     seL4_SetMR(3, msg3);
 
-    opt_assign!(sender, src);
+    opt_assign!(sender, badge);
 
     seL4_MessageInfo { words: [info] }
 }
 
 #[inline(always)]
 pub unsafe fn seL4_ReplyRecv(
-    mut src: seL4_CPtr,
+    src: seL4_CPtr,
     msgInfo: seL4_MessageInfo,
     sender: *mut seL4_Word,
 ) -> seL4_MessageInfo {
     let mut info: seL4_Word;
+    let mut badge: seL4_Word;
     let mut msg0 = seL4_GetMR(0);
     let mut msg1 = seL4_GetMR(1);
     let mut msg2 = seL4_GetMR(2);
@@ -129,7 +132,7 @@ pub unsafe fn seL4_ReplyRecv(
 
     asm!("ecall",
         in("a7") swinum!(SyscallId::ReplyRecv),
-        inout("a0") src,
+        inout("a0") src => badge,
         inout("a1") msgInfo.words[0] => info,
         inout("a2") msg0,
         inout("a3") msg1,
@@ -142,7 +145,7 @@ pub unsafe fn seL4_ReplyRecv(
     seL4_SetMR(2, msg2);
     seL4_SetMR(3, msg3);
 
-    opt_assign!(sender, src);
+    opt_assign!(sender, badge);
 
     seL4_MessageInfo { words: [info] }
 }
