@@ -42,6 +42,25 @@ Common/shared code is in *cantrip-os-common*:
 - *sel4-sys*: seL4 system interfaces & glue
 - *slot-allocator*: an allocator for slots in the top-level CNode
 
+CantripOS system services make up the remaining components:
+
+- *DebugConsole*: a command line interface intended for debug builds
+- *MailboxDriver*: a driver for the Mailbox interface used to communicate betwen the security and management cores
+- *MemoryManager*: the memory / object manager service that supports dynamic memory management
+- *MlCoordinator*: the service that manages the vector core (using the Vector Core driver)
+- *OpenTitanUARTDriver*: a driver for the UART on the management core
+- *ProcessManager*: the service that creates & manages execution of applications
+- *SDKRuntime*: the service that handles application runtime requests
+- *SecurityCoordinator*: the service that provides an interface to the security core (using the MailboxDriver)
+- *TimerService*: a service built on top of the management core timer hardware
+
+At the moment all the above services are included in both debug and release builds.
+Production builds replace the *DebugConsole* with a more limited interface and drop
+the UART driver when there is no serial console. The *SDKRuntime* is more a proof of
+concept than anything else. There are test applications written in C and Rust in the
+*apps* tree that exercise the experimental api. Production systems are likely to have
+their own SDK and associated runtime tailored to their needs.
+
 ### Depending on Rust crates
 
 To use crates from Sparrow you can reference them from a local repository or
@@ -107,6 +126,41 @@ example, if you choose to run ninja directly you will need it set in your enviro
 Similar to SEL4_OUT_DIR the cantrip-os-common/src/sel4-sys crate that has the seL4 system
 call wrappers for Rust programs requires an SEL4_DIR envronment variable that has the
 path to the top of the kernel sources. This also is set by build-sparrow.sh.
+
+## Memory Footprint
+
+The initial Sparrow target platform was intended to have 4MiB of
+memory. A production build of the included services fit in <3MiB
+of memory but due to the overhead of CAmkES and the rootserver
+boostrap mechanism actually require ~2x that to reach a running
+state. The kmem.sh script can be used to analyze memory use. These
+services should easily fit in <1MiB but due to CAmkES overhead
+(e.g. per-thread cost) are significantly bloated. We use kmem and the
+[bloaty tool](https://github.com/google/bloaty) to evaluate memory use.
+Reducing memory use to <1MiB likely requires replacing CAmkES by a native
+Rust framework like [embassy](https://github.com/embassy-rs/embassy).
+
+We also expect that replacing CAmkES C-based templates by native Rust code
+will significantly reduce memory use (as well as improve robustness by
+extending the scope of the borrow checker). The RPC mechanism used for
+communication between applications and the *SDKRuntime* is a prototype
+of a native Rust implementation that demonstrates this.
+
+## Portability
+
+There are three areas in the software where per-architecture support is required:
+
+- *sel4-sys*: system call wrappers
+- *cantrip-os-model*: capDL support for the cantrip-os-rootserver
+- *cantrip-proc-manager/sel4bundle*: application construction
+
+The first two have approximately the same architectue coverage as
+(upstream) seL4; there are likely issues in *cantrip-os-model* given the
+rootserver has never been run on any architectures but riscv32imac and
+aarch64. The *sel4bundle* supports _only_ the riscv32 architecture used
+by Sparrow and in some areas is very simple (e.g. it only sets up
+page tables for a minimal VSpace). The goal was to unify *cantrip-os-model*
+and *sel4bundle* such that architectural support could be directly shared.
 
 ## Source Code Headers
 
