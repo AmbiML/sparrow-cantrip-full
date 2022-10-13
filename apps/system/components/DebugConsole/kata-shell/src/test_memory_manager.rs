@@ -29,6 +29,7 @@ use cantrip_os_common::sel4_sys;
 use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_MinSchedContextBits;
 use sel4_sys::seL4_ObjectType::*;
+use sel4_sys::seL4_SmallPageObject;
 use sel4_sys::seL4_WordBits;
 
 pub fn add_cmds(cmds: &mut HashMap<&str, CmdFn>) {
@@ -73,7 +74,7 @@ fn mfree_command(
         unsafe { SELF_CNODE },
         seL4_WordBits as u8,
         vec![ObjDesc::new(
-            sel4_sys::seL4_RISCV_4K_Page,
+            seL4_SmallPageObject,
             count_str.parse::<usize>()?,
             cptr_str.parse::<usize>()? as seL4_CPtr,
         )],
@@ -155,7 +156,7 @@ fn obj_alloc_command(
                 seL4_MinSchedContextBits,
                 5,
             ),
-            ObjDesc::new(seL4_RISCV_4K_Page, 10, 6), // 10 4K pages
+            ObjDesc::new(seL4_SmallPageObject, 10, 6), // 10 4K pages
         ],
     );
     match cantrip_object_alloc(&objs) {
@@ -184,7 +185,7 @@ fn obj_alloc_command(
             seL4_MinSchedContextBits,
             3,
         ),
-        ObjDesc::new(seL4_RISCV_4K_Page, 2, 4), // 2 4K pages
+        ObjDesc::new(seL4_SmallPageObject, 2, 4), // 2 4K pages
     ]) {
         Ok(objs) => {
             writeln!(output, "cantrip_object_alloc_in_cnode ok: {:?}", objs)?;
