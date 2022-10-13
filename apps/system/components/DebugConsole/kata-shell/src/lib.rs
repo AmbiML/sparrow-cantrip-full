@@ -195,7 +195,7 @@ fn builtins_command(
 ) -> Result<(), CommandError> {
     for e in CpioNewcReader::new(builtin_cpio) {
         if e.is_err() {
-            writeln!(output, "{:?}", e.unwrap_err())?;
+            writeln!(output, "cpio error")?;
             break; // NB: iterator does not terminate on error
         }
         let entry = e.unwrap();
@@ -328,7 +328,7 @@ fn collect_from_cpio(
 ) -> Option<ObjDescBundle> {
     for e in CpioNewcReader::new(cpio) {
         if e.is_err() {
-            writeln!(output, "cpio error {:?}", e.unwrap_err()).ok()?;
+            writeln!(output, "cpio error").ok()?;
             // NB: iterator does not terminate on error but also won't advance
             break;
         }
