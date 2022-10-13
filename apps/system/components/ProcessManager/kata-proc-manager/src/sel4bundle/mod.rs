@@ -88,6 +88,7 @@ use SELF_TCB_PROCESS_MANAGER_PROC_CTRL_0000 as SELF_TCB;
 // Setup arch- & feature-specific support.
 
 // Target-architecture specific support (please keep sorted)
+#[cfg_attr(target_arch = "aarch64", path = "arch/aarch64.rs")]
 #[cfg_attr(target_arch = "riscv32", path = "arch/riscv32.rs")]
 mod arch;
 
@@ -158,8 +159,18 @@ const TCB_SLOT: usize = 0;
 const FAULT_EP_SLOT: usize = TCB_SLOT + 1;
 const SCHED_CONTEXT_SLOT: usize = FAULT_EP_SLOT + 1;
 // TODO(sleffler): VSpace layout is arch-specific
-const PD_SLOT: usize = SCHED_CONTEXT_SLOT + 1;
+const ROOT_SLOT: usize = SCHED_CONTEXT_SLOT + 1;
+
+#[cfg(target_arch = "aarch64")]
+const PUD_SLOT: usize = ROOT_SLOT + 1;
+#[cfg(target_arch = "aarch64")]
+const PD_SLOT: usize = PUD_SLOT + 1;
+#[cfg(target_arch = "aarch64")]
 const PT_SLOT: usize = PD_SLOT + 1;
+
+#[cfg(target_arch = "riscv32")]
+const PT_SLOT: usize = ROOT_SLOT + 1;
+
 const IPCBUFFER_SLOT: usize = PT_SLOT + 1;
 const SDK_FRAME_SLOT: usize = IPCBUFFER_SLOT + 1;
 const STACK_SLOT: usize = SDK_FRAME_SLOT + 1;
@@ -223,7 +234,7 @@ impl seL4BundleImpl {
             seL4BundleImpl::preprocess_bundle_image(bundle_frames);
         if entry_point.is_none() {
             info!(
-                "Bundle {} has no entry point, using 0x{:x}",
+                "Bundle {} has no entry point, using {:#x}",
                 &bundle.app_id, first_vaddr
             );
             // XXX should probably just return but need to verify
@@ -257,8 +268,18 @@ impl seL4BundleImpl {
             ObjDesc::new(seL4_EndpointObject, 1, FAULT_EP_SLOT),
             // SchedContext for main thread
             ObjDesc::new(seL4_SchedContextObject, seL4_MinSchedContextBits, SCHED_CONTEXT_SLOT),
-            // VSpace root (PD)
-            ObjDesc::new(seL4_PageTableObject, 1, PD_SLOT),
+            #[cfg(target_arch = "aarch64")]
+            // VSpace root: page global directory (PGD)
+            ObjDesc::new(sel4_sys::seL4_PageGlobalDirectoryObject, 1, ROOT_SLOT),
+            #[cfg(target_arch = "aarch64")]
+            // VSpace page upper directory (PUD)
+            ObjDesc::new(sel4_sys::seL4_PageUpperDirectoryObject, 1, PUD_SLOT),
+            #[cfg(target_arch = "aarch64")]
+            // VSpace page directory (PD)
+            ObjDesc::new(sel4_sys::seL4_PageDirectoryObject, 1, PD_SLOT),
+            #[cfg(target_arch = "riscv32")]
+            // VSpace root: page table (PT)
+            ObjDesc::new(seL4_PageTableObject, 1, ROOT_SLOT),
             // VSpace page table (PT)
             ObjDesc::new(seL4_PageTableObject, 1, PT_SLOT),
             // IPC buffer frame
@@ -331,13 +352,14 @@ impl seL4BundleImpl {
         let mut prev_vaddr = 0;
         let mut image = BundleImage::new(bundle_frames);
         while let Some(section) = image.next_section() {
+            trace!("preprocess {:?}", &section);
             let vaddr = section.vaddr;
             if vaddr < first_vaddr {
                 first_vaddr = vaddr;
             }
             assert!(vaddr >= prev_vaddr); // XXX return error instead
             if let Some(pc) = section.entry {
-                trace!("entry point 0x{:x}", pc);
+                trace!("entry point {:#x}", pc);
                 // XXX reject multiple entry's
                 entry_point = Some(pc);
             }
@@ -346,7 +368,7 @@ impl seL4BundleImpl {
             nframes += last_frame - first_frame;
             prev_vaddr = vaddr;
         }
-        trace!("nframes {} first_vaddr 0x{:x}", nframes, first_vaddr);
+        trace!("nframes {} first_vaddr {:#x}", nframes, first_vaddr);
         (nframes, first_vaddr, entry_point)
     }
 
@@ -354,10 +376,11 @@ impl seL4BundleImpl {
     // vaddr of the next frame to be mapped. Assumes the image fits into
     // a single PT level and that the PT has been setup.
     fn load_application(&self) -> Result<usize, seL4_Error> {
+        trace!("load_application");
         let vm_attribs = seL4_Default_VMAttributes;
 
-        // NB: assumes pd and pt are setup (not sure we can check)
-        let pd = &self.dynamic_objs.objs[PD_SLOT];
+        // NB: assumes root and pt are setup (not sure we can check)
+        let root = &self.dynamic_objs.objs[ROOT_SLOT];
         // NB: There are 4 stack frames allocated using a single ObjDesc in
         //   dynamic_objs, so page_frames 1 past STACK_SLOT. To be fixed when
         //   dynamic_objs is constructed directly and we have const indices.
@@ -425,8 +448,8 @@ impl seL4BundleImpl {
 
                 // Frame is now setup, map it into the VSpace at the
                 // page-aligned virtual address.
-                trace!("map slot {} vaddr 0x{:x} {:?}", frame.cptr, frame_vaddr, rights);
-                arch::map_page(frame, pd, frame_vaddr, *rights, vm_attribs)?;
+                trace!("map slot {} vaddr {:#x} {:?}", frame.cptr, frame_vaddr, rights);
+                arch::map_page(frame, root, frame_vaddr, *rights, vm_attribs)?;
                 vaddr += frame.size_bytes().unwrap();
             }
             prev_last_page = last_page;
@@ -447,6 +470,7 @@ impl seL4BundleImpl {
     // XXX verify resources are reclaimed on failure?
     // TODO(sleffler): who zero's any of this (or maybe not needed)?
     fn init_vspace(&mut self) -> seL4_Result {
+        trace!("init_vspace");
         let rights_rwn = seL4_CapRights::new(
             // NB: grant =>'s X on ARM+RISCV
             /*grant_reply=*/ 0,
@@ -454,18 +478,35 @@ impl seL4BundleImpl {
         );
         let vm_attribs = seL4_Default_VMAttributes;
 
+        let root = &self.dynamic_objs.objs[ROOT_SLOT];
+        #[cfg(target_arch = "aarch64")]
+        let pud = &self.dynamic_objs.objs[PUD_SLOT];
+        #[cfg(target_arch = "aarch64")]
         let pd = &self.dynamic_objs.objs[PD_SLOT];
         let pt = &self.dynamic_objs.objs[PT_SLOT];
+
         let ipcbuffer_frame = &self.dynamic_objs.objs[IPCBUFFER_SLOT];
         let sdk_frame = &self.dynamic_objs.objs[SDK_FRAME_SLOT];
         let stack_frames = &self.dynamic_objs.objs[STACK_SLOT];
 
         // Initializes the VSpace root (PD) in the ASID pool.
         // NB: must happen before anything is mapped.
-        unsafe { seL4_ASIDPool_Assign(ASID_POOL, pd.cptr) }?;
+        unsafe { seL4_ASIDPool_Assign(ASID_POOL, root.cptr) }?;
+
+        #[cfg(target_arch = "aarch64")]
+        // Map 4th level page table.
+        arch::map_page_upper_dir(pud, root, 0, vm_attribs)?;
+
+        #[cfg(target_arch = "aarch64")]
+        // Map 3rd level page table.
+        arch::map_page_dir(pd, root, 0, vm_attribs)?;
 
         // Map 2nd-level page table.
-        arch::map_page_table(pd, pt, 0, vm_attribs)?;
+        // XXX first_vaddr?
+        #[cfg(target_arch = "aarch64")]
+        arch::map_page_table(pt, root, 0x400000, vm_attribs)?;
+        #[cfg(target_arch = "riscv32")]
+        arch::map_page_table(pt, root, 0, vm_attribs)?;
 
         // Setup the bundle image.
         let vaddr_top = self.load_application()?;
@@ -474,50 +515,51 @@ impl seL4BundleImpl {
 
         // NB: no need for actual guard pages, just leave 'em unmapped.
         let mut vaddr = roundup(vaddr_top, PAGE_SIZE);
-        trace!("guard page vaddr 0x{:x}", vaddr);
+        trace!("guard page vaddr {:#x}", vaddr);
         vaddr += PAGE_SIZE; // Guard page below stack
 
         // Save lowest stack address for get_stack_frame_obj().
         self.stack_base = vaddr;
         for index in 0..stack_frames.retype_count() {
             let frame = &stack_frames.new_at(index);
-            trace!("map stack slot {} vaddr 0x{:x} {:?}", frame.cptr, vaddr, rights_rwn);
-            arch::map_page(frame, pd, vaddr, rights_rwn, vm_attribs)?;
+            trace!("map stack slot {} vaddr {:#x} {:?}", frame.cptr, vaddr, rights_rwn);
+            arch::map_page(frame, root, vaddr, rights_rwn, vm_attribs)?;
             vaddr += frame.size_bytes().unwrap();
         }
         // TODO(sleffler): sp points to the guard page, do we need - size_of::<seL4_Word>()?
         self.tcb_sp = vaddr; // NB: stack grows down (maybe arch-dependent?)
-        trace!("guard page vaddr 0x{:x}", vaddr);
+        trace!("guard page vaddr {:#x}", vaddr);
         vaddr += PAGE_SIZE; // Guard page between stack & ipc buffer
 
         // Map IPC buffer.
         self.tcb_ipcbuffer_addr = vaddr;
         trace!(
-            "map ipcbuffer slot {} vaddr 0x{:x} {:?}",
+            "map ipcbuffer slot {} vaddr {:#x} {:?}",
             ipcbuffer_frame.cptr,
             vaddr,
             rights_rwn,
         );
-        arch::map_page(ipcbuffer_frame, pd, vaddr, rights_rwn, vm_attribs)?;
+        arch::map_page(ipcbuffer_frame, root, vaddr, rights_rwn, vm_attribs)?;
         vaddr += ipcbuffer_frame.size_bytes().unwrap();
 
         // Map SDK RPC frame.
         self.sdk_frame_addr = vaddr;
         trace!(
-            "map sdk_runtime slot {} vaddr 0x{:x} {:?}",
+            "map sdk_runtime slot {} vaddr {:#x} {:?}",
             sdk_frame.cptr,
             vaddr,
             rights_rwn,
         );
-        arch::map_page(sdk_frame, pd, vaddr, rights_rwn, vm_attribs)?;
+        arch::map_page(sdk_frame, root, vaddr, rights_rwn, vm_attribs)?;
 
         Ok(())
     }
 
     // Sets up the TCB and related state (e.g. scheduler context).
     fn init_tcb(&self) -> seL4_Result {
+        trace!("init_tcb");
         let cap_cspace_root = self.cspace_root.objs[0].cptr;
-        let cap_vspace_root = self.dynamic_objs.objs[PD_SLOT].cptr;
+        let cap_vspace_root = self.dynamic_objs.objs[ROOT_SLOT].cptr;
         let cap_tcb = self.dynamic_objs.objs[TCB_SLOT].cptr;
         let cap_fault_ep = self.dynamic_objs.objs[FAULT_EP_SLOT].cptr;
         let cap_tempfault_ep = cap_fault_ep; // XXX
@@ -603,6 +645,7 @@ impl seL4BundleImpl {
 
     // Do the final work to construct the application's CSpace.
     fn init_cspace(&mut self) -> seL4_Result {
+        trace!("init_cspace");
         // Install a badged SDK endpoint in the slot reserved for it.
         let sdk_endpoint = CSpaceSlot::new();
         cantrip_sdk_manager_get_endpoint(&self.tcb_name, &sdk_endpoint)
@@ -647,10 +690,14 @@ impl seL4BundleImpl {
 }
 impl BundleImplInterface for seL4BundleImpl {
     fn start(&mut self) -> Result<(), ProcessManagerError> {
+        fn handle_error(e: seL4_Error) -> ProcessManagerError {
+            error!("start failed: {:?}", e);
+            ProcessManagerError::StartFailed
+        }
         self.init_vspace()
             .and_then(|_| self.init_tcb())
             .and_then(|_| self.init_cspace())
-            .map_err(|_| ProcessManagerError::StartFailed)?;
+            .map_err(handle_error)?;
 
         self.resume() // XXX maybe map_err StartFailed
     }

@@ -64,25 +64,24 @@ pub fn get_user_context(
 }
 
 pub fn map_page_table(
-    pd: &ObjDesc,
     pt: &ObjDesc,
+    root: &ObjDesc,
     vaddr: seL4_Word,
     vm_attribs: seL4_VMAttributes,
 ) -> seL4_Result {
-    assert_eq!(pd.type_, seL4_RISCV_PageTableObject);
     assert_eq!(pt.type_, seL4_RISCV_PageTableObject);
-    unsafe { seL4_PageTable_Map(pt.cptr, pd.cptr, vaddr, vm_attribs) }
+    assert_eq!(root.type_, seL4_RISCV_PageTableObject);
+    unsafe { seL4_PageTable_Map(pt.cptr, root.cptr, vaddr, vm_attribs) }
 }
 
 pub fn map_page(
     frame: &ObjDesc,
-    pd: &ObjDesc,
+    root: &ObjDesc,
     vaddr: seL4_Word,
     rights: seL4_CapRights,
     vm_attribs: seL4_VMAttributes,
 ) -> seL4_Result {
     assert_eq!(frame.type_, seL4_RISCV_4K_Page);
-    // NB: cannot distinguish between PD & PT
-    assert_eq!(pd.type_, seL4_RISCV_PageTableObject);
-    unsafe { seL4_Page_Map(frame.cptr, pd.cptr, vaddr, rights, vm_attribs) }
+    assert_eq!(root.type_, seL4_RISCV_PageTableObject);
+    unsafe { seL4_Page_Map(frame.cptr, root.cptr, vaddr, rights, vm_attribs) }
 }

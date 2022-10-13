@@ -266,6 +266,8 @@ impl<'a> BundleImage<'a> {
             }
             od_off += size_bytes;
         }
+        // TODO(sleffler): can happpen if next_section hits the end of data
+        //   before it gets a complete header (misleading error msg)
         error!("No page at offset {}", self.cur_pos);
         Err(BundleImageError::PageNotFound)
     }
@@ -304,6 +306,7 @@ impl<'a> io::Seek for BundleImage<'a> {
 }
 impl<'a> io::Read for BundleImage<'a> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        trace!("READ: {} bytes", buf.len());
         let mut cursor = &mut *buf;
         while !cursor.is_empty() {
             let available_bytes = self.mapped_bytes - self.bytes_read;
