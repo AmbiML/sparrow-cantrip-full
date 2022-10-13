@@ -33,7 +33,9 @@ use sel4_sys::seL4_Error;
 use sel4_sys::seL4_ObjectType;
 use sel4_sys::seL4_ObjectType::*;
 use sel4_sys::seL4_PageBits;
+use sel4_sys::seL4_PageTableObject;
 use sel4_sys::seL4_Result;
+use sel4_sys::seL4_SmallPageObject;
 use sel4_sys::seL4_WordBits;
 
 use slot_allocator::CANTRIP_CSPACE_SLOTS;
@@ -560,17 +562,17 @@ pub fn cantrip_reply_alloc() -> Result<ObjDescBundle, MemoryManagerError> {
     Ok(objs)
 }
 
-// Wrapper for allocating 4K pages.
+// Wrapper for allocating small pages.
 #[inline]
 pub fn cantrip_frame_alloc(space_bytes: usize) -> Result<ObjDescBundle, MemoryManagerError> {
     fn howmany(value: usize, unit: usize) -> usize { (value + (unit - 1)) / unit }
-    // NB: always allocate 4K pages
+    // NB: always allocate small pages
     let mut objs = ObjDescBundle::new(
         unsafe { MEMORY_RECV_CNODE },
         unsafe { MEMORY_RECV_CNODE_DEPTH },
         // NB: always allocate 4K pages
         vec![ObjDesc::new(
-            seL4_RISCV_4K_Page,
+            seL4_SmallPageObject,
             howmany(space_bytes, 1 << seL4_PageBits),
             /*cptr=*/ 0,
         )],
@@ -585,7 +587,7 @@ pub fn cantrip_frame_alloc(space_bytes: usize) -> Result<ObjDescBundle, MemoryMa
 #[inline]
 pub fn cantrip_frame_alloc_in_cnode(space_bytes: usize) -> Result<ObjDescBundle, MemoryManagerError> {
     fn howmany(value: usize, unit: usize) -> usize { (value + (unit - 1)) / unit }
-    // NB: always allocate 4K pages
+    // NB: always allocate small pages
     let npages = howmany(space_bytes, 1 << seL4_PageBits);
     // XXX horrible band-aid to workaround Retype "fanout" limit of 256
     // objects: split our request accordingly. This shold be handled in
@@ -593,11 +595,15 @@ pub fn cantrip_frame_alloc_in_cnode(space_bytes: usize) -> Result<ObjDescBundle,
     assert!(npages <= 512); // XXX 2MB
     if npages > 256 {
         cantrip_object_alloc_in_cnode(vec![
-            ObjDesc::new(seL4_RISCV_4K_Page, 256, /*cptr=*/ 0),
-            ObjDesc::new(seL4_RISCV_4K_Page, npages - 256, /*cptr=*/ 256),
+            ObjDesc::new(seL4_SmallPageObject, 256, /*cptr=*/ 0),
+            ObjDesc::new(seL4_SmallPageObject, npages - 256, /*cptr=*/ 256),
         ])
     } else {
-        cantrip_object_alloc_in_cnode(vec![ObjDesc::new(seL4_RISCV_4K_Page, npages, /*cptr=*/ 0)])
+        cantrip_object_alloc_in_cnode(vec![ObjDesc::new(
+            seL4_SmallPageObject,
+            npages,
+            /*cptr=*/ 0,
+        )])
     }
 }
 
@@ -606,11 +612,7 @@ pub fn cantrip_page_table_alloc() -> Result<ObjDescBundle, MemoryManagerError> {
     let mut objs = ObjDescBundle::new(
         unsafe { MEMORY_RECV_CNODE },
         unsafe { MEMORY_RECV_CNODE_DEPTH },
-        vec![ObjDesc::new(
-            seL4_RISCV_PageTableObject,
-            1,
-            /*cptr=*/ 0,
-        )],
+        vec![ObjDesc::new(seL4_PageTableObject, 1, /*cptr=*/ 0)],
     );
     cantrip_object_alloc(&objs)?;
     objs.move_objects_to_toplevel()
