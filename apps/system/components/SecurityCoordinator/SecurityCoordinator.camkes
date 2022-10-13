@@ -24,7 +24,7 @@ component SecurityCoordinator {
 
   maybe uses LoggerInterface logger;
   uses MemoryInterface memory;
-  uses MailboxAPI mailbox_api;
+  maybe uses MailboxAPI mailbox_api;
 
   // Enable CantripOS CAmkES support.
   attribute int cantripos = true;
