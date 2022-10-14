@@ -12,32 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-[workspace]
+[package]
+name = "default-uart-client"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
 
-members = [
-    "default-uart-client",
-    "cantrip-debug-console",
-    "cantrip-io",
-    "cantrip-line-reader",
-    "cantrip-shell",
-    "cantrip-uart-client",
-    "zmodem",
-]
-resolver = "2"
+[build-dependencies]
+sel4-config = { path = "../../cantrip-os-common/src/sel4-config" }
 
-[profile.dev]
-opt-level = 0
-debug = true
-# TODO(b/223253186): workaround gdb DIE errors
-lto = false
-codegen-units = 1
+[features]
+default = []
+CONFIG_PRINTING = []
 
-[profile.release]
-opt-level = "z"
-lto = "fat"
-codegen-units = 1
-split-debuginfo = "unpacked"
-
-[profile.release.build-override]
-opt-level = "z"
-codegen-units = 1
+[dependencies]
+core2 = { version = "0.3", default-features = false }
+cantrip-io = { path = "../cantrip-io" }
+sel4-sys = { path = "../../cantrip-os-common/src/sel4-sys", default-features = false }
