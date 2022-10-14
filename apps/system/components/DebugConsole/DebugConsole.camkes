@@ -34,7 +34,7 @@ component DebugConsole {
 
   provides LoggerInterface logger;
   uses MemoryInterface memory;
-  uses MlCoordinatorInterface mlcoord;
+  maybe uses MlCoordinatorInterface mlcoord;
   uses PackageManagementInterface pkg_mgmt;
   uses ProcessControlInterface proc_ctrl;
   // TODO(b/200707300): for debugging

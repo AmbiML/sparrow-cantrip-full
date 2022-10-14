@@ -24,6 +24,7 @@ sel4-config = { path = "../../cantrip-os-common/src/sel4-config" }
 
 [features]
 default = [
+    "ml_support",
     "TEST_GLOBAL_ALLOCATOR",
     "TEST_MAILBOX",
     "TEST_MEMORY_MANAGER",
@@ -32,6 +33,7 @@ default = [
     "TEST_SECURITY_COORDINATOR",
     "TEST_TIMER_SERVICE",
 ]
+ml_support = ["cantrip-ml-interface"]
 CONFIG_DEBUG_BUILD = []
 CONFIG_PRINTING = []
 CONFIG_KERNEL_MCS = []
@@ -56,7 +58,7 @@ hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
 cantrip-io = { path = "../cantrip-io" }
 cantrip-line-reader = { path = "../cantrip-line-reader" }
 cantrip-memory-interface = { path = "../../MemoryManager/cantrip-memory-interface" }
-cantrip-ml-interface = { path = "../../MlCoordinator/cantrip-ml-interface" }
+cantrip-ml-interface = { path = "../../MlCoordinator/cantrip-ml-interface", optional = true }
 cantrip-proc-interface = { path = "../../ProcessManager/cantrip-proc-interface" }
 cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-security-interface = { path = "../../SecurityCoordinator/cantrip-security-interface" }

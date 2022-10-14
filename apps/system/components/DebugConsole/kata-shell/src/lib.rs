@@ -24,6 +24,7 @@ use hashbrown::HashMap;
 use cantrip_io as io;
 use cantrip_line_reader::LineReader;
 use cantrip_memory_interface::*;
+#[cfg(feature = "ml_support")]
 use cantrip_ml_interface::*;
 use cantrip_os_common::sel4_sys;
 use cantrip_os_common::slot_allocator;
@@ -50,7 +51,7 @@ mod fringe_cmds;
 mod test_global_allocator;
 #[cfg(feature = "TEST_MEMORY_MANAGER")]
 mod test_memory_manager;
-#[cfg(feature = "TEST_ML_COORDINATOR")]
+#[cfg(all(feature = "ml_support", feature = "TEST_ML_COORDINATOR"))]
 mod test_ml_coordinator;
 #[cfg(feature = "TEST_PANIC")]
 mod test_panic;
@@ -131,15 +132,16 @@ pub fn repl<T: io::BufRead>(output: &mut dyn io::Write, input: &mut T, builtin_c
         ("start", start_command as CmdFn),
         ("stop", stop_command as CmdFn),
         ("uninstall", uninstall_command as CmdFn),
-        ("state_mlcoord", state_mlcoord_command as CmdFn),
     ]);
+    #[cfg(feature = "ml_support")]
+    cmds.extend([("state_mlcoord", state_mlcoord_command as CmdFn)]);
     #[cfg(feature = "FRINGE_CMDS")]
     fringe_cmds::add_cmds(&mut cmds);
     #[cfg(feature = "TEST_GLOBAL_ALLOCATOR")]
     test_global_allocator::add_cmds(&mut cmds);
     #[cfg(feature = "TEST_MEMORY_MANAGER")]
     test_memory_manager::add_cmds(&mut cmds);
-    #[cfg(feature = "TEST_ML_COORDINATOR")]
+    #[cfg(all(feature = "ml_support", feature = "TEST_ML_COORDINATOR"))]
     test_ml_coordinator::add_cmds(&mut cmds);
     #[cfg(feature = "TEST_PANIC")]
     test_panic::add_cmds(&mut cmds);
@@ -285,6 +287,7 @@ fn capscan_command(
         Some("process") => {
             let _ = cantrip_proc_interface::cantrip_proc_ctrl_capscan();
         }
+        #[cfg(feature = "ml_support")]
         Some("mlcoord") => {
             let _ = cantrip_mlcoord_capscan();
         }
@@ -307,6 +310,7 @@ fn capscan_command(
             writeln!(output, "  console (DebugConsole)")?;
             writeln!(output, "  memory (MemoryManager)")?;
             writeln!(output, "  process (ProcessManager)")?;
+            #[cfg(feature = "ml_support")]
             writeln!(output, "  mlcoord (MlCoordinator)")?;
             writeln!(output, "  sdk (SDKRuntime)")?;
             writeln!(output, "  securiy (SecurityCoordinator)")?;
@@ -578,6 +582,7 @@ fn mstats_command(
     Ok(())
 }
 
+#[cfg(feature = "ml_support")]
 fn state_mlcoord_command(
     _args: &mut dyn Iterator<Item = &str>,
     _input: &mut dyn io::BufRead,
