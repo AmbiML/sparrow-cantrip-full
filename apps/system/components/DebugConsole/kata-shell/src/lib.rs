@@ -114,8 +114,7 @@ type CmdFn = fn(
     builtin_cpio: &[u8],
 ) -> Result<(), CommandError>;
 
-/// Read-eval-print loop for the DebugConsole command line interface.
-pub fn repl<T: io::BufRead>(output: &mut dyn io::Write, input: &mut T, builtin_cpio: &[u8]) -> ! {
+fn get_cmds() -> HashMap<&'static str, CmdFn> {
     let mut cmds = HashMap::<&str, CmdFn>::new();
     cmds.extend([
         ("builtins", builtins_command as CmdFn),
@@ -129,6 +128,7 @@ pub fn repl<T: io::BufRead>(output: &mut dyn io::Write, input: &mut T, builtin_c
         ("mdebug", mdebug_command as CmdFn),
         ("mstats", mstats_command as CmdFn),
         ("ps", ps_command as CmdFn),
+        ("source", source_command as CmdFn),
         ("start", start_command as CmdFn),
         ("stop", stop_command as CmdFn),
         ("uninstall", uninstall_command as CmdFn),
@@ -152,40 +152,96 @@ pub fn repl<T: io::BufRead>(output: &mut dyn io::Write, input: &mut T, builtin_c
     #[cfg(feature = "TEST_UART")]
     test_uart::add_cmds(&mut cmds);
 
+    cmds
+}
+
+pub fn eval<T: io::BufRead>(
+    cmdline: &str,
+    cmds: &HashMap<&str, CmdFn>,
+    output: &mut dyn io::Write,
+    input: &mut T,
+    builtin_cpio: &[u8],
+) {
+    let mut args = cmdline.split_ascii_whitespace();
+    match args.next() {
+        Some("?") | Some("help") => {
+            let mut keys: Vec<&str> = cmds.keys().copied().collect();
+            keys.sort();
+            for k in keys {
+                let _ = writeln!(output, "{}", k);
+            }
+        }
+        Some(cmd) => {
+            let result = cmds.get(cmd).map_or_else(
+                || Err(CommandError::UnknownCommand),
+                |func| func(&mut args, input, output, builtin_cpio),
+            );
+            if let Err(e) = result {
+                let _ = writeln!(output, "{}", e);
+            };
+        }
+        None => {
+            let _ = output.write_str("\n");
+        }
+    }
+}
+
+/// Read-eval-print loop for the DebugConsole command line interface.
+pub fn repl<T: io::BufRead>(output: &mut dyn io::Write, input: &mut T, builtin_cpio: &[u8]) -> ! {
+    let cmds = get_cmds();
     let mut line_reader = LineReader::new();
     loop {
         const PROMPT: &str = "CANTRIP> ";
         let _ = output.write_str(PROMPT);
         match line_reader.read_line(output, input) {
-            Ok(cmdline) => {
-                let mut args = cmdline.split_ascii_whitespace();
-                match args.next() {
-                    Some("?") | Some("help") => {
-                        let mut keys: Vec<&str> = cmds.keys().copied().collect();
-                        keys.sort();
-                        for k in keys {
-                            let _ = writeln!(output, "{}", k);
-                        }
-                    }
-                    Some(cmd) => {
-                        let result = cmds.get(cmd).map_or_else(
-                            || Err(CommandError::UnknownCommand),
-                            |func| func(&mut args, input, output, builtin_cpio),
-                        );
-                        if let Err(e) = result {
-                            let _ = writeln!(output, "{}", e);
-                        };
-                    }
-                    None => {
-                        let _ = output.write_str("\n");
-                    }
-                }
-            }
+            Ok(cmdline) => eval(cmdline, &cmds, output, input, builtin_cpio),
             Err(e) => {
                 let _ = writeln!(output, "\n{}", e);
             }
         }
     }
+}
+
+/// Stripped down repl for running automation scripts. Like repl but prints
+/// each cmd line and stops at EOF/error.
+pub fn repl_eof<T: io::BufRead>(output: &mut dyn io::Write, input: &mut T, builtin_cpio: &[u8]) {
+    let cmds = get_cmds();
+    let mut line_reader = LineReader::new();
+    while let Ok(cmdline) = line_reader.read_line(output, input) {
+        // NB: LineReader echo's input
+        eval(cmdline, &cmds, output, input, builtin_cpio);
+    }
+}
+
+/// Implements a "source" command that interprets commands from a file
+/// in the built-in cpio archive.
+fn source_command(
+    args: &mut dyn Iterator<Item = &str>,
+    _input: &mut dyn io::BufRead,
+    output: &mut dyn io::Write,
+    builtin_cpio: &[u8],
+) -> Result<(), CommandError> {
+    for script_name in args {
+        let mut script_data: Option<&[u8]> = None;
+        for e in CpioNewcReader::new(builtin_cpio) {
+            if e.is_err() {
+                writeln!(output, "cpio error")?;
+                break; // NB: iterator does not terminate on error
+            }
+            let entry = e.unwrap();
+            if entry.name == script_name {
+                script_data = Some(entry.data);
+                break;
+            }
+        }
+        if let Some(data) = script_data {
+            let mut script_input = cantrip_io::BufReader::new(default_uart_client::Rx::new(data));
+            repl_eof(output, &mut script_input, builtin_cpio);
+        } else {
+            writeln!(output, "{}: not found", script_name)?;
+        }
+    }
+    Ok(())
 }
 
 /// Implements a "builtins" command that lists the contents of the built-in cpio archive.

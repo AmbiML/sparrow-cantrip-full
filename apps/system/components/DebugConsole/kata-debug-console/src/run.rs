@@ -24,8 +24,12 @@
 //! * cantrip_debug_console main entry point fn run()
 
 #![no_std]
+#![allow(clippy::missing_safety_doc)]
 
+use core::fmt::Write;
 use core::slice;
+use cpio::CpioNewcReader;
+use cstr_core::CStr;
 use cantrip_os_common::camkes::Camkes;
 use log::LevelFilter;
 
@@ -51,14 +55,82 @@ pub unsafe extern "C" fn pre_init() {
     CAMKES.pre_init(INIT_LOG_LEVEL, &mut HEAP_MEMORY);
 }
 
-/// Entry point for DebugConsole. Runs the shell with UART IO.
+// Returns a trait-compatible Tx based on the selected features.
+// NB: must use "return expr;" to avoid confusing the compiler.
+fn get_tx() -> impl cantrip_io::Write {
+    #[cfg(feature = "sparrow_uart_support")]
+    return cantrip_uart_client::Tx::new();
+
+    #[cfg(not(feature = "sparrow_uart_support"))]
+    return default_uart_client::Tx::new();
+}
+
+/// Console logging interface.
 #[no_mangle]
-pub extern "C" fn run() -> ! {
+pub unsafe extern "C" fn logger_log(level: u8, msg: *const cstr_core::c_char) {
+    use log::Level;
+    let l = match level {
+        x if x == Level::Error as u8 => Level::Error,
+        x if x == Level::Warn as u8 => Level::Warn,
+        x if x == Level::Info as u8 => Level::Info,
+        x if x == Level::Debug as u8 => Level::Debug,
+        _ => Level::Trace,
+    };
+    if l <= log::max_level() {
+        // TODO(sleffler): is the uart driver ok w/ multiple writers?
+        // TODO(sleffler): fallback to seL4_DebugPutChar?
+        let output: &mut dyn cantrip_io::Write = &mut get_tx();
+        let _ = writeln!(output, "{}", CStr::from_ptr(msg).to_str().unwrap());
+    }
+}
+
+// If the builtins archive includes an "autostart.repl" file it is run
+// through the shell with output sent either to the console or /dev/null
+// depending on the feature selection.
+#[cfg(feature = "autostart_support")]
+fn run_autostart_shell(cpio_archive_ref: &[u8]) {
+    const AUTOSTART_NAME: &str = "autostart.repl";
+
+    let mut autostart_script: Option<&[u8]> = None;
+    let reader = CpioNewcReader::new(cpio_archive_ref);
+    for e in reader {
+        if e.is_err() {
+            break;
+        }
+        let entry = e.unwrap();
+        if entry.name == AUTOSTART_NAME {
+            autostart_script = Some(entry.data);
+            break;
+        }
+    }
+    if let Some(script) = autostart_script {
+        // Rx data comes from the embedded script
+        // Tx data goes to either the uart or /dev/null
+        let mut rx = cantrip_io::BufReader::new(default_uart_client::Rx::new(script));
+        cantrip_shell::repl_eof(&mut get_tx(), &mut rx, cpio_archive_ref);
+    }
+}
+
+// Runs an interactive shell using the Sparrow UART.
+#[cfg(feature = "sparrow_uart_support")]
+fn run_sparrow_shell(cpio_archive_ref: &[u8]) -> ! {
     let mut tx = cantrip_uart_client::Tx::new();
     let mut rx = cantrip_io::BufReader::new(cantrip_uart_client::Rx::new());
+    cantrip_shell::repl(&mut tx, &mut rx, cpio_archive_ref);
+}
+
+/// Entry point for DebugConsole. Optionally runs an autostart script
+/// after which it runs an interactive shell with UART IO.
+#[no_mangle]
+pub extern "C" fn run() {
     let cpio_archive_ref = unsafe {
         // XXX want begin-end or begin+size instead of a fixed-size block
         slice::from_raw_parts(cpio_archive, 16777216)
     };
-    cantrip_shell::repl(&mut tx, &mut rx, cpio_archive_ref);
+
+    #[cfg(feature = "autostart_support")]
+    run_autostart_shell(cpio_archive_ref);
+
+    #[cfg(feature = "sparrow_uart_support")]
+    run_sparrow_shell(cpio_archive_ref);
 }

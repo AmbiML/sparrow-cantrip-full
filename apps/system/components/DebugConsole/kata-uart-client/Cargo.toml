@@ -19,8 +19,5 @@ authors = ["Matt Harvey <mattharvey@google.com>"]
 edition = "2021"
 
 [dependencies]
-# Disable default so we don't pull in CString which requires an allocator
-cstr_core = { version = "0.2.3", default-features = false }
 cty = "0.2.1"
 cantrip-io = { path = "../cantrip-io" }
-log = { version = "0.4", features = ["release_max_level_info"] }

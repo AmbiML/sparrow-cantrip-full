@@ -14,28 +14,7 @@
 
 #![no_std]
 
-use core::fmt::Write;
-use cstr_core::CStr;
 use cantrip_io as io;
-
-/// Console logging interface.
-#[no_mangle]
-#[allow(clippy::missing_safety_doc)]
-pub unsafe extern "C" fn logger_log(level: u8, msg: *const cstr_core::c_char) {
-    use log::Level;
-    let l = match level {
-        x if x == Level::Error as u8 => Level::Error,
-        x if x == Level::Warn as u8 => Level::Warn,
-        x if x == Level::Info as u8 => Level::Info,
-        x if x == Level::Debug as u8 => Level::Debug,
-        _ => Level::Trace,
-    };
-    if l <= log::max_level() {
-        // TODO(sleffler): is the uart driver ok w/ multiple writers?
-        let output: &mut dyn io::Write = &mut self::Tx::new();
-        let _ = writeln!(output, "{}", CStr::from_ptr(msg).to_str().unwrap());
-    }
-}
 
 const DATAPORT_SIZE: usize = 4096;
 

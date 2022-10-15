@@ -27,10 +27,10 @@ component DebugConsole {
   dataport Buf(0x1000000) cpio_archive;
 
   dataport Buf tx_dataport;
-  uses rust_write_inf uart_write;
+  maybe uses rust_write_inf uart_write;
 
   dataport Buf rx_dataport;
-  uses rust_read_inf uart_read;
+  maybe uses rust_read_inf uart_read;
 
   provides LoggerInterface logger;
   uses MemoryInterface memory;
