@@ -18,6 +18,7 @@ extern crate alloc;
 use crate::rz;
 use crate::CmdFn;
 use crate::CommandError;
+use crate::HashMap;
 use alloc::vec::Vec;
 use core::fmt::Write;
 
