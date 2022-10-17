@@ -48,7 +48,6 @@ use log::error;
 use sdk_interface::KeyValueData;
 use sdk_interface::SDKAppId;
 use sdk_interface::SDKError;
-use sdk_interface::SDKReplyHeader;
 use sdk_interface::SDKRuntimeError;
 use sdk_interface::SDKRuntimeInterface;
 use sdk_interface::SDKRuntimeRequest;
@@ -140,20 +139,10 @@ fn delete_path(path: &seL4_CPath) -> seL4_Result {
     unsafe { seL4_CNode_Delete(path.0, path.1, path.2 as u8) }
 }
 
-fn reply_error(error: SDKError, reply_slice: &mut [u8]) {
-    // XXX check return
-    let _ = postcard::to_slice(
-        &SDKReplyHeader {
-            status: error.into(),
-        },
-        reply_slice,
-    );
-}
-
 /// Server-side of SDKRuntime request processing.  Note CAmkES does not
 /// participate in the RPC processing we use the control thread instead
-/// of having CAmkES create an interface thread and pass parameters through
-/// a page frame attached to the IPC buffer.
+/// of having CAmkES create an interface thread, and pass parameters
+/// through a page frame attached to the IPC buffer.
 #[no_mangle]
 pub unsafe extern "C" fn run() -> ! {
     let recv_path = &Camkes::top_level_path(CANTRIP_SDK_RECV_SLOT);
@@ -164,7 +153,12 @@ pub unsafe extern "C" fn run() -> ! {
 
     // Do initial Recv; after this we use ReplyRecv to minimize syscalls.
     let mut sdk_runtime_badge: seL4_Word = 0;
-    seL4_Recv(CANTRIP_SDK_ENDPOINT, &mut sdk_runtime_badge as _, CANTRIP_SDK_REPLY);
+    let mut response: Result<(), SDKError>;
+    let mut info = seL4_Recv(
+        /*src=*/ CANTRIP_SDK_ENDPOINT,
+        /*sender=*/ &mut sdk_runtime_badge as _,
+        /*reply=*/ CANTRIP_SDK_REPLY,
+    );
     loop {
         Camkes::debug_assert_slot_frame("run", recv_path);
         // seL4_Recv & seL4_ReplyRecv return any badge but do not reset
@@ -173,46 +167,58 @@ pub unsafe extern "C" fn run() -> ! {
         // outbound capability. To guard against this clear the field here
         // (so it happens for both calls) with clear_request_cap().
         Camkes::clear_request_cap();
-        // Map the frame with RPC parameters and decode the request header.
+        // Map the frame with RPC parameters and process the request.
         if copy_region.map(recv_path.1).is_ok() {
-            // The client serializes an SDKRequestHeader first with the
-            // request id. This is followed by request-specific arguments
-            // that must be processed by each handler.
+            // The request token is passed in the MessageInfo label field.
+            // Any request-specific parameters are serialized in the first
+            // half of the page, with the second half reserved for reply data.
+            // We might consider sending a request length out-of-band (like
+            // the request token) to enable variable page splitting.
             let (request_slice, reply_slice) = copy_region
                 .as_mut()
                 .split_at_mut(SDKRUNTIME_REQUEST_DATA_SIZE);
             let request_slice = &*request_slice; // NB: immutable alias
-            match postcard::take_from_bytes::<sdk_interface::SDKRequestHeader>(request_slice) {
-                Ok((header, args_slice)) => {
-                    let app_id = sdk_runtime_badge as SDKAppId; // XXX safe?
-                    if let Err(status) = match header.request {
-                        SDKRuntimeRequest::Ping => ping_request(app_id, args_slice, reply_slice),
-                        SDKRuntimeRequest::Log => log_request(app_id, args_slice, reply_slice),
-                        SDKRuntimeRequest::ReadKey => {
-                            read_key_request(app_id, args_slice, reply_slice)
-                        }
-                        SDKRuntimeRequest::WriteKey => {
-                            write_key_request(app_id, args_slice, reply_slice)
-                        }
-                        SDKRuntimeRequest::DeleteKey => {
-                            delete_key_request(app_id, args_slice, reply_slice)
-                        }
-                    } {
-                        reply_error(status, reply_slice);
-                    }
+
+            let app_id = sdk_runtime_badge as SDKAppId; // XXX safe?
+            response = match SDKRuntimeRequest::try_from(info.get_label()) {
+                Ok(SDKRuntimeRequest::Ping) => ping_request(app_id, request_slice, reply_slice),
+                Ok(SDKRuntimeRequest::Log) => log_request(app_id, request_slice, reply_slice),
+                Ok(SDKRuntimeRequest::ReadKey) => {
+                    read_key_request(app_id, request_slice, reply_slice)
                 }
-                Err(err) => reply_error(deserialize_failure(err), reply_slice),
-            }
+                Ok(SDKRuntimeRequest::WriteKey) => {
+                    write_key_request(app_id, request_slice, reply_slice)
+                }
+                Ok(SDKRuntimeRequest::DeleteKey) => {
+                    delete_key_request(app_id, request_slice, reply_slice)
+                }
+                Err(_) => {
+                    // TODO(b/254286176): possible ddos
+                    error!("Unknown RPC request {}", info.get_label());
+                    Err(SDKError::UnknownRequest)
+                }
+            };
             copy_region.unmap().expect("unmap");
         } else {
+            // TODO(b/254286176): possible ddos
             error!("Unable to map RPC parameters; badge {}", sdk_runtime_badge);
-            // TODO(jtgans): no way to return an error; signal ProcessManager to stop app?
+            response = Err(SDKError::MapPageFailed);
         }
         delete_path(recv_path).expect("delete");
         Camkes::debug_assert_slot_empty("run", recv_path);
 
-        let info = seL4_MessageInfo::new(0, 0, 0, /*length=*/ 0);
-        seL4_ReplyRecv(CANTRIP_SDK_ENDPOINT, info, &mut sdk_runtime_badge as _, CANTRIP_SDK_REPLY);
+        info = seL4_ReplyRecv(
+            /*src=*/ CANTRIP_SDK_ENDPOINT,
+            /*msgInfo=*/
+            seL4_MessageInfo::new(
+                /*label=*/ SDKRuntimeError::from(response) as seL4_Word,
+                /*capsUnwrapped=*/ 0,
+                /*extraCaps=*/ 0,
+                /*length=*/ 0,
+            ),
+            /*sender=*/ &mut sdk_runtime_badge as _,
+            /*reply=*/ CANTRIP_SDK_REPLY,
+        );
     }
 }
 
@@ -257,14 +263,8 @@ fn read_key_request(
     #[allow(clippy::uninit_assumed_init)]
     let mut keyval: KeyValueData = unsafe { ::core::mem::MaybeUninit::uninit().assume_init() };
     let value = unsafe { CANTRIP_SDK.read_key(app_id, request.key, &mut keyval)? };
-    let _ = postcard::to_slice(
-        &sdk_interface::ReadKeyResponse {
-            header: SDKReplyHeader::new(SDKRuntimeError::SDKSuccess),
-            value,
-        },
-        reply_slice,
-    )
-    .map_err(serialize_failure)?;
+    let _ = postcard::to_slice(&sdk_interface::ReadKeyResponse { value }, reply_slice)
+        .map_err(serialize_failure)?;
     Ok(())
 }
 

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use serde::{Deserialize, Serialize};
+use num_enum::TryFromPrimitive;
 
 /// Rust Error enum used for representing an SDK error with postcard. This is
 /// what most rust components will actually use as their error handling enum.
@@ -25,15 +25,19 @@ pub enum SDKError {
     ReadKeyFailed,
     WriteKeyFailed,
     DeleteKeyFailed,
+    MapPageFailed,
+    UnknownRequest,
+    UnknownResponse,
 }
 
 impl From<postcard::Error> for SDKError {
     fn from(_err: postcard::Error) -> SDKError { SDKError::SerializeFailed }
 }
 
-/// C-version of SDKError presented over the CAmkES rpc interface.
-#[repr(C)]
-#[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
+/// SDKError presented over the seL4 IPC interface. We need repr(seL4_Word)
+/// but cannot use that so use the implied usize type instead.
+#[repr(usize)]
+#[derive(Debug, Eq, PartialEq, TryFromPrimitive)]
 pub enum SDKRuntimeError {
     SDKSuccess = 0,
     SDKDeserializeFailed,
@@ -43,6 +47,9 @@ pub enum SDKRuntimeError {
     SDKReadKeyFailed,
     SDKWriteKeyFailed,
     SDKDeleteKeyFailed,
+    SDKMapPageFailed,
+    SDKUnknownRequest,
+    SDKUnknownResponse,
 }
 
 /// Mapping function from Rust -> C.
@@ -56,6 +63,9 @@ impl From<SDKError> for SDKRuntimeError {
             SDKError::ReadKeyFailed => SDKRuntimeError::SDKReadKeyFailed,
             SDKError::WriteKeyFailed => SDKRuntimeError::SDKWriteKeyFailed,
             SDKError::DeleteKeyFailed => SDKRuntimeError::SDKDeleteKeyFailed,
+            SDKError::MapPageFailed => SDKRuntimeError::SDKMapPageFailed,
+            SDKError::UnknownRequest => SDKRuntimeError::SDKUnknownRequest,
+            SDKError::UnknownResponse => SDKRuntimeError::SDKUnknownResponse,
         }
     }
 }
@@ -79,6 +89,9 @@ impl From<SDKRuntimeError> for Result<(), SDKError> {
             SDKRuntimeError::SDKReadKeyFailed => Err(SDKError::ReadKeyFailed),
             SDKRuntimeError::SDKWriteKeyFailed => Err(SDKError::WriteKeyFailed),
             SDKRuntimeError::SDKDeleteKeyFailed => Err(SDKError::DeleteKeyFailed),
+            SDKRuntimeError::SDKMapPageFailed => Err(SDKError::DeleteKeyFailed),
+            SDKRuntimeError::SDKUnknownRequest => Err(SDKError::UnknownRequest),
+            SDKRuntimeError::SDKUnknownResponse => Err(SDKError::UnknownResponse),
         }
     }
 }

@@ -21,6 +21,7 @@ pub mod error;
 pub use error::SDKError;
 pub use error::SDKRuntimeError;
 
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
 
 use sel4_sys::seL4_CPtr;
@@ -61,33 +62,6 @@ pub type SDKAppId = usize;
 pub const KEY_VALUE_DATA_SIZE: usize = 100;
 pub type KeyValueData = [u8; KEY_VALUE_DATA_SIZE];
 
-/// All RPC request must have an SDKRequestHeader at the front.
-#[derive(Serialize, Deserialize)]
-pub struct SDKRequestHeader {
-    pub request: SDKRuntimeRequest,
-}
-impl SDKRequestHeader {
-    pub fn new(request: SDKRuntimeRequest) -> Self { Self { request } }
-}
-
-/// All RPC responses must have an SDKReplyHeader at the front.
-#[derive(Serialize, Deserialize)]
-pub struct SDKReplyHeader {
-    pub status: SDKRuntimeError,
-}
-impl SDKReplyHeader {
-    pub fn new(status: SDKRuntimeError) -> Self { Self { status } }
-}
-impl From<SDKReplyHeader> for Result<(), SDKRuntimeError> {
-    fn from(header: SDKReplyHeader) -> Result<(), SDKRuntimeError> {
-        if header.status == SDKRuntimeError::SDKSuccess {
-            Ok(())
-        } else {
-            Err(header.status)
-        }
-    }
-}
-
 /// SDKRuntimeRequest::Ping
 #[derive(Serialize, Deserialize)]
 pub struct PingRequest {}
@@ -105,7 +79,6 @@ pub struct ReadKeyRequest<'a> {
 }
 #[derive(Serialize, Deserialize)]
 pub struct ReadKeyResponse<'a> {
-    pub header: SDKReplyHeader,
     pub value: &'a [u8],
 }
 
@@ -122,8 +95,10 @@ pub struct DeleteKeyRequest<'a> {
     pub key: &'a str,
 }
 
-#[repr(C)] // XXX needed?
-#[derive(Clone, Copy, Eq, PartialEq, Serialize, Deserialize, Debug)]
+/// SDKRequest token sent over the seL4 IPC interface. We need repr(seL4_Word)
+/// but cannot use that so use the implied usize type instead.
+#[repr(usize)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, IntoPrimitive, TryFromPrimitive)]
 pub enum SDKRuntimeRequest {
     Ping = 0, // Check runtime is alive
     Log,      // Log message: [msg: &str]
@@ -170,10 +145,10 @@ pub trait SDKRuntimeInterface {
 /// Rust client-side request processing. Note there is no CAmkES stub to
 /// call; everything is done here. A single page frame is attached to the
 /// IPC buffer with request parameters in the first half and return values
-/// in the second half. Requests must have an SDKRequestHeader serialized
-/// separately from any arguments. Responses must have an SDKReplyHeader
-/// included in the reply data. For the moment this uses postcard to do
-/// serde work; this may change in the future (e.g. to flatbuffers).
+/// in the second half. Requests must have an SDKRequestHeader written to
+/// the label field of the MessageInfo. Responses must have an SDKRuntimeError
+/// written to the label field of the reply. For the moment this uses
+/// postcard for serde work; this may change in the future (e.g. to flatbuffers).
 ///
 /// The caller is responsible for synchronizing access to CANTRIP_SDK_* state
 /// and the IPC buffer.
@@ -185,10 +160,6 @@ pub trait SDKRuntimeInterface {
 //   to lookup the mapped page early. Downside to a fixed mapping is it
 //   limits how to handle requests w/ different-sized params (e.g. sensor
 //   frame vs key-value params).
-// TODO(sleffler): could send request header and reponse statatus inline.
-//   This would align request arguments to the page boundary which might
-//   be useful and having the reply inline would mean SDKRuntime could
-//   send a meaningful error back when unable to map the page frame.
 fn sdk_request<'a, S: Serialize, D: Deserialize<'a>>(
     request: SDKRuntimeRequest,
     request_args: &S,
@@ -199,24 +170,32 @@ fn sdk_request<'a, S: Serialize, D: Deserialize<'a>>(
     let (request_slice, reply_slice) = params_slice.split_at_mut(SDKRUNTIME_REQUEST_DATA_SIZE);
     reply_slice.fill(0); // XXX paranoid, could zero-pad request too
 
-    // Encode heeader with request.
-    // TODO(sleffler): eliminate struct? (could add a sequence #)
-    let header_size = (postcard::to_slice(&SDKRequestHeader::new(request), request_slice)
-        .map_err(|_| SDKRuntimeError::SDKSerializeFailed)?)
-    .len();
-
-    // Encode arguments immediately after.
-    let (_, args_slice) = request_slice.split_at_mut(header_size);
-    let _ = postcard::to_slice(request_args, args_slice)
+    // Encode request arguments.
+    let _ = postcard::to_slice(request_args, request_slice)
         .map_err(|_| SDKRuntimeError::SDKSerializeFailed)?;
 
     // Attach params & call the SDKRuntime; then wait (block) for a reply.
     unsafe {
         seL4_SetCap(0, CANTRIP_SDK_FRAME);
-        seL4_Call(CANTRIP_SDK_ENDPOINT, seL4_MessageInfo::new(0, 0, 1, 0));
+        let info = seL4_Call(
+            CANTRIP_SDK_ENDPOINT,
+            seL4_MessageInfo::new(
+                /*label=*/ request.into(),
+                /*capsUnrapped=*/ 0,
+                /*extraCaps=*/ 1,
+                /*length=*/ 0,
+            ),
+        );
         seL4_SetCap(0, 0);
+
+        let status = SDKRuntimeError::try_from(info.get_label())
+            .map_err(|_| SDKRuntimeError::SDKUnknownResponse)?;
+        if status != SDKRuntimeError::SDKSuccess {
+            return Err(status);
+        }
     }
 
+    // Decode response data.
     postcard::from_bytes::<D>(reply_slice).map_err(|_| SDKRuntimeError::SDKDeserializeFailed)
 }
 
@@ -224,22 +203,19 @@ fn sdk_request<'a, S: Serialize, D: Deserialize<'a>>(
 #[inline]
 #[allow(dead_code)]
 pub fn sdk_ping() -> Result<(), SDKRuntimeError> {
-    let header =
-        sdk_request::<PingRequest, SDKReplyHeader>(SDKRuntimeRequest::Ping, &PingRequest {})?;
-    header.into()
+    sdk_request::<PingRequest, ()>(SDKRuntimeRequest::Ping, &PingRequest {})
 }
 
 /// Rust client-side wrapper for the log method.
 #[inline]
 #[allow(dead_code)]
 pub fn sdk_log(msg: &str) -> Result<(), SDKRuntimeError> {
-    let header = sdk_request::<LogRequest, SDKReplyHeader>(
+    sdk_request::<LogRequest, ()>(
         SDKRuntimeRequest::Log,
         &LogRequest {
             msg: msg.as_bytes(),
         },
-    )?;
-    header.into()
+    )
 }
 
 /// Rust client-side wrapper for the read key method.
@@ -251,34 +227,20 @@ pub fn sdk_read_key<'a>(key: &str, keyval: &'a mut [u8]) -> Result<&'a [u8], SDK
         SDKRuntimeRequest::ReadKey,
         &ReadKeyRequest { key },
     )?;
-    match response.header.status {
-        SDKRuntimeError::SDKSuccess => {
-            let (left, _) = keyval.split_at_mut(response.value.len());
-            left.copy_from_slice(response.value);
-            Ok(left)
-        }
-        e => Err(e),
-    }
+    keyval.copy_from_slice(response.value);
+    Ok(keyval)
 }
 
 /// Rust client-side wrapper for the write key method.
 #[inline]
 #[allow(dead_code)]
 pub fn sdk_write_key(key: &str, value: &[u8]) -> Result<(), SDKRuntimeError> {
-    let header = sdk_request::<WriteKeyRequest, SDKReplyHeader>(
-        SDKRuntimeRequest::WriteKey,
-        &WriteKeyRequest { key, value },
-    )?;
-    header.into()
+    sdk_request::<WriteKeyRequest, ()>(SDKRuntimeRequest::WriteKey, &WriteKeyRequest { key, value })
 }
 
 /// Rust client-side wrapper for the delete key method.
 #[inline]
 #[allow(dead_code)]
 pub fn sdk_delete_key(key: &str) -> Result<(), SDKRuntimeError> {
-    let header = sdk_request::<DeleteKeyRequest, SDKReplyHeader>(
-        SDKRuntimeRequest::DeleteKey,
-        &DeleteKeyRequest { key },
-    )?;
-    header.into()
+    sdk_request::<DeleteKeyRequest, ()>(SDKRuntimeRequest::DeleteKey, &DeleteKeyRequest { key })
 }
