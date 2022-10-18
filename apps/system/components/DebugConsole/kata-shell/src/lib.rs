@@ -359,6 +359,7 @@ fn capscan_command(
         Some("security") => {
             let _ = cantrip_security_interface::cantrip_security_capscan();
         }
+        #[cfg(feature = "timer_support")]
         Some("timer") => {
             let _ = cantrip_timer_interface::timer_service_capscan();
         }
@@ -376,6 +377,7 @@ fn capscan_command(
             writeln!(output, "  mlcoord (MlCoordinator)")?;
             writeln!(output, "  sdk (SDKRuntime)")?;
             writeln!(output, "  securiy (SecurityCoordinator)")?;
+            #[cfg(feature = "timer_support")]
             writeln!(output, "  timer (TimerService)")?;
             writeln!(output, "anything else is treated as a bundle_id")?;
         }

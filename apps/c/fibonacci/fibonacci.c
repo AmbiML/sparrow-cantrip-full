@@ -67,7 +67,7 @@ uint64_t rdtime(void) {
   }
 }
 
-void fibonacci_log(int pid, const fibonacci_state_t *fibonacci_state,
+void fibonacci_log(const fibonacci_state_t *fibonacci_state,
                    interrupt_count_t interrupt_count) {
 // TODO(sleffler): bring in snprintf
 #if 0
@@ -80,29 +80,28 @@ void fibonacci_log(int pid, const fibonacci_state_t *fibonacci_state,
   debug_printf(log_buf);
 #else
   debug_printf(
-      "[%d]: "
       "n == %d; "
       "f == %x; "
       "interrupt_count == %d; "
       "rdtime == %d; "
       "virt_sec ~= %d\n",
-      pid, (uint32_t)fibonacci_state->n, (uint32_t)fibonacci_state->f1,
+      (uint32_t)fibonacci_state->n, (uint32_t)fibonacci_state->f1,
       (uint32_t)interrupt_count, (uint32_t)rdtime(),
       (uint32_t)virtual_seconds(interrupt_count));
 #endif
 }
 
-int main(int pid, int a1, int a2, int a3) {
+int main() {
   interrupt_count_t interrupt_count = 0;
   fibonacci_state_t fibonacci_state;
   fibonacci_init(&fibonacci_state);
-  debug_printf("\nFibonacci: pid %d\n", pid);
+  debug_printf("\nFibonacci:\n");
   while (1) {
     wait(INTERRUPTS_PER_WAIT, &interrupt_count);
     if (fibonacci_state.n >= LOG_FIBONACCI_LIMIT) {
       fibonacci_init(&fibonacci_state);
     }
-    fibonacci_log(pid, &fibonacci_state, interrupt_count);
+    fibonacci_log(&fibonacci_state, interrupt_count);
     fibonacci_increment(&fibonacci_state);
   }
 }

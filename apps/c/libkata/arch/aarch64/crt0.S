@@ -14,40 +14,35 @@
  * limitations under the License.
  */
 
+/*
+ * ProcessManager loads x0-x3 with _sel4_ipc_buffer and the information
+ * needed to communicate with the SDKRuntime. Save those to the well-known
+ * memory locations referenced by the SDK RPC.
+ */
     .section .text._start
-    .align 2
+    .align 3
     .globl _start
     .type _start, @function
 _start:
-    .option push
-    .option norelax
+    ldr x30, =_tls          // NB: lr is an alias for x30
+    msr tpidr_el0, x30      // setup static TLS
 
-    la gp, __global_pointer$
-    la x4, _tls
+    str x0, [x30]           // setup __sel4_ipc_buffer at _tls+0
 
-    /* Setup __sel4_ipc_buffer */
-    lui t1, 0
-    add t1, t1, tp
-    sw a0, 0(t1)
+    ldr x30, =CANTRIP_SDK_ENDPOINT
+    str x1, [x30]           // seL4_CPtr of SDKRuntime Endpoint
 
-    /* Setup SDKRuntime RPC framework */
+    ldr x30, =CANTRIP_SDK_FRAME
+    str x2, [x30]           // seL4_CPtr of CANTRIP_SDK_PARAMS Frame object
 
-    /* seL4_CPtr to SDKRuntime Endpoint */
-    la t1, CANTRIP_SDK_ENDPOINT
-    sw a1, 0(t1)
+    ldr x30, =CANTRIP_SDK_PARAMS
+    str x3, [x30]           // virtual address of CANTRIP_SDK_PARAMS
 
-    /* seL4_CPtr to CANTRIP_SDK_PARAMS Frame object */
-    la t1, CANTRIP_SDK_FRAME
-    sw a2, 0(t1)
-
-    /* virtual address of CANTRIP_SDK_PARAMS */
-    la t1, CANTRIP_SDK_PARAMS
-    sw a3, 0(t1)
-
-    .option pop
-
-    j main
-1:  j 1b
+    mov fp, #0
+    mov lr, #0
+    bl main
+    /* NB: should not return */
+1:  b 1b
 
     .section .bss
     .align 12
@@ -56,17 +51,17 @@ _start:
 _tls:
     .ds.b 4096
 
-    .align 2
+    .align 3
     .global CANTRIP_SDK_ENDPOINT
 CANTRIP_SDK_ENDPOINT:
-    .ds.b 4
+    .ds.b 8
 
-    .align 2
+    .align 3
     .global CANTRIP_SDK_FRAME
 CANTRIP_SDK_FRAME:
-    .ds.b 4
+    .ds.b 8
 
-    .align 2
+    .align 3
     .global CANTRIP_SDK_PARAMS
 CANTRIP_SDK_PARAMS:
-    .ds.b 4
+    .ds.b 8

@@ -15,7 +15,7 @@
 MYDIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 
 BUILD_TYPE ?= debug
-BUILD_ARCH ?= riscv32
+BUILD_ARCH ?= unknown
 
 include $(MYDIR)/arch/$(BUILD_ARCH).mk
 include $(MYDIR)/sel4.mk
@@ -26,7 +26,7 @@ ifeq ($(BUILD_TYPE),debug)
     CARGO_OPTS :=
 else
 	DEBUG :=
-	OPT   := -O0  # TODO(jtgans): Actually optimize in a release build
+	OPT   := -Os
     CARGO_OPTS := --release
 endif
 
@@ -39,6 +39,7 @@ AR := $(ARCH_PREFIX)-ar
 LD := $(ARCH_PREFIX)-gcc
 
 CANTRIP_RUST_VERSION ?= nightly-2021-11-05
+RUST_TARGET ?= unknown
 CARGO := cargo +${CANTRIP_RUST_VERSION}
 
 CFLAGS := $(DEBUG) $(OPT) $(INCLUDES)
@@ -47,10 +48,12 @@ CFLAGS += -std=gnu11 -nostdlib
 CFLAGS += -ftls-model=${TLS_MODEL}
 
 ASFLAGS := -march=$(ARCH) -mabi=$(ABI)
-LDFLAGS := $(DEBUG) -nostartfiles -static -nostdlib
+# NB: -nostdlib =>'s -nostartfiles
+# NB: add -Wl,-Map=/tmp to get a linker map /tmp/<app>.elf.map for each app
+LDFLAGS := $(DEBUG) -static -nostdlib
 
 CARGO_OPTS += -Z unstable-options
 CARGO_OPTS += -Z avoid-dev-deps
 # XXX RUSTFLAGS is the only way to pass tls-model but seems to work w/o
 #CARGO_OPTS += -Z tls-model=${TLS_MODEL}
-CARGO_OPTS += --target ${FULL_ARCH_NAME}-unknown-none-elf
+CARGO_OPTS += --target ${RUST_TARGET}

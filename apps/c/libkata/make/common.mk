@@ -25,7 +25,7 @@ ifeq ($(BUILD_TYPE),debug)
 	OPT   := -O0
 else
 	DEBUG :=
-	OPT   := -O0  # TODO(jtgans): Actually optimize in a release build
+	OPT   := -Os  # TODO(jtgans): Actually optimize in a release build
 endif
 
 ROOTDIR    ?= $(MYDIR)

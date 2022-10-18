@@ -15,12 +15,11 @@
 import <std_connector.camkes>;
 import <global-connectors.camkes>;
 
-import "components/DebugConsole/DebugConsole.camkes";
-import "components/ProcessManager/ProcessManager.camkes";
-import "components/MemoryManager/MemoryManager.camkes";
-import "components/SecurityCoordinator/SecurityCoordinator.camkes"; 
-import "components/TimerService/TimerService.camkes";
-import "components/SDKRuntime/SDKRuntime.camkes";
+import "../../components/DebugConsole/DebugConsole.camkes";
+import "../../components/ProcessManager/ProcessManager.camkes";
+import "../../components/MemoryManager/MemoryManager.camkes";
+import "../../components/SecurityCoordinator/SecurityCoordinator.camkes";
+import "../../components/SDKRuntime/SDKRuntime.camkes";
 
 component BuiltinCpioArchive {
     hardware;
@@ -35,21 +34,12 @@ assembly {
         component ProcessManager process_manager;
         component DebugConsole debug_console;
         component SecurityCoordinator security_coordinator;
-        component TimerService timer_service;
 
         component SDKRuntime sdk_runtime;
 
         // Built-in CPIO archive is visible only to DebugConsole.
         connection seL4HardwareMMIO cpio_archive(from debug_console.cpio_archive,
                                                  to cpio.cpio);
-
-        // TimerService
-        connection seL4HardwareMMIO timer_csr(from timer_service.csr,
-                                            to timer.csr);
-        connection seL4HardwareInterrupt timer_interrupt(from timer.timer_interrupt,
-                                                       to timer_service.timer_interrupt);
-        connection seL4RPCCallSignal timer_rpc(from debug_console.timer,
-                                                to timer_service.timer);
 
         // Hookup ProcessManager to DebugConsole for shell commands.
         connection seL4RPCCall shell_process(from debug_console.proc_ctrl,
@@ -95,14 +85,17 @@ assembly {
             from process_manager.logger,
             from memory_manager.logger,
             from security_coordinator.logger,
-            from timer_service.logger,
             from sdk_runtime.logger,
             to debug_console.logger);
     }
 
     configuration {
-        cpio.cpio_paddr = 0x46000000;
+        cpio.cpio_paddr = 0x20000000; // 512M
         cpio.cpio_size = 0x1000000;
+
+        // TODO(sleffler): temp stack bumps until code is fixed
+        memory_manager._stack_size = 32*1024; // 2x stack for pre_init work
+        process_manager.proc_ctrl_stack_size = 32*1024; // 2x for bundle creation
 
         random.ID = 1;
     }

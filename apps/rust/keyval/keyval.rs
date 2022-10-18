@@ -33,7 +33,7 @@ pub fn logger_log(_level: u8, msg: *const cstr_core::c_char) {
 
 #[no_mangle]
 // XXX need SDK specification of main, use hack for now
-pub fn main(_a0: u32, _a1: u32, _a2: u32, _a3: u32) {
+pub fn main() {
     // Setup logger; (XXX maybe belongs in the SDKRuntime)
     static CANTRIP_LOGGER: CantripLogger = CantripLogger;
     log::set_logger(&CANTRIP_LOGGER).unwrap();

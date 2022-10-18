@@ -58,10 +58,10 @@ pub unsafe extern "C" fn pre_init() {
 // Returns a trait-compatible Tx based on the selected features.
 // NB: must use "return expr;" to avoid confusing the compiler.
 fn get_tx() -> impl cantrip_io::Write {
-    #[cfg(feature = "sparrow_uart_support")]
+    #[cfg(feature = "CONFIG_PLAT_SPARROW")]
     return cantrip_uart_client::Tx::new();
 
-    #[cfg(not(feature = "sparrow_uart_support"))]
+    #[cfg(not(feature = "CONFIG_PLAT_SPARROW"))]
     return default_uart_client::Tx::new();
 }
 
@@ -112,7 +112,7 @@ fn run_autostart_shell(cpio_archive_ref: &[u8]) {
 }
 
 // Runs an interactive shell using the Sparrow UART.
-#[cfg(feature = "sparrow_uart_support")]
+#[cfg(feature = "CONFIG_PLAT_SPARROW")]
 fn run_sparrow_shell(cpio_archive_ref: &[u8]) -> ! {
     let mut tx = cantrip_uart_client::Tx::new();
     let mut rx = cantrip_io::BufReader::new(cantrip_uart_client::Rx::new());
@@ -131,6 +131,6 @@ pub extern "C" fn run() {
     #[cfg(feature = "autostart_support")]
     run_autostart_shell(cpio_archive_ref);
 
-    #[cfg(feature = "sparrow_uart_support")]
+    #[cfg(feature = "CONFIG_PLAT_SPARROW")]
     run_sparrow_shell(cpio_archive_ref);
 }

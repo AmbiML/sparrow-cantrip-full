@@ -24,19 +24,26 @@ sel4-config = { path = "../../cantrip-os-common/src/sel4-config" }
 
 [features]
 default = [
-    "ml_support",
+    "CONFIG_PLAT_SPARROW",
     "TEST_GLOBAL_ALLOCATOR",
-    "TEST_MAILBOX",
     "TEST_MEMORY_MANAGER",
-    "TEST_ML_COORDINATOR",
     "TEST_PANIC",
     "TEST_SECURITY_COORDINATOR",
-    "TEST_TIMER_SERVICE",
 ]
 ml_support = ["cantrip-ml-interface"]
+timer_support = []
 CONFIG_DEBUG_BUILD = []
 CONFIG_PRINTING = []
 CONFIG_KERNEL_MCS = []
+# Target platform support
+CONFIG_PLAT_BCM2837 = []
+CONFIG_PLAT_SPARROW = [
+    "ml_support",
+    "TEST_ML_COORDINATOR",
+    "timer_support",
+    "TEST_TIMER_SERVICE",
+    "TEST_MAILBOX",
+]
 # Commands that are likely not useful
 FRINGE_CMDS = []
 # Runtime tests for various services (please keep sorted)

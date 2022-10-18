@@ -1,0 +1,240 @@
+// Copyright 2022 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import <std_connector.camkes>;
+import <global-connectors.camkes>;
+
+import "../../components/OpenTitanUARTDriver/OpenTitanUARTDriver.camkes";
+import "../../components/DebugConsole/DebugConsole.camkes";
+import "../../components/ProcessManager/ProcessManager.camkes";
+import "../../components/MlCoordinator/MlCoordinator.camkes";
+import "../../components/MemoryManager/MemoryManager.camkes";
+import "../../components/SecurityCoordinator/SecurityCoordinator.camkes";
+import "../../components/TimerService/TimerService.camkes";
+import "../../components/MailboxDriver/MailboxDriver.camkes";
+import "../../components/SDKRuntime/SDKRuntime.camkes";
+
+component OpenTitanUART {
+    hardware;
+    dataport Buf mmio_region;
+
+    emits Interrupt tx_watermark;
+    emits Interrupt rx_watermark;
+    emits Interrupt tx_empty;
+}
+
+component OpenTitanTimer {
+    hardware;
+    dataport Buf csr;
+
+    emits Interrupt timer_interrupt;
+}
+
+component VectorCoreHw {
+    hardware;
+    dataport Buf CSR;
+    // TODO(jesionowski): Export TCM_SIZE in cbindgen.
+    dataport Buf(0x1000000) TCM;
+
+    emits Interrupt host_req;
+    emits Interrupt finish;
+    emits Interrupt instruction_fault;
+    emits Interrupt data_fault;
+}
+
+component BuiltinCpioArchive {
+    hardware;
+    dataport Buf(0x1000000) cpio;
+}
+
+component MailboxHardware {
+    hardware;
+    dataport Buf mmio;
+    emits Interrupt wtirq;
+    emits Interrupt rtirq;
+    emits Interrupt eirq;
+}
+
+assembly {
+    composition {
+        component VectorCoreHw vctop;
+        component BuiltinCpioArchive cpio;
+
+        component OpenTitanUART uart;
+        component OpenTitanUARTDriver uart_driver;
+        component OpenTitanTimer timer;
+
+        component MemoryManager memory_manager;
+        component ProcessManager process_manager;
+        component MlCoordinator ml_coordinator;
+        component DebugConsole debug_console;
+        component SecurityCoordinator security_coordinator;
+        component TimerService timer_service;
+
+        component SDKRuntime sdk_runtime;
+
+        // Built-in CPIO archive is visible only to DebugConsole.
+        connection seL4HardwareMMIO cpio_archive(from debug_console.cpio_archive,
+                                                 to cpio.cpio);
+
+        // MailboxDriver
+        component MailboxHardware mailbox_hardware;
+        component MailboxDriver mailbox_driver;
+        connection seL4HardwareMMIO mailbox_driver_mmio(
+            from mailbox_driver.mailbox_mmio, to mailbox_hardware.mmio);
+        connection seL4HardwareInterrupt mailbox_driver_wtirq(
+            from mailbox_hardware.wtirq, to mailbox_driver.wtirq);
+        connection seL4HardwareInterrupt mailbox_driver_rtirq(
+            from mailbox_hardware.rtirq, to mailbox_driver.rtirq);
+        connection seL4HardwareInterrupt mailbox_driver_eirq(
+            from mailbox_hardware.eirq, to mailbox_driver.eirq);
+        connection seL4RPCCall security_coordinator_to_mailbox_api(
+            from security_coordinator.mailbox_api, to mailbox_driver.api);
+
+        // OpenTitanUARTDriver
+        connection seL4HardwareMMIO uart_mem(from uart_driver.mmio_region,
+                                             to uart.mmio_region);
+        connection seL4HardwareInterrupt uart_tx_watermark(from uart.tx_watermark,
+                                                           to uart_driver.tx_watermark);
+        connection seL4HardwareInterrupt uart_rx_watermark(from uart.rx_watermark,
+                                                           to uart_driver.rx_watermark);
+        connection seL4HardwareInterrupt uart_tx_empty(from uart.tx_empty,
+                                                       to uart_driver.tx_empty);
+
+        // VectorCoreDriver
+        connection seL4HardwareMMIO vc_csr(from ml_coordinator.CSR, to vctop.CSR);
+        connection seL4HardwareInterrupt vctop_host_req(from vctop.host_req,
+                                                      to ml_coordinator.host_req);
+        connection seL4HardwareInterrupt vctop_finish(from vctop.finish,
+                                                      to ml_coordinator.finish);
+        connection seL4HardwareInterrupt vctop_instruction_fault(from vctop.instruction_fault,
+                                                      to ml_coordinator.instruction_fault);
+        connection seL4HardwareInterrupt vctop_data_fault(from vctop.data_fault,
+                                                      to ml_coordinator.data_fault);
+        connection seL4HardwareMMIO vc_tcm(from ml_coordinator.TCM,
+                                            to vctop.TCM);
+
+
+        // TimerService
+        connection seL4HardwareMMIO timer_csr(from timer_service.csr,
+                                            to timer.csr);
+        connection seL4HardwareInterrupt timer_interrupt(from timer.timer_interrupt,
+                                                       to timer_service.timer_interrupt);
+        connection seL4RPCCallSignal timer_rpc(from debug_console.timer,
+                                                from ml_coordinator.timer,
+                                                to timer_service.timer);
+
+        // Hookup ProcessManager to DebugConsole for shell commands.
+        connection seL4RPCCall shell_process(from debug_console.proc_ctrl,
+                                             to process_manager.proc_ctrl);
+        connection seL4RPCCall shell_ml(from debug_console.mlcoord,
+                                        to ml_coordinator.mlcoord);
+
+        // ProcessMaanager talks to the SDKManager (the privileged part of
+        // the SDKRuntime) to plumb a badged connection between applications
+        // and the SDKRuntime.
+        connection seL4RPCCall multi_sdk_manager(
+            from process_manager.sdk_manager,
+            from debug_console.sdk_manager,  // NB: for capscan support
+            to sdk_runtime.sdk_manager);
+
+        // Note this allocates a 4KB shared memory region for pkg install
+        // to pass an ObjDescArray
+        connection seL4RPCOverMultiSharedData shell_package(
+            from debug_console.pkg_mgmt,
+            to process_manager.pkg_mgmt);
+
+        // Connect the MemoryInterface to each component that needs to allocate
+        // global memory. Note this allocates a 4KB shared memory region to each
+        // component and copies data between components.
+        connection seL4RPCOverMultiSharedData multi_memory(
+            from debug_console.memory,
+            from process_manager.memory,
+            from security_coordinator.memory,
+            from sdk_runtime.memory,
+            from ml_coordinator.memory,
+            to memory_manager.memory);
+
+        // Connect the SecurityCoordinatorInterface to each component that needs
+        // access to the Security Core. Note this allocates a 4KB shared memory
+        // region to each component and copies data between components.
+        connection seL4RPCOverMultiSharedData multi_security(
+            from debug_console.security,   // NB: for debug/test
+            from process_manager.security,
+            from ml_coordinator.security,  // NB: for LoadModel
+            from sdk_runtime.security,     // NB: for key-value store
+            to security_coordinator.security);
+
+        // Connect the DebugConsole to the OpenTitanUARTDriver.
+        connection seL4SharedData tx_channel(
+            from debug_console.tx_dataport, to uart_driver.tx_dataport);
+        connection seL4RPCCall write_call(
+            from debug_console.uart_write, to uart_driver.write);
+        connection seL4SharedData rx_channel(
+            from debug_console.rx_dataport, to uart_driver.rx_dataport);
+        connection seL4RPCCall read_call(
+            from debug_console.uart_read, to uart_driver.read);
+
+        // Connect the LoggerInterface to each component that needs to log
+        // to the console. Note this allocates a 4KB shared memory region to
+        // each component and copies data between components.
+        connection seL4RPCOverMultiSharedData multi_logger(
+            from process_manager.logger,
+            from ml_coordinator.logger,
+            from memory_manager.logger,
+            from security_coordinator.logger,
+            from timer_service.logger,
+            from mailbox_driver.logger,
+            from sdk_runtime.logger,
+            to debug_console.logger);
+    }
+
+    configuration {
+        cpio.cpio_paddr = 0x46000000;
+        cpio.cpio_size = 0x1000000;
+
+        mailbox_hardware.mmio_paddr = 0x540F1000;
+        mailbox_hardware.mmio_size  = 0x00001000;
+        mailbox_hardware.wtirq_irq_number = 10; // kTopMatchaPlicIrqIdMailboxSmcWtirq
+        mailbox_hardware.rtirq_irq_number = 11; // kTopMatchaPlicIrqIdMailboxSmcRtirq
+        mailbox_hardware.eirq_irq_number = 12;  // kTopMatchaPlicIrqIdMailboxSmcEirq
+
+        mailbox_driver.rx_semaphore_value = 0;
+
+        uart.mmio_region_paddr = 0x50000000;
+        uart.mmio_region_size = 0x1000;
+        uart.tx_watermark_irq_number = 1;
+        uart.rx_watermark_irq_number = 2;
+        uart.tx_empty_irq_number = 3;
+
+        vctop.CSR_paddr = 0x47000000;
+        vctop.CSR_size = 0x1000;
+        vctop.TCM_paddr = 0x34000000;
+        vctop.TCM_size = 0x1000000;
+        vctop.host_req_irq_number = 13;          // kTopMatchaPlicIrqIdVcTopHostReq @ top_matcha.h
+        vctop.finish_irq_number = 14;            // kTopMatchaPlicIrqIdVcTopFinish @ top_matcha.h
+        vctop.instruction_fault_irq_number = 15; // kTopMatchaPlicIrqIdVcTopInstructionFault @ top_matcha.h
+        vctop.data_fault_irq_number = 16;        // kTopMatchaPlicIrqIdVcTopDataFault @ top_matcha.h
+
+        timer.csr_paddr = 0x50030000;
+        timer.csr_size = 0x1000;
+
+        // Placeholder interrupt number, not represented in top_matcha.h.
+        timer.timer_interrupt_irq_number = 31;
+
+        random.ID = 1;
+
+        uart.integrity_label = "opentitan_uart_driver";
+    }
+}

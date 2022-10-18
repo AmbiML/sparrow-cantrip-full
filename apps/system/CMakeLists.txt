@@ -16,7 +16,12 @@ cmake_minimum_required(VERSION 3.7.2)
 
 project(system)
 
-CAmkESAddImportPath(interfaces)
+CAmkESAddImportPath(
+    components
+    platforms/${KernelPlatform}/components
+    interfaces
+    platforms/${KernelPlatform}/interfaces
+)
 
 includeGlobalComponents()
 include(${CMAKE_CURRENT_LIST_DIR}/rust.cmake)
@@ -45,18 +50,6 @@ RustAddLibrary(
 
 DeclareCAmkESComponent(MemoryManager
   LIBS cantrip_memory_manager
-  INCLUDES interfaces
-  $ENV{OUT}/cantrip/components
-)
-
-RustAddLibrary(
-  cantrip_ml_coordinator
-  SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/components/MlCoordinator
-  LIB_FILENAME libcantrip_ml_component.a
-)
-
-DeclareCAmkESComponent(MlCoordinator
-  LIBS cantrip_ml_coordinator
   INCLUDES interfaces
   $ENV{OUT}/cantrip/components
 )
@@ -97,51 +90,8 @@ DeclareCAmkESComponent(SecurityCoordinator
   $ENV{OUT}/cantrip/components
 )
 
-RustAddLibrary(
-  cantrip_timer_service
-  SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/components/TimerService
-  LIB_FILENAME libcantrip_timer_component.a
-)
+# Platform-specific components (typically drivers)
+include(${CMAKE_CURRENT_LIST_DIR}/platforms/${KernelPlatform}/CMakeLists.txt OPTIONAL)
 
-DeclareCAmkESComponent(TimerService
-  LIBS cantrip_timer_service
-  INCLUDES interfaces
-  $ENV{OUT}/cantrip/components
-)
-
-RustAddLibrary(
-  mailbox_driver
-  SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/components/MailboxDriver
-  LIB_FILENAME libmailbox_driver.a
-)
-
-DeclareCAmkESComponent(MailboxDriver
-  LIBS mailbox_driver
-  INCLUDES interfaces
-  $ENV{OUT}/cantrip/components
-)
-
-DeclareCAmkESComponent(LogFibonacci
-  SOURCES
-  components/LogFibonacci/src/main.c
-)
-
-DeclareCAmkESComponent(OpenTitanUARTDriver
-  SOURCES
-  components/OpenTitanUARTDriver/src/driver.c
-  components/OpenTitanUARTDriver/src/circular_buffer.c
-  INCLUDES
-  opentitan-gen/include
-  components/OpenTitanUARTDriver/include
-  $ENV{OUT}/cantrip/components
-)
-
-DeclareCAmkESComponent(VectorCoreDriver
-  SOURCES
-  components/VectorCoreDriver/src/driver.c
-  INCLUDES
-  vc_top-gen/include
-  $ENV{OUT}/cantrip/components
-)
-
-DeclareCAmkESRootserver(system.camkes)
+# XXX fallback to system.camkes or require every platform to have a copy?
+DeclareCAmkESRootserver(platforms/${KernelPlatform}/system.camkes)

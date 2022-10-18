@@ -17,6 +17,7 @@ import <ProcessControlInterface.camkes>;
 import <PackageManagementInterface.camkes>;
 import <MlCoordinatorInterface.camkes>;
 import <MemoryInterface.camkes>;
+import <RustIO.idl4>;
 import <SecurityCoordinatorInterface.camkes>;
 import <TimerServiceInterface.camkes>;
 import <SDKManagerInterface.camkes>;
@@ -26,22 +27,28 @@ component DebugConsole {
 
   dataport Buf(0x1000000) cpio_archive;
 
-  dataport Buf tx_dataport;
-  maybe uses rust_write_inf uart_write;
-
-  dataport Buf rx_dataport;
-  maybe uses rust_read_inf uart_read;
-
   provides LoggerInterface logger;
   uses MemoryInterface memory;
-  maybe uses MlCoordinatorInterface mlcoord;
   uses PackageManagementInterface pkg_mgmt;
   uses ProcessControlInterface proc_ctrl;
   // TODO(b/200707300): for debugging
   maybe uses SecurityCoordinatorInterface security;
   maybe uses SDKManagerInterface sdk_manager;
 
-  uses Timer timer;
+  // Optional device support.
+
+  // ML Coordinator service (currently needs ML accelerator)
+  maybe uses MlCoordinatorInterface mlcoord;
+
+  // Timer service requires device support
+  maybe uses Timer timer;
+
+  // UART device
+  maybe dataport Buf tx_dataport;
+  maybe uses rust_write_inf uart_write;
+
+  maybe dataport Buf rx_dataport;
+  maybe uses rust_read_inf uart_read;
 
   // Enable CantripOS CAmkES support.
   attribute int cantripos = true;

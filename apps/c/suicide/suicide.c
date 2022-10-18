@@ -10,7 +10,7 @@
 
 #include <cantrip.h>
 
-int main(int a0, int a1, int a2, int a3) {
+int main() {
   debug_printf("Goodbye, cruel world!\n");
 
   while (1) {
