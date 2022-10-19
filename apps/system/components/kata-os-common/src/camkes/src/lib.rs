@@ -83,7 +83,7 @@ impl Camkes {
 
     pub fn init_allocator(self: &Camkes, heap: &'static mut [u8]) {
         unsafe {
-            allocator::ALLOCATOR.init(heap.as_mut_ptr() as usize, heap.len());
+            allocator::ALLOCATOR.init(heap.as_mut_ptr(), heap.len());
         }
         trace!("setup heap: start_addr {:p} size {}", heap.as_ptr(), heap.len());
     }

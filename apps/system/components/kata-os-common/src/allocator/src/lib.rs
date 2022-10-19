@@ -68,7 +68,7 @@ impl CantripHeap {
     ///
     /// - This function must be called exactly ONCE (per thread).
     /// - `size > 0`
-    pub unsafe fn init(&self, start_addr: usize, size: usize) {
+    pub unsafe fn init(&self, start_addr: *mut u8, size: usize) {
         (*self.heap.lock()).init(start_addr, size);
     }
 
