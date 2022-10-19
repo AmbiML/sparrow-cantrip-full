@@ -38,12 +38,13 @@ impl Frame {
         }
     }
 
-    pub fn flags<'b>(&'b mut self, flags: &[u8; 4]) -> &'b mut Frame {
+    pub fn flags(&mut self, flags: &[u8; 4]) -> &mut Frame {
         self.flags = *flags;
         self
     }
 
-    pub fn count<'b>(&'b mut self, count: u32) -> &'b mut Frame {
+    #[allow(clippy::identity_op)]
+    pub fn count(&mut self, count: u32) -> &mut Frame {
         self.flags = [
             (count >> 0) as u8,
             (count >> 8) as u8,

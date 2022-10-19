@@ -37,9 +37,9 @@ use cantrip_io as io;
 
 #[derive(Debug)]
 enum UploadError {
-    PageMapFailed,
-    PageUnmapFailed,
-    MallocFailed,
+    PageMap,
+    PageUnmap,
+    Malloc,
 }
 impl From<UploadError> for io::Error {
     fn from(_err: UploadError) -> io::Error { io::Error }
@@ -87,7 +87,7 @@ impl Upload {
     // Unmap the current page and reset state.
     fn unmap_current_frame(&mut self) -> Result<(), UploadError> {
         if let Some(frame) = &self.frames.objs.last() {
-            unsafe { seL4_Page_Unmap(frame.cptr) }.map_err(|_| UploadError::PageUnmapFailed)?;
+            unsafe { seL4_Page_Unmap(frame.cptr) }.map_err(|_| UploadError::PageUnmap)?;
         }
         // Try to combine this frame w/ the previous so large input
         // data streams don't generate many singleton ObjDesc's.
@@ -100,7 +100,7 @@ impl Upload {
 
     // Expand storage and map the new frame into our VSpace.
     fn expand_and_map(&mut self) -> Result<(), UploadError> {
-        let new_page = cantrip_frame_alloc(PAGE_SIZE).map_err(|_| UploadError::MallocFailed)?;
+        let new_page = cantrip_frame_alloc(PAGE_SIZE).map_err(|_| UploadError::Malloc)?;
         // Verify the new frame is in the same CNode as previous.
         assert_eq!(new_page.cnode, self.frames.cnode);
         assert_eq!(new_page.depth, self.frames.depth);
@@ -120,7 +120,7 @@ impl Upload {
                 seL4_Default_VMAttributes,
             )
         }
-        .map_err(|_| UploadError::PageMapFailed)?;
+        .map_err(|_| UploadError::PageMap)?;
         self.mapped_bytes = PAGE_SIZE;
         self.next_free = 0;
         Ok(())

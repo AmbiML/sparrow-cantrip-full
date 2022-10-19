@@ -166,7 +166,7 @@ pub fn eval<T: io::BufRead>(
     match args.next() {
         Some("?") | Some("help") => {
             let mut keys: Vec<&str> = cmds.keys().copied().collect();
-            keys.sort();
+            keys.sort_unstable();
             for k in keys {
                 let _ = writeln!(output, "{}", k);
             }
@@ -645,5 +645,6 @@ fn state_mlcoord_command(
     _output: &mut dyn io::Write,
     _builtin_cpio: &[u8],
 ) -> Result<(), CommandError> {
-    return Ok(cantrip_mlcoord_debug_state());
+    cantrip_mlcoord_debug_state();
+    Ok(())
 }
