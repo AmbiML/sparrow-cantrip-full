@@ -140,45 +140,21 @@ impl<'a> CantripOsModel<'a> {
         }
     }
 
-    fn init_level_3(
-        &mut self,
-        level_3_obj: CDL_ObjID,
-        level_0_obj: CDL_ObjID,
-        level_3_base: usize,
-    ) -> seL4_Result {
-        for slot in self.get_object(level_3_obj).slots_slice() {
-            let frame_cap = &slot.cap;
-            self.map_page_frame(
-                frame_cap,
-                level_0_obj,
-                frame_cap.cap_rights().into(),
-                level_3_base + (slot.slot << seL4_PageBits),
-            )?;
-        }
-        Ok(())
-    }
-
-    fn init_level_2(
+    fn init_level_0(
         &mut self,
         level_0_obj: CDL_ObjID,
-        level_2_base: usize,
-        level_2_obj: CDL_ObjID,
+        level_0_base: usize,
+        _level_0_obj: CDL_ObjID,
     ) -> seL4_Result {
-        for slot in self.get_object(level_2_obj).slots_slice() {
-            let base = level_2_base + (slot.slot << (CDL_PT_LEVEL_3_IndexBits + seL4_PageBits));
-            let level_3_cap = &slot.cap;
-            if level_3_cap.r#type() == CDL_FrameCap {
-                self.map_page_frame(
-                    level_3_cap,
-                    level_0_obj,
-                    level_3_cap.cap_rights().into(),
-                    base,
-                )?;
-            } else {
-                let level_3_obj = level_3_cap.obj_id;
-                self.map_page_table(level_3_cap, level_0_obj, base)?;
-                self.init_level_3(level_3_obj, level_0_obj, base)?;
-            }
+        for slot in self.get_object(level_0_obj).slots_slice() {
+            let base = (level_0_base + slot.slot)
+                << (CDL_PT_LEVEL_1_IndexBits
+                    + CDL_PT_LEVEL_2_IndexBits
+                    + CDL_PT_LEVEL_3_IndexBits
+                    + seL4_PageBits);
+            let level_1_cap = &slot.cap;
+            self.map_page_upper_dir(level_1_cap, level_0_obj, base)?;
+            self.init_level_1(level_0_obj, base, level_1_cap.obj_id)?;
         }
         Ok(())
     }
@@ -209,36 +185,45 @@ impl<'a> CantripOsModel<'a> {
         Ok(())
     }
 
-    fn map_page_dir(&self, page_cap: &CDL_Cap, pd_id: CDL_ObjID, vaddr: seL4_Word) -> seL4_Result {
-        assert_eq!(page_cap.r#type(), CDL_PDCap);
-
-        let sel4_page = self.get_orig_cap(page_cap.obj_id);
-        let sel4_pd = self.get_orig_cap(pd_id);
-
-        //        trace!("  Map PD {} into {} @{:#x}, vm_attribs={:#x}",
-        //                self.get_object(page_cap.obj_id).name(),
-        //                self.get_object(pd_id).name(),
-        //                vaddr, page_cap.vm_attribs());
-
-        let vm_attribs: seL4_VMAttributes = page_cap.vm_attribs().into();
-        unsafe { seL4_ARM_PageDirectory_Map(sel4_page, sel4_pd, vaddr, vm_attribs) }
-    }
-
-    fn init_level_0(
+    fn init_level_2(
         &mut self,
         level_0_obj: CDL_ObjID,
-        level_0_base: usize,
-        _level_0_obj: CDL_ObjID,
+        level_2_base: usize,
+        level_2_obj: CDL_ObjID,
     ) -> seL4_Result {
-        for slot in self.get_object(level_0_obj).slots_slice() {
-            let base = (level_0_base + slot.slot)
-                << (CDL_PT_LEVEL_1_IndexBits
-                    + CDL_PT_LEVEL_2_IndexBits
-                    + CDL_PT_LEVEL_3_IndexBits
-                    + seL4_PageBits);
-            let level_1_cap = &slot.cap;
-            self.map_page_upper_dir(level_1_cap, level_0_obj, base)?;
-            self.init_level_1(level_0_obj, base, level_1_cap.obj_id)?;
+        for slot in self.get_object(level_2_obj).slots_slice() {
+            let base = level_2_base + (slot.slot << (CDL_PT_LEVEL_3_IndexBits + seL4_PageBits));
+            let level_3_cap = &slot.cap;
+            if level_3_cap.r#type() == CDL_FrameCap {
+                self.map_page_frame(
+                    level_3_cap,
+                    level_0_obj,
+                    level_3_cap.cap_rights().into(),
+                    base,
+                )?;
+            } else {
+                let level_3_obj = level_3_cap.obj_id;
+                self.map_page_table(level_3_cap, level_0_obj, base)?;
+                self.init_level_3(level_3_obj, level_0_obj, base)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn init_level_3(
+        &mut self,
+        level_3_obj: CDL_ObjID,
+        level_0_obj: CDL_ObjID,
+        level_3_base: usize,
+    ) -> seL4_Result {
+        for slot in self.get_object(level_3_obj).slots_slice() {
+            let frame_cap = &slot.cap;
+            self.map_page_frame(
+                frame_cap,
+                level_0_obj,
+                frame_cap.cap_rights().into(),
+                level_3_base + (slot.slot << seL4_PageBits),
+            )?;
         }
         Ok(())
     }
@@ -261,6 +246,21 @@ impl<'a> CantripOsModel<'a> {
 
         let vm_attribs: seL4_VMAttributes = page_cap.vm_attribs().into();
         unsafe { seL4_ARM_PageUpperDirectory_Map(sel4_page, sel4_pud, vaddr, vm_attribs) }
+    }
+
+    fn map_page_dir(&self, page_cap: &CDL_Cap, pd_id: CDL_ObjID, vaddr: seL4_Word) -> seL4_Result {
+        assert_eq!(page_cap.r#type(), CDL_PDCap);
+
+        let sel4_page = self.get_orig_cap(page_cap.obj_id);
+        let sel4_pd = self.get_orig_cap(pd_id);
+
+        //        trace!("  Map PD {} into {} @{:#x}, vm_attribs={:#x}",
+        //                self.get_object(page_cap.obj_id).name(),
+        //                self.get_object(pd_id).name(),
+        //                vaddr, page_cap.vm_attribs());
+
+        let vm_attribs: seL4_VMAttributes = page_cap.vm_attribs().into();
+        unsafe { seL4_ARM_PageDirectory_Map(sel4_page, sel4_pd, vaddr, vm_attribs) }
     }
 
     pub fn get_cdl_frame_pt(&self, pd: CDL_ObjID, vaddr: usize) -> Option<&'a CDL_Cap> {
