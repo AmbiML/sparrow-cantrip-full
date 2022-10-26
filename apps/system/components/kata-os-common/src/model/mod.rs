@@ -256,7 +256,7 @@ impl<'a> CantripOsModel<'a> {
         let num_untypeds = self.bootinfo.untyped.end - self.bootinfo.untyped.start;
 
         trace!(
-            "Hand-off {} untypeds from {} to {}",
+            "Hand-off {} untypeds from src slot {} to dest slot {}",
             num_untypeds,
             self.bootinfo.untyped.start,
             dest_start
@@ -285,7 +285,7 @@ impl<'a> CantripOsModel<'a> {
         let cnode_slot = self.get_free_slot();
         let cnode_depth = count_log2(kernel_caps + (cnode_slot - self.bootinfo.empty.start));
         trace!(
-            "{} holding caps, holding cnode depth {}",
+            "Create holding cnode for {} caps, depth {}",
             kernel_caps + (cnode_slot - self.bootinfo.empty.start),
             cnode_depth
         );
@@ -694,7 +694,7 @@ impl<'a> CantripOsModel<'a> {
         let vspace_copy = self.vspace_roots.clone();
         for obj in vspace_copy.iter() {
             let sel4_page = self.get_orig_cap(*obj);
-            debug!("Assign ASIDPool for {}", self.get_object(*obj).name());
+            debug!("Assign ASIDPool {} for {}", sel4_page, self.get_object(*obj).name());
             unsafe { seL4_ASIDPool_Assign(seL4_CapInitThreadASIDPool, sel4_page) }?;
         }
         Ok(())

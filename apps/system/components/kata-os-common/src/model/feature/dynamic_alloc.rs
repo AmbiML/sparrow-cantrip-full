@@ -91,7 +91,7 @@ impl<'a> CantripOsModel<'a> {
 
             #[cfg(feature = "CONFIG_NOISY_CREATE_OBJECT")]
             trace!(
-                "Creating object {} in slot {} from untyped {:#x}...",
+                "Creating object {} in cptr {} from untyped {}",
                 obj.name(),
                 free_slot,
                 self.state.get_untyped_cptr(ut_index)
@@ -252,7 +252,7 @@ impl<'a> CantripOsModel<'a> {
 
                 #[cfg(feature = "CONFIG_NOISY_UNTYPEDS")]
                 trace!(
-                    "Untyped {:3} (cptr={:#x}) (addr={:#x}) is of size {:2}. Placing in slot {}...",
+                    "Untyped {:3} (cptr {}) (addr {:#x}) is of size {:2}. Placing in slot {}",
                     untyped_index,
                     untyped_start + untyped_index,
                     ut.paddr,
@@ -266,8 +266,13 @@ impl<'a> CantripOsModel<'a> {
                 num_normal_untypes += 1;
             } else {
                 #[cfg(feature = "CONFIG_NOISY_UNTYPEDS")]
-                trace!("Untyped {:3} (cptr={:#x}) (addr={:#x}) is of size {:2}. Skipping as it is device",
-                       untyped_index, untyped_start + untyped_index, ut.paddr, ut.size_bits());
+                trace!(
+                    "Untyped {:3} (cptr {}) (addr {:#x}) is of size {:2}. Skipping as it is device",
+                    untyped_index,
+                    untyped_start + untyped_index,
+                    ut.paddr,
+                    ut.size_bits()
+                );
             }
         }
         num_normal_untypes
