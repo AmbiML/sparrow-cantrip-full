@@ -6,32 +6,23 @@
 #![no_std]
 #![no_main]
 
+extern crate alloc;
 extern crate libcantrip;
-use cantrip_os_common::logger::CantripLogger;
-use log::info;
+use alloc::format;
+use cantrip_os_common::allocator;
 use sdk_interface::*;
-
-// Message output is sent through the cantrip-os-logger which calls logger_log
-// to deliver data to the console. Redict to the sdk.
-#[no_mangle]
-#[allow(unused_variables)]
-pub fn logger_log(_level: u8, msg: *const cstr_core::c_char) {
-    if let Ok(str) = unsafe { cstr_core::CStr::from_ptr(msg) }.to_str() {
-        let _ = sdk_log(str);
-    }
-}
 
 #[no_mangle]
 pub fn main() {
-    // Setup logger; (XXX maybe belongs in the SDKRuntime)
-    static CANTRIP_LOGGER: CantripLogger = CantripLogger;
-    log::set_logger(&CANTRIP_LOGGER).unwrap();
-    log::set_max_level(log::LevelFilter::Trace);
-
-    match sdk_ping() {
-        Ok(_) => info!("ping!"),
-        Err(e) => info!("sdk_ping failed: {:?}", e),
+    // NB: needed for format!.
+    static mut HEAP: [u8; 4096] = [0; 4096];
+    unsafe {
+        allocator::ALLOCATOR.init(HEAP.as_mut_ptr() as _, HEAP.len());
     }
-    info!("I am a Rust app, hear me log!");
-    info!("Done, wimper ...");
+
+    let _ = match sdk_ping() {
+        Ok(_) => sdk_log("ping!"),
+        Err(e) => sdk_log(&format!("sdk_ping failed: {:?}", e)),
+    };
+    let _ = sdk_log("I am a Rust app, hear me log!");
 }
