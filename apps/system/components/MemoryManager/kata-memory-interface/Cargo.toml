@@ -30,4 +30,4 @@ postcard = { version = "0.7", features = ["alloc"], default-features = false }
 serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
 cantrip-os-common = { path = "../../cantrip-os-common" }
 log = { version = "0.4", features = ["release_max_level_info"] }
-smallvec = "1.2"
+smallvec = "1.10"

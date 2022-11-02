@@ -42,5 +42,6 @@ cantrip-sdk-manager = { path = "../../SDKRuntime/cantrip-sdk-manager" }
 cantrip-security-interface = { path = "../../SecurityCoordinator/cantrip-security-interface" }
 log = { version = "0.4", features = ["release_max_level_info"] }
 smallstr = "0.2"
+smallvec = "1.10"
 spin = "0.9"
 static_assertions = "1.1"

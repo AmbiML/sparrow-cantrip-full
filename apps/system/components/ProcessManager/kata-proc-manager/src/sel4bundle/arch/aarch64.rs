@@ -20,8 +20,15 @@ use static_assertions::assert_cfg;
 assert_cfg!(target_arch = "aarch64");
 
 use super::sel4_sys;
+use super::DynamicDescs;
+use super::SLOT_PD;
+use super::SLOT_PT;
+use super::SLOT_PUD;
+use super::SLOT_ROOT;
 use cantrip_memory_interface::ObjDesc;
+use cantrip_memory_interface::ObjDescBundle;
 use log::trace;
+use smallvec::SmallVec;
 
 mod arm;
 pub use arm::*;
@@ -32,6 +39,8 @@ use sel4_sys::seL4_ARM_PageTableObject;
 use sel4_sys::seL4_ARM_PageUpperDirectoryObject;
 use sel4_sys::seL4_ARM_SmallPageObject;
 use sel4_sys::seL4_CapRights;
+use sel4_sys::seL4_PageBits;
+use sel4_sys::seL4_PageTableIndexBits;
 use sel4_sys::seL4_PageTable_Map;
 use sel4_sys::seL4_Page_Map;
 use sel4_sys::seL4_Result;
@@ -41,6 +50,52 @@ use sel4_sys::seL4_Word;
 
 use sel4_sys::seL4_ARM_PageDirectory_Map;
 use sel4_sys::seL4_ARM_PageUpperDirectory_Map;
+
+pub const INDEX_ROOT: usize = super::INDEX_LAST_COMMON + 1;
+const INDEX_PUD: usize = INDEX_ROOT + 1;
+const INDEX_PD: usize = INDEX_PUD + 1;
+const INDEX_PT: usize = INDEX_PD + 1;
+const INDEX_MAX: usize = INDEX_PT + 1;
+pub type DynamicDescs = [ObjDesc; INDEX_MAX];
+
+pub fn add_vspace_desc(desc: &mut SmallVec<DynamicDescs>) {
+    // VSpace root: page global directory (PGD)
+    desc.push(ObjDesc::new(seL4_ARM_PageGlobalDirectoryObject, 1, SLOT_ROOT));
+    debug_assert_eq!(INDEX_ROOT, desc.len() - 1);
+
+    // VSpace page upper directory (PUD)
+    desc.push(ObjDesc::new(seL4_ARM_PageUpperDirectoryObject, 1, SLOT_PUD));
+    debug_assert_eq!(INDEX_PUD, desc.len() - 1);
+
+    // VSpace page directory (PD)
+    desc.push(ObjDesc::new(seL4_ARM_PageDirectoryObject, 1, SLOT_PD));
+    debug_assert_eq!(INDEX_PD, desc.len() - 1);
+
+    // VSpace page table (PT)
+    desc.push(ObjDesc::new(seL4_ARM_PageTableObject, 1, SLOT_PT));
+    debug_assert_eq!(INDEX_PT, desc.len() - 1);
+}
+
+pub fn init_page_tables(dynamic_objs: &ObjDescBundle, first_vaddr: seL4_Word) -> seL4_Result {
+    let root = &dynamic_objs.objs[INDEX_ROOT];
+    let pud = &dynamic_objs.objs[INDEX_PUD];
+    let pd = &dynamic_objs.objs[INDEX_PD];
+    let pt = &dynamic_objs.objs[INDEX_PT];
+
+    // Map 3rd level page table.
+    map_page_upper_dir(pud, root, 0, seL4_Default_VMAttributes)?;
+
+    // Map 2nd level page table.
+    map_page_dir(pd, root, 0, seL4_Default_VMAttributes)?;
+
+    // Map 1st-level page table.
+    // Calculate the PD entry/address using the first vaddr of the
+    // application. We only (currently) support one 2nd-level page table
+    // to map the application, stack, etc. so everything has to fit
+    // in 2MiB of virtual memory.
+    let vaddr = PD_SLOT(first_vaddr) << (seL4_PageTableIndexBits + seL4_PageBits);
+    map_page_table(pt, root, vaddr, seL4_Default_VMAttributes)
+}
 
 pub fn get_user_context(
     pc: seL4_Word,
@@ -84,7 +139,7 @@ pub fn map_page(
 }
 
 // TODO(sleffler): need variant for *PageObject
-pub fn map_page_table(
+fn map_page_table(
     pt: &ObjDesc,
     root: &ObjDesc,
     vaddr: seL4_Word,
@@ -97,8 +152,7 @@ pub fn map_page_table(
 }
 
 // TODO(sleffler): need variant for *PageObject
-#[allow(dead_code)]
-pub fn map_page_dir(
+fn map_page_dir(
     pd: &ObjDesc,
     root: &ObjDesc,
     vaddr: seL4_Word,
@@ -110,8 +164,7 @@ pub fn map_page_dir(
     unsafe { seL4_ARM_PageDirectory_Map(pd.cptr, root.cptr, vaddr, vm_attribs) }
 }
 
-#[allow(dead_code)]
-pub fn map_page_upper_dir(
+fn map_page_upper_dir(
     pud: &ObjDesc,
     root: &ObjDesc,
     vaddr: seL4_Word,

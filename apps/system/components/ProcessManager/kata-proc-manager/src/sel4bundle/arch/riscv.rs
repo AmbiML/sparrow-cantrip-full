@@ -33,9 +33,8 @@ pub const REG_ARGS: seL4_Word = 4; // Number of regs for passing thread args
 
 fn MASK(pow2_bits: usize) -> usize { (1 << pow2_bits) - 1 }
 
-// NB: used to setup copy_addr_pt
 pub fn PD_SLOT(vaddr: usize) -> usize {
     (vaddr >> (seL4_PageTableIndexBits + seL4_PageBits)) & MASK(seL4_PageDirIndexBits)
 }
-// NB: used by tcb_args::maybe_spill_tcb_args
+// NB: used by seL4BundleImpl::maybe_spill_tcb_args
 pub fn PT_SLOT(vaddr: usize) -> usize { (vaddr >> seL4_PageBits) & MASK(seL4_PageTableIndexBits) }

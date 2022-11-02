@@ -20,7 +20,6 @@
 
 extern crate alloc;
 use alloc::string::String;
-use alloc::vec;
 use core::cmp;
 use core::mem::size_of;
 use core::ptr;
@@ -41,6 +40,8 @@ use cantrip_proc_interface::ProcessManagerError;
 use cantrip_sdk_manager::cantrip_sdk_manager_get_endpoint;
 use cantrip_sdk_manager::cantrip_sdk_manager_release_endpoint;
 use log::{debug, error, info, trace};
+use smallvec::smallvec;
+use smallvec::SmallVec;
 
 use io::Read;
 use cantrip_io as io;
@@ -55,7 +56,6 @@ use sel4_sys::seL4_DomainSet_Set;
 use sel4_sys::seL4_EndpointObject;
 use sel4_sys::seL4_Error;
 use sel4_sys::seL4_MinSchedContextBits;
-use sel4_sys::seL4_PageTableObject;
 use sel4_sys::seL4_Result;
 use sel4_sys::seL4_SchedContextObject;
 use sel4_sys::seL4_SmallPageObject;
@@ -150,33 +150,39 @@ fn check_bundle(bundle: &ObjDescBundle) {
 
 const NOCAP: seL4_CPtr = 0;
 
-// Layout of the CNode holding dynamic_objs.  All entries are singletons
-// except for STACK_COUNT so symbols up to STACK_SLOT can also be used to
-// index into dynamic_objs. Perhaps too fragile...
-// TODO(sleffler): SDK runtime state should be seetup by SDK in case it
+// Initial layout of the CNode holding dynamic_objs. See the comment
+// below about cantrip_object_alloc_in_toplevel linearizing the caps
+// returned by MemoryManager.
+// TODO(sleffler): SDK runtime state should be setup by SDK in case it
 //    needs more than 1 endpoint + 1 small frame
-const TCB_SLOT: usize = 0;
-const FAULT_EP_SLOT: usize = TCB_SLOT + 1;
-const SCHED_CONTEXT_SLOT: usize = FAULT_EP_SLOT + 1;
-// TODO(sleffler): VSpace layout is arch-specific
-const ROOT_SLOT: usize = SCHED_CONTEXT_SLOT + 1;
-
-#[cfg(target_arch = "aarch64")]
-const PUD_SLOT: usize = ROOT_SLOT + 1;
-#[cfg(target_arch = "aarch64")]
-const PD_SLOT: usize = PUD_SLOT + 1;
-#[cfg(target_arch = "aarch64")]
-const PT_SLOT: usize = PD_SLOT + 1;
-
-#[cfg(target_arch = "riscv32")]
-const PT_SLOT: usize = ROOT_SLOT + 1;
-
-const IPCBUFFER_SLOT: usize = PT_SLOT + 1;
-const SDK_FRAME_SLOT: usize = IPCBUFFER_SLOT + 1;
-const STACK_SLOT: usize = SDK_FRAME_SLOT + 1;
+const SLOT_TCB: usize = 0;
+const SLOT_FAULT_EP: usize = SLOT_TCB + 1;
+const SLOT_SCHED_CONTEXT: usize = SLOT_FAULT_EP + 1;
+// NB: reserve slots for a 4-level page mapping; on arch's that
+//   need fewer the middle slots will not be used
+const SLOT_ROOT: usize = SLOT_SCHED_CONTEXT + 1;
+const SLOT_PUD: usize = SLOT_ROOT + 1;
+const SLOT_PD: usize = SLOT_PUD + 1;
+const SLOT_PT: usize = SLOT_PD + 1;
+const SLOT_IPCBUFFER: usize = SLOT_PT + 1;
+const SLOT_SDK_FRAME: usize = SLOT_IPCBUFFER + 1;
+const SLOT_STACK: usize = SLOT_SDK_FRAME + 1;
 const STACK_COUNT: usize = 4; // 16K for stack (XXX get from manifest)
-const FRAME_SLOT: usize = STACK_SLOT + STACK_COUNT;
-// NB: FRAME_SLOT count is based on the BundleImage
+const SLOT_FRAME: usize = SLOT_STACK + STACK_COUNT;
+// NB: SLOT_FRAME count is based on the BundleImage
+
+// Indices of ObjDesc items in dynamic_objs.
+// Each arch appends the ObjDesc's they need for VSpace construction;
+// one of which must be named INDEX_ROOT (for the VSpace root)
+const INDEX_TCB: usize = 0;
+const INDEX_FAULT_EP: usize = INDEX_TCB + 1;
+const INDEX_SCHED_CONTEXT: usize = INDEX_FAULT_EP + 1;
+const INDEX_IPCBUFFER: usize = INDEX_SCHED_CONTEXT + 1;
+const INDEX_SDK_FRAME: usize = INDEX_IPCBUFFER + 1;
+const INDEX_STACK: usize = INDEX_SDK_FRAME + 1;
+const INDEX_FRAME: usize = INDEX_STACK + 1;
+const INDEX_LAST_COMMON: usize = INDEX_FRAME;
+// arch-specific descriptors start at INDEX_LAST_COMMON + 1
 
 pub struct seL4BundleImpl {
     // Application binary pages ordered by virtual address.
@@ -207,6 +213,7 @@ pub struct seL4BundleImpl {
     sdk_ep_slot: seL4_CPtr,
     sdk_frame_addr: seL4_Word, // Address of SDK frame in app's VSpace
     stack_base: seL4_Word,     // Base address of stack in app's VSpace
+    first_vaddr: seL4_Word,
 
     cspace_root_data: seL4_Word,
     cspace_root_depth: u8,
@@ -246,52 +253,66 @@ impl seL4BundleImpl {
 
         // Allocate the objects needed for the application. Everything
         // lands in the top-level CNode because the seL4 api's pretty much
-        // force this unless we're willing to use 2-level CSpace addressing
-        // everywhere (which is not supported by CAmkES). After the
-        // application is constructed, init_cspace() will bulk move all
-        // the caps back into the application's CNode and we keep only a
-        // cap for the CNode and TCB; this minimizes the slots in our
-        // top-level CNode required to support multiple applications. Note
-        // this scheme is a simplification of what the rootserver does; it's
-        // likely we can greatly simplify that too but since we reclaim
-        // rootserver resources after it runs it's not clear how useful that
-        // would be.
+        // force this. After the application is constructed, init_cspace()
+        // will bulk move all the caps back into the application's CNode
+        // and we keep only a cap for the CNode and TCB; this minimizes
+        // the slots in our top-level CNode required to support multiple
+        // applications. Note this scheme is a simplification of what the
+        // rootserver does; it's likely we can simplify that too but
+        // since we reclaim rootserver resources after it runs it's not
+        // clear how useful that would be.
         //
-        // NB: beware the order of this must match *_SLOT above
-        // TODO(sleffler): maybe construct the vec to avoid mismatches
-        // TODO(sleffler): the toplevel CNode has a fixed size which
-        //   can overflow when nframes is non-trivial
-        let dynamic_objs = cantrip_object_alloc_in_toplevel(vec![
-            // control/main-thread TCB
-            ObjDesc::new(seL4_TCBObject, 1, TCB_SLOT),
-            // fault redirect to SDK/ProcessManager
-            ObjDesc::new(seL4_EndpointObject, 1, FAULT_EP_SLOT),
+        // VSpace construction work is done per-arch. We craft the set
+        // of ObjDesc's on the stack using the arch::DynamicDescs type to
+        // size the SmallVec, fill in the common descriptors, then ask the
+        // arch to add what it needs to setup the VSpace. Common code does
+        // not know about the VSpace internals. The end result is the CNode
+        // with caps packed so that bulk operations have no empty slots
+        // to trigger errors.
+        //
+        // NB: the toplevel CNode has a fixed size which can overflow when
+        //    nframes is big (we assume app sizes are small'ish many places)
+        // NB: using the stack for the work below seems preferrable to the
+        //    heap because sizes are fixed: SmallVec + dynamic_objs +
+        //    sel4BundleImpl return
+
+        // NB: the order here must match INDEX_*
+        let mut desc: SmallVec<arch::DynamicDescs> = smallvec![
+            // Control/main-thread TCB.
+            ObjDesc::new(seL4_TCBObject, 1, SLOT_TCB),
+            // Fault redirect to SDK/ProcessManager.
+            ObjDesc::new(seL4_EndpointObject, 1, SLOT_FAULT_EP),
             // SchedContext for main thread
-            ObjDesc::new(seL4_SchedContextObject, seL4_MinSchedContextBits, SCHED_CONTEXT_SLOT),
-            #[cfg(target_arch = "aarch64")]
-            // VSpace root: page global directory (PGD)
-            ObjDesc::new(sel4_sys::seL4_PageGlobalDirectoryObject, 1, ROOT_SLOT),
-            #[cfg(target_arch = "aarch64")]
-            // VSpace page upper directory (PUD)
-            ObjDesc::new(sel4_sys::seL4_PageUpperDirectoryObject, 1, PUD_SLOT),
-            #[cfg(target_arch = "aarch64")]
-            // VSpace page directory (PD)
-            ObjDesc::new(sel4_sys::seL4_PageDirectoryObject, 1, PD_SLOT),
-            #[cfg(target_arch = "riscv32")]
-            // VSpace root: page table (PT)
-            ObjDesc::new(seL4_PageTableObject, 1, ROOT_SLOT),
-            // VSpace page table (PT)
-            ObjDesc::new(seL4_PageTableObject, 1, PT_SLOT),
-            // IPC buffer frame
-            ObjDesc::new(seL4_SmallPageObject, 1, IPCBUFFER_SLOT),
-            // Frame for SDK RPC parameters
-            ObjDesc::new(seL4_SmallPageObject, 1, SDK_FRAME_SLOT),
-            // Stack frames (guard frames are unpopulated PT slots)
-            ObjDesc::new(seL4_SmallPageObject, STACK_COUNT, STACK_SLOT),
+            ObjDesc::new(seL4_SchedContextObject, seL4_MinSchedContextBits, SLOT_SCHED_CONTEXT),
+            // IPC buffer frame.
+            ObjDesc::new(seL4_SmallPageObject, 1, SLOT_IPCBUFFER),
+            // Frame for SDK RPC parameters.
+            ObjDesc::new(seL4_SmallPageObject, 1, SLOT_SDK_FRAME),
+            // Stack frames (guard frames are unpopulated PT slots).
+            ObjDesc::new(seL4_SmallPageObject, STACK_COUNT, SLOT_STACK),
             // Page frames for application binary.
-            ObjDesc::new(seL4_SmallPageObject, nframes, FRAME_SLOT),
-        ])
-        .map_err(|_| ProcessManagerError::StartFailed)?;
+            ObjDesc::new(seL4_SmallPageObject, nframes, SLOT_FRAME),
+        ];
+        debug_assert_eq!(INDEX_LAST_COMMON, desc.len() - 1);
+
+        // Append arch-specific VSpace resources.
+        arch::add_vspace_desc(&mut desc);
+        debug_assert!(!desc.spilled());
+
+        // Calculate SDK endpoint slot in the final CSpace. This is just
+        // one slot past the last specified capability.
+        let sdk_ep_slot = desc
+            .iter()
+            .map(|od| od.cptr + od.retype_count())
+            .max()
+            .unwrap();
+
+        // NB: when caps are moved to our top-level CNode they are linearized
+        // so the (careful) layout in |desc| is lost. This means one should
+        // not assume SLOT_* are meaningful; use INDEX_* to fetch a cptr
+        // from dynamic_objs.
+        let dynamic_objs = cantrip_object_alloc_in_toplevel(desc.into_vec())
+            .map_err(|_| ProcessManagerError::StartFailed)?;
 
         // Allocate the top-level CNode that will hold |dynamic_objs|.
         let cspace_root_depth = dynamic_objs.count_log2();
@@ -326,9 +347,10 @@ impl seL4BundleImpl {
             tcb_ipcbuffer_addr: 0,
             tcb_pc: entry_point.unwrap_or(first_vaddr), // NB: filled in from BundleImage
             tcb_sp: 0,
-            sdk_ep_slot: FRAME_SLOT + nframes, // SDK endpoint goes at the end
+            sdk_ep_slot,
             sdk_frame_addr: 0,
             stack_base: 0,
+            first_vaddr,
 
             // 1-level CSpace addressing
             cspace_root_data: make_guard(0, seL4_WordBits - cspace_root_depth),
@@ -379,12 +401,8 @@ impl seL4BundleImpl {
         trace!("load_application");
         let vm_attribs = seL4_Default_VMAttributes;
 
-        // NB: assumes root and pt are setup (not sure we can check)
-        let root = &self.dynamic_objs.objs[ROOT_SLOT];
-        // NB: There are 4 stack frames allocated using a single ObjDesc in
-        //   dynamic_objs, so page_frames 1 past STACK_SLOT. To be fixed when
-        //   dynamic_objs is constructed directly and we have const indices.
-        let page_frames = &self.dynamic_objs.objs[STACK_SLOT + 1];
+        let root = &self.dynamic_objs.objs[arch::INDEX_ROOT];
+        let page_frames = &self.dynamic_objs.objs[INDEX_FRAME];
         let bundle_frames = &self.bundle_frames;
 
         // Map application pages. The |page_frames| are in the top-level
@@ -478,35 +496,20 @@ impl seL4BundleImpl {
         );
         let vm_attribs = seL4_Default_VMAttributes;
 
-        let root = &self.dynamic_objs.objs[ROOT_SLOT];
-        #[cfg(target_arch = "aarch64")]
-        let pud = &self.dynamic_objs.objs[PUD_SLOT];
-        #[cfg(target_arch = "aarch64")]
-        let pd = &self.dynamic_objs.objs[PD_SLOT];
-        let pt = &self.dynamic_objs.objs[PT_SLOT];
-
-        let ipcbuffer_frame = &self.dynamic_objs.objs[IPCBUFFER_SLOT];
-        let sdk_frame = &self.dynamic_objs.objs[SDK_FRAME_SLOT];
-        let stack_frames = &self.dynamic_objs.objs[STACK_SLOT];
+        let root = &self.dynamic_objs.objs[arch::INDEX_ROOT];
+        let ipcbuffer_frame = &self.dynamic_objs.objs[INDEX_IPCBUFFER];
+        let sdk_frame = &self.dynamic_objs.objs[INDEX_SDK_FRAME];
+        let stack_frames = &self.dynamic_objs.objs[INDEX_STACK];
 
         // Initializes the VSpace root (PD) in the ASID pool.
         // NB: must happen before anything is mapped.
         unsafe { seL4_ASIDPool_Assign(ASID_POOL, root.cptr) }?;
 
-        #[cfg(target_arch = "aarch64")]
-        // Map 4th level page table.
-        arch::map_page_upper_dir(pud, root, 0, vm_attribs)?;
-
-        #[cfg(target_arch = "aarch64")]
-        // Map 3rd level page table.
-        arch::map_page_dir(pd, root, 0, vm_attribs)?;
-
-        // Map 2nd-level page table.
-        // XXX first_vaddr?
-        #[cfg(target_arch = "aarch64")]
-        arch::map_page_table(pt, root, 0x400000, vm_attribs)?;
-        #[cfg(target_arch = "riscv32")]
-        arch::map_page_table(pt, root, 0, vm_attribs)?;
+        // Setup the page tables. Applications get a 1-level page table
+        // for the executable, stack, guard pages, ipc_buffer, etc.
+        // Given our target platform has only 4MiB of memory this should
+        // fine but for other arch's this may be too restrictive.
+        arch::init_page_tables(&self.dynamic_objs, self.first_vaddr)?;
 
         // Setup the bundle image.
         let vaddr_top = self.load_application()?;
@@ -559,12 +562,18 @@ impl seL4BundleImpl {
     fn init_tcb(&self) -> seL4_Result {
         trace!("init_tcb");
         let cap_cspace_root = self.cspace_root.objs[0].cptr;
-        let cap_vspace_root = self.dynamic_objs.objs[ROOT_SLOT].cptr;
-        let cap_tcb = self.dynamic_objs.objs[TCB_SLOT].cptr;
-        let cap_fault_ep = self.dynamic_objs.objs[FAULT_EP_SLOT].cptr;
+        let cap_vspace_root = self.dynamic_objs.objs[arch::INDEX_ROOT].cptr;
+        let cap_tcb = self.dynamic_objs.objs[INDEX_TCB].cptr;
+        let cap_fault_ep = self.dynamic_objs.objs[INDEX_FAULT_EP].cptr;
         let cap_tempfault_ep = cap_fault_ep; // XXX
-        let cap_sc = self.dynamic_objs.objs[SCHED_CONTEXT_SLOT].cptr;
-        let cap_ipcbuffer = self.dynamic_objs.objs[IPCBUFFER_SLOT].cptr;
+        let cap_sc = self.dynamic_objs.objs[INDEX_SCHED_CONTEXT].cptr;
+        let cap_ipcbuffer = self.dynamic_objs.objs[INDEX_IPCBUFFER].cptr;
+
+        // Calculate the SDK frame's slot in the app's CSpace by mapping
+        // the current cptr (in ProcessManager's CSpace).
+        // XXX don't need to enumerate all cptrs; just use od.cptr
+        let min_cptr = self.dynamic_objs.cptr_iter().min().unwrap();
+        let sdk_frame_slot = self.dynamic_objs.objs[INDEX_SDK_FRAME].cptr - min_cptr;
 
         // XXX MCS v non-MCS
         if cap_sc != NOCAP {
@@ -617,7 +626,7 @@ impl seL4BundleImpl {
         let argv: &[seL4_Word] = &[
             self.tcb_ipcbuffer_addr, // Used to setup __sel4_ipc_buffer
             self.sdk_ep_slot,        // For SDKRuntime IPCs
-            SDK_FRAME_SLOT,          // NB: must wrt application CSpace
+            sdk_frame_slot,          // NB: must wrt application CSpace
             self.sdk_frame_addr,     // For SDKRuntime parameters
         ];
 
@@ -659,7 +668,7 @@ impl seL4BundleImpl {
         // Move everything back from the top-level CNode to the application's
         // cspace_root and release the top-level CNode slots used during
         // construction. Note this does not clobber the sdk_endpoint because
-        // that slot is carefully avoidded in dynamic_objs.
+        // that slot is carefully avoided in dynamic_objs.
         self.dynamic_objs
             .move_objects_from_toplevel(self.cspace_root.objs[0].cptr, self.cspace_root_depth)?;
 
@@ -667,7 +676,7 @@ impl seL4BundleImpl {
         // We do this after the bulk move to insure there's a free slot.
         self.cap_tcb.dup_to(
             self.dynamic_objs.cnode,
-            self.dynamic_objs.objs[TCB_SLOT].cptr,
+            self.dynamic_objs.objs[INDEX_TCB].cptr,
             self.dynamic_objs.depth,
         )?;
         // TODO(sleffler): remove the TCB from the CNode
@@ -685,7 +694,7 @@ impl seL4BundleImpl {
             self.stack_base,
             self.tcb_sp
         );
-        &self.dynamic_objs.objs[STACK_SLOT + arch::PT_SLOT(vaddr - self.stack_base)]
+        &self.dynamic_objs.objs[INDEX_STACK + arch::PT_SLOT(vaddr - self.stack_base)]
     }
 }
 impl BundleImplInterface for seL4BundleImpl {
