@@ -205,6 +205,8 @@ impl ObjDescBundle {
 
     // Move objects to dynamically-allocated slots in the top-level
     // CNode and mutate the Object Descriptor with the new cptr's.
+    // NB: there is no attempt to preserve the order of cptr's (and
+    // in practice they are linearized).
     // TODO(sleffler) make generic (requires supplying slot allocator)?
     pub fn move_objects_to_toplevel(&mut self) -> seL4_Result {
         let dest_cnode = unsafe { SELF_CNODE };
@@ -235,6 +237,9 @@ impl ObjDescBundle {
     // Move objects from the top-level CSpace to |dest_cnode| and
     // release the top-level slots. The Object Descriptor are mutated
     // with adjusted cptr's.
+    // TODO(sleffler): this does not preserve the order of the cptr's;
+    //   doing so is easy but not very useful when move_object_to_toplevvel
+    //   does not
     pub fn move_objects_from_toplevel(
         &mut self,
         dest_cnode: seL4_CPtr,
