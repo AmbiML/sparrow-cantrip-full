@@ -128,6 +128,8 @@ fn get_cmds() -> HashMap<&'static str, CmdFn> {
         ("mdebug", mdebug_command as CmdFn),
         ("mstats", mstats_command as CmdFn),
         ("ps", ps_command as CmdFn),
+        #[cfg(feature = "timer_support")]
+        ("sleep", sleep_command as CmdFn),
         ("source", source_command as CmdFn),
         ("start", start_command as CmdFn),
         ("stop", stop_command as CmdFn),
@@ -216,6 +218,28 @@ pub fn repl_eof<T: io::BufRead>(output: &mut dyn io::Write, input: &mut T, built
             let _ = writeln!(output, "EOF");
             break;
         }
+    }
+}
+
+/// Implements a command that pauses for a specified period of time.
+#[cfg(feature = "timer_support")]
+fn sleep_command(
+    args: &mut dyn Iterator<Item = &str>,
+    _input: &mut dyn io::BufRead,
+    _output: &mut dyn io::Write,
+    _builtin_cpio: &[u8],
+) -> Result<(), CommandError> {
+    let time_str = args.next().ok_or(CommandError::BadArgs)?;
+    let time_ms = time_str.parse::<u32>()?;
+
+    // Set timer_id to 0, we don't need to use multiple timers here.
+    use cantrip_timer_interface::*;
+    match timer_service_oneshot(0, time_ms) {
+        TimerServiceError::TimerOk => {
+            timer_service_wait();
+            Ok(())
+        }
+        _ => Err(CommandError::BadArgs),
     }
 }
 
