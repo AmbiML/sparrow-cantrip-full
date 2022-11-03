@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use cfg_if::cfg_if;
+
 extern crate alloc;
 use core::hash::BuildHasher;
 use hashbrown::HashMap;
@@ -23,11 +25,22 @@ use cantrip_sdk_manager::SDKManagerInterface;
 use cantrip_security_interface::cantrip_security_delete_key;
 use cantrip_security_interface::cantrip_security_read_key;
 use cantrip_security_interface::cantrip_security_write_key;
-use log::{error, info};
+cfg_if! {
+    if #[cfg(feature = "timer_support")] {
+        use cantrip_timer_interface::timer_service_cancel;
+        use cantrip_timer_interface::timer_service_oneshot;
+        use cantrip_timer_interface::timer_service_periodic;
+        use cantrip_timer_interface::timer_service_wait;
+        use cantrip_timer_interface::TimerServiceError;
+    }
+}
+use log::{error, info, trace};
 use sdk_interface::error::SDKError;
 use sdk_interface::KeyValueData;
 use sdk_interface::SDKAppId;
 use sdk_interface::SDKRuntimeInterface;
+use sdk_interface::TimerDuration;
+use sdk_interface::TimerId;
 use smallstr::SmallString;
 
 use sel4_sys::seL4_CPtr;
@@ -191,5 +204,86 @@ impl SDKRuntimeInterface for SDKRuntime {
             }
             None => Err(SDKError::InvalidBadge),
         }
+    }
+
+    // TODO(sleffler): compose id+app.id to form timer id
+
+    #[allow(unused_variables)]
+    fn timer_oneshot(
+        &self,
+        app_id: SDKAppId,
+        id: TimerId,
+        duration_ms: TimerDuration,
+    ) -> Result<(), SDKError> {
+        trace!("timer_oneshot id {} duration {}", id, duration_ms);
+        match self.apps.get(&app_id) {
+            Some(_) => {
+                #[cfg(feature = "timer_support")]
+                return map_timer_error(timer_service_oneshot(id, duration_ms));
+
+                #[cfg(not(feature = "timer_support"))]
+                Err(SDKError::NoPlatformSupport)
+            }
+            None => Err(SDKError::InvalidBadge),
+        }
+    }
+
+    #[allow(unused_variables)]
+    fn timer_periodic(
+        &self,
+        app_id: SDKAppId,
+        id: TimerId,
+        duration_ms: TimerDuration,
+    ) -> Result<(), SDKError> {
+        trace!("timer_periodic id {} duration {}", id, duration_ms);
+        match self.apps.get(&app_id) {
+            Some(_) => {
+                #[cfg(feature = "timer_support")]
+                return map_timer_error(timer_service_periodic(id, duration_ms));
+
+                #[cfg(not(feature = "timer_support"))]
+                Err(SDKError::NoPlatformSupport)
+            }
+            None => Err(SDKError::InvalidBadge),
+        }
+    }
+
+    #[allow(unused_variables)]
+    fn timer_cancel(&self, app_id: SDKAppId, id: TimerId) -> Result<(), SDKError> {
+        trace!("timer_cancel id {}", id);
+        match self.apps.get(&app_id) {
+            Some(_) => {
+                #[cfg(feature = "timer_support")]
+                return map_timer_error(timer_service_cancel(id));
+
+                #[cfg(not(feature = "timer_support"))]
+                Err(SDKError::NoPlatformSupport)
+            }
+            None => Err(SDKError::InvalidBadge),
+        }
+    }
+
+    fn timer_wait(&self, app_id: SDKAppId) -> Result<TimerId, SDKError> {
+        trace!("timer_wait");
+        // TODO(sleffler): no way to wait for just app's timers
+        match self.apps.get(&app_id) {
+            Some(_) => {
+                #[cfg(feature = "timer_support")]
+                return Ok(timer_service_wait() as TimerId); //XXX maybe add error code
+
+                #[cfg(not(feature = "timer_support"))]
+                Err(SDKError::NoPlatformSupport)
+            }
+            None => Err(SDKError::InvalidBadge),
+        }
+    }
+}
+
+#[cfg(feature = "timer_support")]
+fn map_timer_error(err: TimerServiceError) -> Result<(), SDKError> {
+    match err {
+        TimerServiceError::TimerOk => Ok(()),
+        TimerServiceError::NoSuchTimer => Err(SDKError::NoSuchTimer),
+        TimerServiceError::TimerAlreadyExists => Err(SDKError::TimerAlreadyExists),
     }
 }

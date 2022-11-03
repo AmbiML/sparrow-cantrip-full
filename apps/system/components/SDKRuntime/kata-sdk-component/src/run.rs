@@ -192,6 +192,18 @@ pub unsafe extern "C" fn run() -> ! {
                 Ok(SDKRuntimeRequest::DeleteKey) => {
                     delete_key_request(app_id, request_slice, reply_slice)
                 }
+                Ok(SDKRuntimeRequest::OneshotTimer) => {
+                    timer_oneshot_request(app_id, request_slice, reply_slice)
+                }
+                Ok(SDKRuntimeRequest::PeriodicTimer) => {
+                    timer_periodic_request(app_id, request_slice, reply_slice)
+                }
+                Ok(SDKRuntimeRequest::CancelTimer) => {
+                    timer_cancel_request(app_id, request_slice, reply_slice)
+                }
+                Ok(SDKRuntimeRequest::WaitForTimer) => {
+                    timer_wait_request(app_id, request_slice, reply_slice)
+                }
                 Err(_) => {
                     // TODO(b/254286176): possible ddos
                     error!("Unknown RPC request {}", info.get_label());
@@ -289,6 +301,47 @@ fn delete_key_request(
     let request = postcard::from_bytes::<sdk_interface::DeleteKeyRequest>(request_slice)
         .map_err(deserialize_failure)?;
     unsafe { CANTRIP_SDK.delete_key(app_id, request.key) }
+}
+
+fn timer_oneshot_request(
+    app_id: SDKAppId,
+    request_slice: &[u8],
+    _reply_slice: &mut [u8],
+) -> Result<(), SDKError> {
+    let request = postcard::from_bytes::<sdk_interface::TimerStartRequest>(request_slice)
+        .map_err(deserialize_failure)?;
+    unsafe { CANTRIP_SDK.timer_oneshot(app_id, request.id, request.duration_ms) }
+}
+
+fn timer_periodic_request(
+    app_id: SDKAppId,
+    request_slice: &[u8],
+    _reply_slice: &mut [u8],
+) -> Result<(), SDKError> {
+    let request = postcard::from_bytes::<sdk_interface::TimerStartRequest>(request_slice)
+        .map_err(deserialize_failure)?;
+    unsafe { CANTRIP_SDK.timer_periodic(app_id, request.id, request.duration_ms) }
+}
+
+fn timer_cancel_request(
+    app_id: SDKAppId,
+    request_slice: &[u8],
+    _reply_slice: &mut [u8],
+) -> Result<(), SDKError> {
+    let request = postcard::from_bytes::<sdk_interface::TimerCancelRequest>(request_slice)
+        .map_err(deserialize_failure)?;
+    unsafe { CANTRIP_SDK.timer_cancel(app_id, request.id) }
+}
+
+fn timer_wait_request(
+    app_id: SDKAppId,
+    _request_slice: &[u8],
+    reply_slice: &mut [u8],
+) -> Result<(), SDKError> {
+    let id = unsafe { CANTRIP_SDK.timer_wait(app_id)? };
+    let _ = postcard::to_slice(&sdk_interface::TimerWaitResponse { id }, reply_slice)
+        .map_err(serialize_failure)?;
+    Ok(())
 }
 
 // SDKManager RPC handling; these arrive via CAmkES so have a C linkage.

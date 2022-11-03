@@ -28,6 +28,9 @@ pub enum SDKError {
     MapPageFailed,
     UnknownRequest,
     UnknownResponse,
+    NoSuchTimer,
+    TimerAlreadyExists,
+    NoPlatformSupport,
 }
 
 impl From<postcard::Error> for SDKError {
@@ -50,6 +53,9 @@ pub enum SDKRuntimeError {
     SDKMapPageFailed,
     SDKUnknownRequest,
     SDKUnknownResponse,
+    SDKNoSuchTimer,
+    SDKTimerAlreadyExists,
+    SDKNoPlatformSupport,
 }
 
 /// Mapping function from Rust -> C.
@@ -64,8 +70,11 @@ impl From<SDKError> for SDKRuntimeError {
             SDKError::WriteKeyFailed => SDKRuntimeError::SDKWriteKeyFailed,
             SDKError::DeleteKeyFailed => SDKRuntimeError::SDKDeleteKeyFailed,
             SDKError::MapPageFailed => SDKRuntimeError::SDKMapPageFailed,
+            SDKError::NoSuchTimer => SDKRuntimeError::SDKNoSuchTimer,
+            SDKError::TimerAlreadyExists => SDKRuntimeError::SDKTimerAlreadyExists,
             SDKError::UnknownRequest => SDKRuntimeError::SDKUnknownRequest,
             SDKError::UnknownResponse => SDKRuntimeError::SDKUnknownResponse,
+            SDKError::NoPlatformSupport => SDKRuntimeError::SDKNoPlatformSupport,
         }
     }
 }
@@ -90,8 +99,11 @@ impl From<SDKRuntimeError> for Result<(), SDKError> {
             SDKRuntimeError::SDKWriteKeyFailed => Err(SDKError::WriteKeyFailed),
             SDKRuntimeError::SDKDeleteKeyFailed => Err(SDKError::DeleteKeyFailed),
             SDKRuntimeError::SDKMapPageFailed => Err(SDKError::DeleteKeyFailed),
+            SDKRuntimeError::SDKNoSuchTimer => Err(SDKError::NoSuchTimer),
+            SDKRuntimeError::SDKTimerAlreadyExists => Err(SDKError::TimerAlreadyExists),
             SDKRuntimeError::SDKUnknownRequest => Err(SDKError::UnknownRequest),
             SDKRuntimeError::SDKUnknownResponse => Err(SDKError::UnknownResponse),
+            SDKRuntimeError::SDKNoPlatformSupport => Err(SDKError::NoPlatformSupport),
         }
     }
 }

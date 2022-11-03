@@ -28,7 +28,7 @@ use spin::Mutex;
 // TODO(jesionowski): NUM_CLIENTS should be derived through the static
 // camkes configuration. This may take some template hacking as the number
 // of clients is generated as a C #define.
-const NUM_CLIENTS: usize = 2;
+const NUM_CLIENTS: usize = 4;
 
 // We use a TimerId as a bit vector denoting completed timers.
 const TIMERS_PER_CLIENT: usize = 32;

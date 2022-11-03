@@ -16,11 +16,25 @@
 name = "cantrip-sdk-runtime"
 version = "0.1.0"
 edition = "2021"
+build = "build.rs"
+
+[build-dependencies]
+sel4-config = { path = "../../cantrip-os-common/src/sel4-config" }
+
+[features]
+default = ["CONFIG_PLAT_SPARROW"]
+timer_support = ["cantrip-timer-interface"]
+# Target platform support
+CONFIG_PLAT_BCM2837 = []
+CONFIG_PLAT_SPARROW = ["timer_support"]
+
 
 [dependencies]
+cfg-if = "1.0"
 hashbrown = { version = "0.11", features = ["ahash-compile-time-rng"] }
 cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-security-interface = { path = "../../SecurityCoordinator/cantrip-security-interface" }
+cantrip-timer-interface = { path = "../../TimerService/cantrip-timer-interface", optional = true }
 cantrip-sdk-manager = { path = "../cantrip-sdk-manager" }
 log = { version = "0.4", features = ["release_max_level_info"] }
 sdk-interface = { path = "../sdk-interface" }

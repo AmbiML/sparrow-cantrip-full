@@ -23,6 +23,8 @@ use sdk_interface::error::SDKError;
 use sdk_interface::KeyValueData;
 use sdk_interface::SDKAppId;
 use sdk_interface::SDKRuntimeInterface;
+use sdk_interface::TimerDuration;
+use sdk_interface::TimerId;
 use spin::Mutex;
 
 use sel4_sys::seL4_CPtr;
@@ -95,5 +97,39 @@ impl SDKRuntimeInterface for CantripSDKRuntime {
             .as_ref()
             .unwrap()
             .delete_key(app_id, key)
+    }
+    fn timer_oneshot(
+        &self,
+        app_id: SDKAppId,
+        id: TimerId,
+        duration_ms: TimerDuration,
+    ) -> Result<(), SDKError> {
+        self.runtime
+            .lock()
+            .as_ref()
+            .unwrap()
+            .timer_oneshot(app_id, id, duration_ms)
+    }
+    fn timer_periodic(
+        &self,
+        app_id: SDKAppId,
+        id: TimerId,
+        duration_ms: TimerDuration,
+    ) -> Result<(), SDKError> {
+        self.runtime
+            .lock()
+            .as_ref()
+            .unwrap()
+            .timer_periodic(app_id, id, duration_ms)
+    }
+    fn timer_cancel(&self, app_id: SDKAppId, id: TimerId) -> Result<(), SDKError> {
+        self.runtime
+            .lock()
+            .as_ref()
+            .unwrap()
+            .timer_cancel(app_id, id)
+    }
+    fn timer_wait(&self, app_id: SDKAppId) -> Result<TimerId, SDKError> {
+        self.runtime.lock().as_ref().unwrap().timer_wait(app_id)
     }
 }

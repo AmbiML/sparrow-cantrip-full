@@ -62,6 +62,8 @@ pub type SDKAppId = usize;
 pub const KEY_VALUE_DATA_SIZE: usize = 100;
 pub type KeyValueData = [u8; KEY_VALUE_DATA_SIZE];
 
+/// Core api's
+
 /// SDKRuntimeRequest::Ping
 #[derive(Serialize, Deserialize)]
 pub struct PingRequest {}
@@ -71,6 +73,8 @@ pub struct PingRequest {}
 pub struct LogRequest<'a> {
     pub msg: &'a [u8],
 }
+
+/// SecurityCoordinator key-value api's
 
 /// SDKRuntimeRequest::ReadKey
 #[derive(Serialize, Deserialize)]
@@ -95,6 +99,32 @@ pub struct DeleteKeyRequest<'a> {
     pub key: &'a str,
 }
 
+/// TimerService api's
+
+pub type TimerId = u32;
+pub type TimerDuration = u32;
+
+/// SDKRuntimeRequest::TimerOneshot and SDKRuntimeRequest::TimerPeriodic
+#[derive(Serialize, Deserialize)]
+pub struct TimerStartRequest {
+    pub id: TimerId,
+    pub duration_ms: TimerDuration,
+}
+
+/// SDKRuntimeRequest::TimerCancel
+#[derive(Serialize, Deserialize)]
+pub struct TimerCancelRequest {
+    pub id: TimerId,
+}
+
+/// SDKRuntimeRequest::TimerWait
+#[derive(Serialize, Deserialize)]
+pub struct TimerWaitRequest {}
+#[derive(Serialize, Deserialize)]
+pub struct TimerWaitResponse {
+    pub id: TimerId,
+}
+
 /// SDKRequest token sent over the seL4 IPC interface. We need repr(seL4_Word)
 /// but cannot use that so use the implied usize type instead.
 #[repr(usize)]
@@ -106,6 +136,11 @@ pub enum SDKRuntimeRequest {
     ReadKey,   // Read key: [key: &str, &mut [u8]] -> value: &[u8]
     WriteKey,  // Write key: [key: &str, value: &KeyValueData]
     DeleteKey, // Delete key: [key: &str]
+
+    OneshotTimer,  // One-shot timer: [id: TimerId, duration_ms: TimerDuration]
+    PeriodicTimer, // Periodic timer: [id: TimerId, duration_ms: TimerDuration]
+    CancelTimer,   // Cancel timer: [id: TimerId]
+    WaitForTimer,  // Wait for timer to expire: [id: TimerId]
 }
 
 /// Rust interface for the SDKRuntime.
@@ -140,6 +175,25 @@ pub trait SDKRuntimeInterface {
 
     /// Deletes the specified |key| in the app's private key-value store.
     fn delete_key(&self, app_id: SDKAppId, key: &str) -> Result<(), SDKError>;
+
+    /// Create a one-shot timer named |id| of |duration_ms|.
+    fn timer_oneshot(
+        &self,
+        app_id: SDKAppId,
+        id: TimerId,
+        duration_ms: TimerDuration,
+    ) -> Result<(), SDKError>;
+    /// Create a periodic (repeating) timer named |id| of |duration_ms|.
+    fn timer_periodic(
+        &self,
+        app_id: SDKAppId,
+        id: TimerId,
+        duration_ms: TimerDuration,
+    ) -> Result<(), SDKError>;
+    /// Cancel a previously created timer.
+    fn timer_cancel(&self, app_id: SDKAppId, id: TimerId) -> Result<(), SDKError>;
+    /// Wait for any running timer to complete.
+    fn timer_wait(&self, app_id: SDKAppId) -> Result<TimerId, SDKError>;
 }
 
 /// Rust client-side request processing. Note there is no CAmkES stub to
@@ -243,4 +297,45 @@ pub fn sdk_write_key(key: &str, value: &[u8]) -> Result<(), SDKRuntimeError> {
 #[allow(dead_code)]
 pub fn sdk_delete_key(key: &str) -> Result<(), SDKRuntimeError> {
     sdk_request::<DeleteKeyRequest, ()>(SDKRuntimeRequest::DeleteKey, &DeleteKeyRequest { key })
+}
+
+/// Rust client-side wrapper for the timer_oneshot method.
+#[inline]
+#[allow(dead_code)]
+pub fn sdk_timer_oneshot(id: TimerId, duration_ms: TimerDuration) -> Result<(), SDKRuntimeError> {
+    sdk_request::<TimerStartRequest, ()>(
+        SDKRuntimeRequest::OneshotTimer,
+        &TimerStartRequest { id, duration_ms },
+    )
+}
+
+/// Rust client-side wrapper for the timer_periodic method.
+#[inline]
+#[allow(dead_code)]
+pub fn sdk_timer_periodic(id: TimerId, duration_ms: TimerDuration) -> Result<(), SDKRuntimeError> {
+    sdk_request::<TimerStartRequest, ()>(
+        SDKRuntimeRequest::PeriodicTimer,
+        &TimerStartRequest { id, duration_ms },
+    )
+}
+
+/// Rust client-side wrapper for the timer_cancel method.
+#[inline]
+#[allow(dead_code)]
+pub fn sdk_timer_cancel(id: TimerId) -> Result<(), SDKRuntimeError> {
+    sdk_request::<TimerCancelRequest, ()>(
+        SDKRuntimeRequest::CancelTimer,
+        &TimerCancelRequest { id },
+    )
+}
+
+/// Rust client-side wrapper for the timer_wait method.
+#[inline]
+#[allow(dead_code)]
+pub fn sdk_timer_wait() -> Result<TimerId, SDKRuntimeError> {
+    let response = sdk_request::<TimerWaitRequest, TimerWaitResponse>(
+        SDKRuntimeRequest::WaitForTimer,
+        &TimerWaitRequest {},
+    )?;
+    Ok(response.id)
 }
