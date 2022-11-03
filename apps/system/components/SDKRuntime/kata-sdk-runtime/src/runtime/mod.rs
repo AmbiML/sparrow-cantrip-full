@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+extern crate alloc;
 use core::hash::BuildHasher;
 use hashbrown::HashMap;
 use cantrip_os_common::camkes::seL4_CPath;
@@ -145,7 +146,7 @@ impl SDKRuntimeInterface for SDKRuntime {
     fn log(&self, app_id: SDKAppId, msg: &str) -> Result<(), SDKError> {
         match self.apps.get(&app_id) {
             Some(app) => {
-                info!("[{}] {}", app.id, msg);
+                info!(target: &alloc::format!("[{}]", app.id), "{}", msg);
                 Ok(())
             }
             None => Err(SDKError::InvalidBadge),
