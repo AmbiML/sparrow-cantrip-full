@@ -20,7 +20,6 @@ use static_assertions::assert_cfg;
 assert_cfg!(target_arch = "aarch64");
 
 use super::sel4_sys;
-use super::DynamicDescs;
 use super::SLOT_PD;
 use super::SLOT_PT;
 use super::SLOT_PUD;
@@ -39,6 +38,7 @@ use sel4_sys::seL4_ARM_PageTableObject;
 use sel4_sys::seL4_ARM_PageUpperDirectoryObject;
 use sel4_sys::seL4_ARM_SmallPageObject;
 use sel4_sys::seL4_CapRights;
+use sel4_sys::seL4_Default_VMAttributes;
 use sel4_sys::seL4_PageBits;
 use sel4_sys::seL4_PageTableIndexBits;
 use sel4_sys::seL4_PageTable_Map;
