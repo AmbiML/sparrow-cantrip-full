@@ -27,10 +27,10 @@ use cantrip_security_interface::cantrip_security_read_key;
 use cantrip_security_interface::cantrip_security_write_key;
 cfg_if! {
     if #[cfg(feature = "timer_support")] {
-        use cantrip_timer_interface::timer_service_cancel;
-        use cantrip_timer_interface::timer_service_oneshot;
-        use cantrip_timer_interface::timer_service_periodic;
-        use cantrip_timer_interface::timer_service_wait;
+        use cantrip_timer_interface::cantrip_timer_cancel;
+        use cantrip_timer_interface::cantrip_timer_oneshot;
+        use cantrip_timer_interface::cantrip_timer_periodic;
+        use cantrip_timer_interface::cantrip_timer_wait;
         use cantrip_timer_interface::TimerServiceError;
     }
 }
@@ -219,7 +219,7 @@ impl SDKRuntimeInterface for SDKRuntime {
         match self.apps.get(&app_id) {
             Some(_) => {
                 #[cfg(feature = "timer_support")]
-                return map_timer_error(timer_service_oneshot(id, duration_ms));
+                return map_timer_error(cantrip_timer_oneshot(id, duration_ms));
 
                 #[cfg(not(feature = "timer_support"))]
                 Err(SDKError::NoPlatformSupport)
@@ -239,7 +239,7 @@ impl SDKRuntimeInterface for SDKRuntime {
         match self.apps.get(&app_id) {
             Some(_) => {
                 #[cfg(feature = "timer_support")]
-                return map_timer_error(timer_service_periodic(id, duration_ms));
+                return map_timer_error(cantrip_timer_periodic(id, duration_ms));
 
                 #[cfg(not(feature = "timer_support"))]
                 Err(SDKError::NoPlatformSupport)
@@ -254,7 +254,7 @@ impl SDKRuntimeInterface for SDKRuntime {
         match self.apps.get(&app_id) {
             Some(_) => {
                 #[cfg(feature = "timer_support")]
-                return map_timer_error(timer_service_cancel(id));
+                return map_timer_error(cantrip_timer_cancel(id));
 
                 #[cfg(not(feature = "timer_support"))]
                 Err(SDKError::NoPlatformSupport)
@@ -269,7 +269,7 @@ impl SDKRuntimeInterface for SDKRuntime {
         match self.apps.get(&app_id) {
             Some(_) => {
                 #[cfg(feature = "timer_support")]
-                return Ok(timer_service_wait() as TimerId); //XXX maybe add error code
+                return Ok(cantrip_timer_wait() as TimerId); //XXX maybe add error code
 
                 #[cfg(not(feature = "timer_support"))]
                 Err(SDKError::NoPlatformSupport)

@@ -355,7 +355,7 @@ impl MLCoordinator {
         self.execution_queue.push(idx);
         self.schedule_next_model()?;
 
-        timer_service_periodic(idx as u32, rate_in_ms);
+        cantrip_timer_periodic(idx as TimerId, rate_in_ms);
 
         Ok(())
     }
@@ -372,7 +372,7 @@ impl MLCoordinator {
             .rate_in_ms
             .is_some()
         {
-            timer_service_cancel(model_idx as u32);
+            cantrip_timer_cancel(model_idx as u32);
         }
 
         // If the model is scheduled to be executed, remove it.

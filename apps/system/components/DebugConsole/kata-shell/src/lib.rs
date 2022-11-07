@@ -234,9 +234,9 @@ fn sleep_command(
 
     // Set timer_id to 0, we don't need to use multiple timers here.
     use cantrip_timer_interface::*;
-    match timer_service_oneshot(0, time_ms) {
+    match cantrip_timer_oneshot(0, time_ms) {
         TimerServiceError::TimerOk => {
-            timer_service_wait();
+            cantrip_timer_wait();
             Ok(())
         }
         _ => Err(CommandError::BadArgs),
@@ -385,7 +385,7 @@ fn capscan_command(
         }
         #[cfg(feature = "timer_support")]
         Some("timer") => {
-            let _ = cantrip_timer_interface::timer_service_capscan();
+            let _ = cantrip_timer_interface::cantrip_timer_capscan();
         }
         Some(bundle_id) => {
             if let Err(e) = cantrip_proc_interface::cantrip_proc_ctrl_capscan_bundle(bundle_id) {

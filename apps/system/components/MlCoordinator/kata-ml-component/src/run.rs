@@ -43,8 +43,8 @@ pub unsafe extern "C" fn mlcoord__init() { ML_COORD.lock().init(); }
 #[no_mangle]
 pub unsafe extern "C" fn run() {
     loop {
-        timer_service_wait();
-        let completed = timer_service_completed_timers();
+        cantrip_timer_wait();
+        let completed = cantrip_timer_completed_timers();
 
         for i in 0..31 {
             let idx: u32 = 1 << i;

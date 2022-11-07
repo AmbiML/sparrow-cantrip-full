@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #![no_std]
+#![allow(dead_code)]
 
 use core::time::Duration;
 use cantrip_os_common::sel4_sys::{seL4_CPtr, seL4_Wait, seL4_Word};
@@ -40,8 +41,7 @@ pub enum TimerServiceError {
 }
 
 #[inline]
-#[allow(dead_code)]
-pub fn timer_service_completed_timers() -> u32 {
+pub fn cantrip_timer_completed_timers() -> u32 {
     extern "C" {
         fn timer_completed_timers() -> u32;
     }
@@ -49,8 +49,7 @@ pub fn timer_service_completed_timers() -> u32 {
 }
 
 #[inline]
-#[allow(dead_code)]
-pub fn timer_service_oneshot(timer_id: u32, duration_in_ms: u32) -> TimerServiceError {
+pub fn cantrip_timer_oneshot(timer_id: u32, duration_in_ms: u32) -> TimerServiceError {
     extern "C" {
         fn timer_oneshot(timer_id: u32, duration_in_ms: u32) -> TimerServiceError;
     }
@@ -58,8 +57,7 @@ pub fn timer_service_oneshot(timer_id: u32, duration_in_ms: u32) -> TimerService
 }
 
 #[inline]
-#[allow(dead_code)]
-pub fn timer_service_periodic(timer_id: u32, duration_in_ms: u32) -> TimerServiceError {
+pub fn cantrip_timer_periodic(timer_id: u32, duration_in_ms: u32) -> TimerServiceError {
     extern "C" {
         fn timer_periodic(timer_id: u32, duration_in_ms: u32) -> TimerServiceError;
     }
@@ -67,8 +65,7 @@ pub fn timer_service_periodic(timer_id: u32, duration_in_ms: u32) -> TimerServic
 }
 
 #[inline]
-#[allow(dead_code)]
-pub fn timer_service_cancel(timer_id: u32) -> TimerServiceError {
+pub fn cantrip_timer_cancel(timer_id: u32) -> TimerServiceError {
     extern "C" {
         fn timer_cancel(timer_id: u32) -> TimerServiceError;
     }
@@ -76,8 +73,7 @@ pub fn timer_service_cancel(timer_id: u32) -> TimerServiceError {
 }
 
 #[inline]
-#[allow(dead_code)]
-pub fn timer_service_notification() -> seL4_CPtr {
+pub fn cantrip_timer_notification() -> seL4_CPtr {
     extern "C" {
         fn timer_notification() -> seL4_CPtr;
     }
@@ -85,20 +81,18 @@ pub fn timer_service_notification() -> seL4_CPtr {
 }
 
 #[inline]
-#[allow(dead_code)]
-pub fn timer_service_wait() -> seL4_Word {
+pub fn cantrip_timer_wait() -> seL4_Word {
     let mut notification_badge: seL4_Word = 0;
 
     unsafe {
-        seL4_Wait(timer_service_notification(), &mut notification_badge);
+        seL4_Wait(cantrip_timer_notification(), &mut notification_badge);
     }
 
     notification_badge
 }
 
 #[inline]
-#[allow(dead_code)]
-pub fn timer_service_capscan() -> Result<(), TimerServiceError> {
+pub fn cantrip_timer_capscan() -> Result<(), TimerServiceError> {
     extern "C" {
         fn timer_capscan();
     }
