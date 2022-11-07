@@ -21,7 +21,12 @@ extern crate alloc;
 use alloc::collections::BTreeMap;
 use core::time::Duration;
 use cantrip_os_common::sel4_sys::seL4_Word;
-use cantrip_timer_interface::{HardwareTimer, Ticks, TimerId, TimerServiceError};
+use cantrip_timer_interface::HardwareTimer;
+use cantrip_timer_interface::Ticks;
+use cantrip_timer_interface::TimerId;
+use cantrip_timer_interface::TimerServiceError;
+use cantrip_timer_interface::TIMERS_PER_CLIENT;
+use log::error;
 use opentitan_timer::OtTimer;
 use spin::Mutex;
 
@@ -29,9 +34,6 @@ use spin::Mutex;
 // camkes configuration. This may take some template hacking as the number
 // of clients is generated as a C #define.
 const NUM_CLIENTS: usize = 4;
-
-// We use a TimerId as a bit vector denoting completed timers.
-const TIMERS_PER_CLIENT: usize = 32;
 
 // An event represents a future timeout and the associated notification clien.
 // If the event is periodic, it includes the period.
@@ -60,15 +62,18 @@ pub static mut TIMER_SRV: Mutex<CantripTimerService> = Mutex::new(CantripTimerSe
 impl CantripTimerService {
     pub fn init(&mut self) { self.timer.setup(); }
 
-    pub fn completed_timers(&mut self, client_id: seL4_Word) -> u32 {
-        assert!(0 < client_id && client_id <= NUM_CLIENTS);
+    pub fn completed_timers(&mut self, client_id: seL4_Word) -> Result<u32, TimerServiceError> {
+        if !(0..NUM_CLIENTS).contains(&client_id) {
+            // NB: no need for a message, the error return should suffice
+            return Err(TimerServiceError::NoSuchTimer);
+        }
 
         // client_id is 1-indexed by seL4, timer_state is 0-index.
         let client = client_id - 1;
         let state = self.timer_state[client];
         self.timer_state[client] = 0;
 
-        state
+        Ok(state)
     }
 
     pub fn add(
@@ -78,8 +83,13 @@ impl CantripTimerService {
         duration: Duration,
         periodic: bool,
     ) -> Result<(), TimerServiceError> {
-        assert!(0 < client_id && client_id <= NUM_CLIENTS);
-        assert!(timer_id < TIMERS_PER_CLIENT as u32);
+        if !(0..NUM_CLIENTS).contains(&client_id) {
+            error!("client_id {} out of range", client_id);
+            return Err(TimerServiceError::NoSuchTimer);
+        }
+        if !(timer_id < TIMERS_PER_CLIENT as u32) {
+            return Err(TimerServiceError::NoSuchTimer);
+        }
 
         if self
             .events
@@ -112,9 +122,7 @@ impl CantripTimerService {
         client_id: seL4_Word,
         timer_id: TimerId,
     ) -> Result<(), TimerServiceError> {
-        assert!(0 < client_id && client_id <= NUM_CLIENTS);
-        assert!(timer_id < TIMERS_PER_CLIENT as u32);
-
+        // NB: no need for an explicit client_id check
         let key = self
             .events
             .iter()

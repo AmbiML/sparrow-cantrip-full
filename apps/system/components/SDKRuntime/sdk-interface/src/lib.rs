@@ -103,8 +103,9 @@ pub struct DeleteKeyRequest<'a> {
 
 pub type TimerId = u32;
 pub type TimerDuration = u32;
+pub type TimerMask = u32;
 
-/// SDKRuntimeRequest::TimerOneshot and SDKRuntimeRequest::TimerPeriodic
+/// SDKRuntimeRequest::OneshotTimer and SDKRuntimeRequest::PeriodicTimer
 #[derive(Serialize, Deserialize)]
 pub struct TimerStartRequest {
     pub id: TimerId,
@@ -117,12 +118,12 @@ pub struct TimerCancelRequest {
     pub id: TimerId,
 }
 
-/// SDKRuntimeRequest::TimerWait
+/// SDKRuntimeRequest::WaitForTimers and SDKRuntimeRequest::PollForTimers
 #[derive(Serialize, Deserialize)]
 pub struct TimerWaitRequest {}
 #[derive(Serialize, Deserialize)]
 pub struct TimerWaitResponse {
-    pub id: TimerId,
+    pub mask: TimerMask,
 }
 
 /// SDKRequest token sent over the seL4 IPC interface. We need repr(seL4_Word)
@@ -140,7 +141,8 @@ pub enum SDKRuntimeRequest {
     OneshotTimer,  // One-shot timer: [id: TimerId, duration_ms: TimerDuration]
     PeriodicTimer, // Periodic timer: [id: TimerId, duration_ms: TimerDuration]
     CancelTimer,   // Cancel timer: [id: TimerId]
-    WaitForTimer,  // Wait for timer to expire: [id: TimerId]
+    WaitForTimers, // Wait for timers to expire: []
+    PollForTimers, // Poll for timers to expire: []
 }
 
 /// Rust interface for the SDKRuntime.
@@ -193,7 +195,9 @@ pub trait SDKRuntimeInterface {
     /// Cancel a previously created timer.
     fn timer_cancel(&self, app_id: SDKAppId, id: TimerId) -> Result<(), SDKError>;
     /// Wait for any running timer to complete.
-    fn timer_wait(&self, app_id: SDKAppId) -> Result<TimerId, SDKError>;
+    fn timer_wait(&self, app_id: SDKAppId) -> Result<TimerMask, SDKError>;
+    /// Poll for any running timer that have completed.
+    fn timer_poll(&self, app_id: SDKAppId) -> Result<TimerMask, SDKError>;
 }
 
 /// Rust client-side request processing. Note there is no CAmkES stub to
@@ -332,10 +336,21 @@ pub fn sdk_timer_cancel(id: TimerId) -> Result<(), SDKRuntimeError> {
 /// Rust client-side wrapper for the timer_wait method.
 #[inline]
 #[allow(dead_code)]
-pub fn sdk_timer_wait() -> Result<TimerId, SDKRuntimeError> {
+pub fn sdk_timer_wait() -> Result<TimerMask, SDKRuntimeError> {
     let response = sdk_request::<TimerWaitRequest, TimerWaitResponse>(
-        SDKRuntimeRequest::WaitForTimer,
+        SDKRuntimeRequest::WaitForTimers,
         &TimerWaitRequest {},
     )?;
-    Ok(response.id)
+    Ok(response.mask)
+}
+
+/// Rust client-side wrapper for the timer_poll method.
+#[inline]
+#[allow(dead_code)]
+pub fn sdk_timer_poll() -> Result<TimerMask, SDKRuntimeError> {
+    let response = sdk_request::<TimerWaitRequest, TimerWaitResponse>(
+        SDKRuntimeRequest::PollForTimers,
+        &TimerWaitRequest {},
+    )?;
+    Ok(response.mask)
 }

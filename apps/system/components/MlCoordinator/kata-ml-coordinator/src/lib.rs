@@ -355,9 +355,7 @@ impl MLCoordinator {
         self.execution_queue.push(idx);
         self.schedule_next_model()?;
 
-        cantrip_timer_periodic(idx as TimerId, rate_in_ms);
-
-        Ok(())
+        cantrip_timer_periodic(idx as TimerId, rate_in_ms).map_err(|_| MlCoordError::InvalidTimer)
     }
 
     /// Cancels an outstanding execution.
@@ -372,7 +370,7 @@ impl MLCoordinator {
             .rate_in_ms
             .is_some()
         {
-            cantrip_timer_cancel(model_idx as u32);
+            cantrip_timer_cancel(model_idx as TimerId).map_err(|_| MlCoordError::InvalidTimer)?;
         }
 
         // If the model is scheduled to be executed, remove it.

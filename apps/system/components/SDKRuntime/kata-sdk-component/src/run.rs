@@ -201,8 +201,11 @@ pub unsafe extern "C" fn run() -> ! {
                 Ok(SDKRuntimeRequest::CancelTimer) => {
                     timer_cancel_request(app_id, request_slice, reply_slice)
                 }
-                Ok(SDKRuntimeRequest::WaitForTimer) => {
+                Ok(SDKRuntimeRequest::WaitForTimers) => {
                     timer_wait_request(app_id, request_slice, reply_slice)
+                }
+                Ok(SDKRuntimeRequest::PollForTimers) => {
+                    timer_poll_request(app_id, request_slice, reply_slice)
                 }
                 Err(_) => {
                     // TODO(b/254286176): possible ddos
@@ -338,8 +341,19 @@ fn timer_wait_request(
     _request_slice: &[u8],
     reply_slice: &mut [u8],
 ) -> Result<(), SDKError> {
-    let id = unsafe { CANTRIP_SDK.timer_wait(app_id)? };
-    let _ = postcard::to_slice(&sdk_interface::TimerWaitResponse { id }, reply_slice)
+    let mask = unsafe { CANTRIP_SDK.timer_wait(app_id)? };
+    let _ = postcard::to_slice(&sdk_interface::TimerWaitResponse { mask }, reply_slice)
+        .map_err(serialize_failure)?;
+    Ok(())
+}
+
+fn timer_poll_request(
+    app_id: SDKAppId,
+    _request_slice: &[u8],
+    reply_slice: &mut [u8],
+) -> Result<(), SDKError> {
+    let mask = unsafe { CANTRIP_SDK.timer_poll(app_id)? };
+    let _ = postcard::to_slice(&sdk_interface::TimerWaitResponse { mask }, reply_slice)
         .map_err(serialize_failure)?;
     Ok(())
 }

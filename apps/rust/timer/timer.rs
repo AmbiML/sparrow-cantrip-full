@@ -41,6 +41,19 @@ pub fn main() {
         allocator::ALLOCATOR.init(HEAP.as_mut_ptr() as _, HEAP.len());
     }
 
+    let _ = sdk_log(&format!(
+        "sdk_timer_cancel returned {:?} with nothing running",
+        sdk_timer_cancel(0)
+    ));
+    let _ = sdk_log(&format!(
+        "sdk_timer_poll returned {:?} with nothing running",
+        sdk_timer_poll()
+    ));
+    let _ = sdk_log(&format!(
+        "sdk_timer_oneshot returned {:?} with an invalid timer id",
+        sdk_timer_oneshot(99, 100) // XXX need TIMERS_PER_CLIENT exported
+    ));
+
     let _ = match sdk_timer_oneshot(0, 100) {
         Ok(_) => {
             let _ = sdk_log("Timer 0 started");
@@ -52,13 +65,6 @@ pub fn main() {
         Err(e) => sdk_log(&format!("sdk_timer_oneshot failed: {:?}", e)),
     };
 
-    let _ = sdk_log(&format!(
-        "sdk_timer_cancel returned {:?} with nothing running",
-        sdk_timer_cancel(0)
-    ));
-    // XXX sdk_timer_wait blocks, it should return immediately
-    //    let _ = sdk_log(&format!("sdk_timer_wait returned {:?} with nothing running", sdk_timer_wait()));
-
     const DURATION: TimerDuration = 75; // ms
     if let Err(e) = sdk_timer_periodic(1, DURATION) {
         let _ = sdk_log(&format!("sdk_timer_periodic failed: {:?}", e));
@@ -66,34 +72,51 @@ pub fn main() {
         let _ = sdk_log("Timer 1 started");
         let mut ms: TimerDuration = 0;
         for _ in 0..10 {
-            let _ = sdk_timer_wait();
-            ms += DURATION;
-            let _ = sdk_log(&format!("Timer 1 completed: {}", ms));
+            let mask = sdk_timer_wait().unwrap();
+            if (mask & (1 << 1)) != 0 {
+                ms += DURATION;
+            }
+            let _ = sdk_log(&format!("Timer completed: mask {:#06b} ms {}", mask, ms));
         }
         if let Err(e) = sdk_timer_cancel(1) {
             let _ = sdk_log(&format!("sdk_timer_cancel failed: {:?}", e));
         }
+        let _ = sdk_log("Timer 1 canceld");
     }
 
     if let Err(e) = sdk_timer_periodic(1, DURATION) {
         let _ = sdk_log(&format!("sdk_timer_periodic 1 failed: {:?}", e));
         return;
     }
+    let _ = sdk_log("Timer 1 started");
     if let Err(e) = sdk_timer_periodic(2, 2 * DURATION) {
         let _ = sdk_log(&format!("sdk_timer_periodic 2 failed: {:?}", e));
         return;
     }
-    let mut ms = 0;
-    for _ in 0..20 {
-        let _ = sdk_timer_wait();
-        ms += DURATION; // XXX don't  know which timer expired
-        let _ = sdk_log(&format!("Timer completed: {}", ms));
+    let _ = sdk_log("Timer 2 started");
+
+    let mut expire_1 = 0;
+    let mut expire_2 = 0;
+    for _ in 0..21 {
+        let mask = sdk_timer_wait().unwrap();
+        if (mask & (1 << 1)) != 0 {
+            expire_1 += 1;
+        }
+        if (mask & (1 << 2)) != 0 {
+            expire_2 += 1;
+        }
+        let _ = sdk_log(&format!(
+            "Timer completed: mask {:#06b} 1 {:#2} 2 {:#2}",
+            mask, expire_1, expire_2
+        ));
     }
     if let Err(e) = sdk_timer_cancel(2) {
         let _ = sdk_log(&format!("sdk_timer_cancel 2 failed: {:?}", e));
     }
+    let _ = sdk_log("Timer 2 canceld");
     if let Err(e) = sdk_timer_cancel(1) {
         let _ = sdk_log(&format!("sdk_timer_cancel 1 failed: {:?}", e));
     }
+    let _ = sdk_log("Timer 1 canceld");
     let _ = sdk_log("DONE!");
 }

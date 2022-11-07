@@ -25,6 +25,7 @@ use sdk_interface::SDKAppId;
 use sdk_interface::SDKRuntimeInterface;
 use sdk_interface::TimerDuration;
 use sdk_interface::TimerId;
+use sdk_interface::TimerMask;
 use spin::Mutex;
 
 use sel4_sys::seL4_CPtr;
@@ -129,7 +130,10 @@ impl SDKRuntimeInterface for CantripSDKRuntime {
             .unwrap()
             .timer_cancel(app_id, id)
     }
-    fn timer_wait(&self, app_id: SDKAppId) -> Result<TimerId, SDKError> {
+    fn timer_wait(&self, app_id: SDKAppId) -> Result<TimerMask, SDKError> {
         self.runtime.lock().as_ref().unwrap().timer_wait(app_id)
+    }
+    fn timer_poll(&self, app_id: SDKAppId) -> Result<TimerMask, SDKError> {
+        self.runtime.lock().as_ref().unwrap().timer_poll(app_id)
     }
 }

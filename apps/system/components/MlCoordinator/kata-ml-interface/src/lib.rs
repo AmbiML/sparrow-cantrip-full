@@ -23,6 +23,7 @@ pub enum MlCoordError {
     InvalidModelId,
     InvalidBundleId,
     InvalidImage,
+    InvalidTimer,
     LoadModelFailed,
     NoModelSlotsLeft,
     NoSuchModel,

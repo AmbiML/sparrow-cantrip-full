@@ -40,7 +40,8 @@ extern "C" {
 #[no_mangle]
 pub unsafe extern "C" fn timer_completed_timers() -> u32 {
     let client_id = timer_get_sender_id();
-    return TIMER_SRV.lock().completed_timers(client_id);
+    // XXX no way to pass error w/ current interface
+    return TIMER_SRV.lock().completed_timers(client_id).unwrap_or(0);
 }
 
 #[no_mangle]

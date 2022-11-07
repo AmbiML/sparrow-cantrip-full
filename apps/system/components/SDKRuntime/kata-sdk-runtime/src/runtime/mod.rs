@@ -30,6 +30,7 @@ cfg_if! {
         use cantrip_timer_interface::cantrip_timer_cancel;
         use cantrip_timer_interface::cantrip_timer_oneshot;
         use cantrip_timer_interface::cantrip_timer_periodic;
+        use cantrip_timer_interface::cantrip_timer_poll;
         use cantrip_timer_interface::cantrip_timer_wait;
         use cantrip_timer_interface::TimerServiceError;
     }
@@ -41,6 +42,7 @@ use sdk_interface::SDKAppId;
 use sdk_interface::SDKRuntimeInterface;
 use sdk_interface::TimerDuration;
 use sdk_interface::TimerId;
+use sdk_interface::TimerMask;
 use smallstr::SmallString;
 
 use sel4_sys::seL4_CPtr;
@@ -219,7 +221,7 @@ impl SDKRuntimeInterface for SDKRuntime {
         match self.apps.get(&app_id) {
             Some(_) => {
                 #[cfg(feature = "timer_support")]
-                return map_timer_error(cantrip_timer_oneshot(id, duration_ms));
+                return cantrip_timer_oneshot(id, duration_ms).map_err(|e| map_timer_err(e));
 
                 #[cfg(not(feature = "timer_support"))]
                 Err(SDKError::NoPlatformSupport)
@@ -239,7 +241,7 @@ impl SDKRuntimeInterface for SDKRuntime {
         match self.apps.get(&app_id) {
             Some(_) => {
                 #[cfg(feature = "timer_support")]
-                return map_timer_error(cantrip_timer_periodic(id, duration_ms));
+                return cantrip_timer_periodic(id, duration_ms).map_err(|e| map_timer_err(e));
 
                 #[cfg(not(feature = "timer_support"))]
                 Err(SDKError::NoPlatformSupport)
@@ -254,7 +256,7 @@ impl SDKRuntimeInterface for SDKRuntime {
         match self.apps.get(&app_id) {
             Some(_) => {
                 #[cfg(feature = "timer_support")]
-                return map_timer_error(cantrip_timer_cancel(id));
+                return cantrip_timer_cancel(id).map_err(|e| map_timer_err(e));
 
                 #[cfg(not(feature = "timer_support"))]
                 Err(SDKError::NoPlatformSupport)
@@ -263,13 +265,26 @@ impl SDKRuntimeInterface for SDKRuntime {
         }
     }
 
-    fn timer_wait(&self, app_id: SDKAppId) -> Result<TimerId, SDKError> {
+    fn timer_wait(&self, app_id: SDKAppId) -> Result<TimerMask, SDKError> {
         trace!("timer_wait");
-        // TODO(sleffler): no way to wait for just app's timers
         match self.apps.get(&app_id) {
             Some(_) => {
                 #[cfg(feature = "timer_support")]
-                return Ok(cantrip_timer_wait() as TimerId); //XXX maybe add error code
+                return cantrip_timer_wait().map_err(|e| map_timer_err(e));
+
+                #[cfg(not(feature = "timer_support"))]
+                Err(SDKError::NoPlatformSupport)
+            }
+            None => Err(SDKError::InvalidBadge),
+        }
+    }
+
+    fn timer_poll(&self, app_id: SDKAppId) -> Result<TimerMask, SDKError> {
+        trace!("timer_poll");
+        match self.apps.get(&app_id) {
+            Some(_) => {
+                #[cfg(feature = "timer_support")]
+                return cantrip_timer_poll().map_err(|e| map_timer_err(e));
 
                 #[cfg(not(feature = "timer_support"))]
                 Err(SDKError::NoPlatformSupport)
@@ -280,10 +295,10 @@ impl SDKRuntimeInterface for SDKRuntime {
 }
 
 #[cfg(feature = "timer_support")]
-fn map_timer_error(err: TimerServiceError) -> Result<(), SDKError> {
+fn map_timer_err(err: TimerServiceError) -> SDKError {
     match err {
-        TimerServiceError::TimerOk => Ok(()),
-        TimerServiceError::NoSuchTimer => Err(SDKError::NoSuchTimer),
-        TimerServiceError::TimerAlreadyExists => Err(SDKError::TimerAlreadyExists),
+        TimerServiceError::NoSuchTimer => SDKError::NoSuchTimer,
+        TimerServiceError::TimerAlreadyExists => SDKError::TimerAlreadyExists,
+        _ => SDKError::NoSuchTimer, // XXX should never happen
     }
 }
