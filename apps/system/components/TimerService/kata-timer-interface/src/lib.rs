@@ -26,8 +26,8 @@ pub const TIMERS_PER_CLIENT: usize = 32;
 
 pub type Ticks = u64;
 pub type TimerId = u32;
-pub type TimerMask = u32;
 pub type TimerDuration = u32;
+pub type TimerMask = u32;
 
 /// A hardware timer capable of generating interrupts.
 pub trait HardwareTimer {
@@ -38,6 +38,24 @@ pub trait HardwareTimer {
     // Return the deadline `duration` in the future, in Ticks.
     fn deadline(&self, duration: Duration) -> Ticks;
     fn set_alarm(&self, deadline: Ticks);
+}
+
+pub trait TimerInterface {
+    fn add_oneshot(
+        &mut self,
+        client_id: usize,
+        timer_id: TimerId,
+        duration: Duration,
+    ) -> Result<(), TimerServiceError>;
+    fn add_periodic(
+        &mut self,
+        client_id: usize,
+        timer_id: TimerId,
+        duration: Duration,
+    ) -> Result<(), TimerServiceError>;
+    fn cancel(&mut self, client_id: usize, timer_id: TimerId) -> Result<(), TimerServiceError>;
+    fn completed_timers(&mut self, client_id: usize) -> Result<TimerMask, TimerServiceError>;
+    fn service_interrupt(&mut self);
 }
 
 /// Return codes from TimerService api's.
@@ -54,6 +72,15 @@ impl From<TimerServiceError> for Result<(), TimerServiceError> {
             Ok(())
         } else {
             Err(err)
+        }
+    }
+}
+impl<T> From<Result<T, TimerServiceError>> for TimerServiceError {
+    fn from(res: Result<T, TimerServiceError>) -> TimerServiceError {
+        if res.is_ok() {
+            TimerServiceError::TimerOk
+        } else {
+            res.err().unwrap()
         }
     }
 }

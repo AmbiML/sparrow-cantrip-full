@@ -19,13 +19,14 @@ edition = "2021"
 
 [features]
 CONFIG_PLAT_BCM2837 = []
-CONFIG_PLAT_SPARROW = []
+CONFIG_PLAT_SPARROW = ["opentitan-timer"]
 
 [dependencies]
 cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-timer-interface = { path = "../cantrip-timer-interface" }
 cantrip-timer-service = { path = "../cantrip-timer-service" }
 log = { version = "0.4", features = ["release_max_level_info"] }
+opentitan-timer = { path = "../opentitan-timer", optional = true }
 
 [lib]
 name = "cantrip_timer_component"
