@@ -17,6 +17,10 @@ name = "cantrip-memory-component"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+CONFIG_PLAT_BCM2837 = []
+CONFIG_PLAT_SPARROW = []
+
 [dependencies]
 cantrip-memory-interface = { path = "../cantrip-memory-interface" }
 cantrip-memory-manager = { path = "../cantrip-memory-manager" }

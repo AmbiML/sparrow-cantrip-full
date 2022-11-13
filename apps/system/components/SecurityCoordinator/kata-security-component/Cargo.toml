@@ -17,6 +17,10 @@ name = "cantrip-security-component"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+CONFIG_PLAT_BCM2837 = []
+CONFIG_PLAT_SPARROW = []
+
 [dependencies]
 cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-security-interface = { path = "../cantrip-security-interface" }

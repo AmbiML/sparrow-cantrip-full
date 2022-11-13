@@ -17,6 +17,10 @@ name = "cantrip-proc-component"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+CONFIG_PLAT_BCM2837 = []
+CONFIG_PLAT_SPARROW = []
+
 [dependencies]
 cstr_core = { version = "0.2.3", default-features = false }
 cantrip-memory-interface = { path = "../../MemoryManager/cantrip-memory-interface" }

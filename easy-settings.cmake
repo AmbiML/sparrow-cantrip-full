@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # NB: PLATFORM, CROSS_COMPILER_PREFIX, and RUST_TARGET are
-#   expected to be set one the cmake command line
+#   expected to be set on the cmake command line
 if(NOT DEFINED PLATFORM)
   message (SEND_ERROR "`PLATFORM` is not defined")
 endif()
@@ -22,6 +22,9 @@ if(NOT DEFINED CROSS_COMPILER_PREFIX)
 endif()
 if(NOT DEFINED RUST_TARGET)
   message (SEND_ERROR "`RUST_TARGET` is not defined")
+endif()
+if(NOT DEFINED RUST_GLOBAL_FEATURES)
+  message (FATAL_ERROR "`RUST_GLOBAL_FEATURES` is not defined")
 endif()
 
 set(CAMKES_APP "system" CACHE STRING "The one and only CAmkES application in this project")

@@ -18,6 +18,10 @@ version = "0.1.0"
 authors = ["Adam Jesionowski <jesionowski@google.com>"]
 edition = "2021"
 
+[features]
+CONFIG_PLAT_BCM2837 = []
+CONFIG_PLAT_SPARROW = []
+
 [dependencies]
 cstr_core = { version = "0.2.3", default-features = false }
 cantrip-os-common = { path = "../../cantrip-os-common" }

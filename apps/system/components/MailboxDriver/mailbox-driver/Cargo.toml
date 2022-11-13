@@ -19,6 +19,8 @@ edition = "2018"
 
 [features]
 default = []
+CONFIG_PLAT_BCM2837 = []
+CONFIG_PLAT_SPARROW = []
 
 [dependencies]
 cantrip-os-common = { path = "../../cantrip-os-common", default-features = false }

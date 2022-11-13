@@ -22,10 +22,9 @@ build = "build.rs"
 sel4-config = { path = "../../cantrip-os-common/src/sel4-config" }
 
 [features]
-default = ["CONFIG_PLAT_SPARROW"]
+default = []
 timer_support = ["cantrip-timer-interface"]
 # Target platform support
-CONFIG_PLAT_BCM2837 = []
 CONFIG_PLAT_SPARROW = ["timer_support"]
 
 
