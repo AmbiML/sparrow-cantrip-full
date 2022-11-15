@@ -11,6 +11,9 @@
 #![feature(asm)]
 #![feature(thread_local)]
 #![allow(bad_style, unused_parens, unused_assignments)]
+#![allow(clippy::missing_safety_doc)]
+#![allow(clippy::uninit_assumed_init)]
+#![allow(clippy::too_many_arguments)]
 
 use core::mem::size_of;
 #[cfg(feature = "serde_support")]
