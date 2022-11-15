@@ -441,3 +441,8 @@ pub unsafe fn seL4_NBWait(src: seL4_CPtr, sender: *mut seL4_Word) -> seL4_Messag
 
     seL4_MessageInfo { words: [info] }
 }
+
+#[inline(always)]
+pub unsafe fn seL4_Poll(src: seL4_CPtr, sender: *mut seL4_Word) -> seL4_MessageInfo {
+    seL4_NBWait(src, sender)
+}
