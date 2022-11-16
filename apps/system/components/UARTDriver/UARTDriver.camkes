@@ -1,0 +1,25 @@
+/*
+ * CAmkES component for UART driver.
+ *
+ * Copyright 2021, Google LLC
+ * Apache License 2.0
+ */
+
+import <UARTDriverInterface.camkes>;
+
+component UARTDriver {
+  dataport Buf mmio_region;
+
+  dataport Buf tx_dataport;
+  provides uart_write_inf write_inf;
+  consumes Interrupt tx_watermark;
+  consumes Interrupt tx_empty;
+  has mutex tx_mutex;
+
+  dataport Buf rx_dataport;
+  provides uart_read_inf read_inf;
+  consumes Interrupt rx_watermark;
+  has semaphore rx_nonempty_semaphore;
+  has semaphore rx_empty_semaphore;
+  has mutex rx_mutex;
+}

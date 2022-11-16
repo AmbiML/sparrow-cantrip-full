@@ -60,3 +60,17 @@ DeclareCAmkESComponent(
   ../../components/OpenTitanUARTDriver/include
   $ENV{OUT}/cantrip/components
 )
+
+RustAddLibrary(
+  uart_driver
+  SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/../../components/UARTDriver
+  LIB_FILENAME libuart_driver.a
+)
+
+DeclareCAmkESComponent(UARTDriver
+  LIBS uart_driver
+  INCLUDES
+  interfaces
+  opentitan-gen/include
+  $ENV{OUT}/cantrip/components
+)
