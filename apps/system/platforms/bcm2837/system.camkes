@@ -15,11 +15,11 @@
 import <std_connector.camkes>;
 import <global-connectors.camkes>;
 
-import "../../components/DebugConsole/DebugConsole.camkes";
-import "../../components/ProcessManager/ProcessManager.camkes";
-import "../../components/MemoryManager/MemoryManager.camkes";
-import "../../components/SecurityCoordinator/SecurityCoordinator.camkes";
-import "../../components/SDKRuntime/SDKRuntime.camkes";
+import <DebugConsole/DebugConsole.camkes>;
+import <ProcessManager/ProcessManager.camkes>;
+import <MemoryManager/MemoryManager.camkes>;
+import <SecurityCoordinator/SecurityCoordinator.camkes>;
+import <SDKRuntime/SDKRuntime.camkes>;
 
 component BuiltinCpioArchive {
     hardware;

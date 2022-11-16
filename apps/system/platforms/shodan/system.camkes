@@ -15,15 +15,15 @@
 import <std_connector.camkes>;
 import <global-connectors.camkes>;
 
-import "../../components/OpenTitanUARTDriver/OpenTitanUARTDriver.camkes";
-import "../../components/DebugConsole/DebugConsole.camkes";
-import "../../components/ProcessManager/ProcessManager.camkes";
-import "../../components/MlCoordinator/MlCoordinator.camkes";
-import "../../components/MemoryManager/MemoryManager.camkes";
-import "../../components/SecurityCoordinator/SecurityCoordinator.camkes";
-import "../../components/TimerService/TimerService.camkes";
-import "../../components/MailboxDriver/MailboxDriver.camkes";
-import "../../components/SDKRuntime/SDKRuntime.camkes";
+import <OpenTitanUARTDriver/OpenTitanUARTDriver.camkes>;
+import <DebugConsole/DebugConsole.camkes>;
+import <ProcessManager/ProcessManager.camkes>;
+import <MlCoordinator/MlCoordinator.camkes>;
+import <MemoryManager/MemoryManager.camkes>;
+import <SecurityCoordinator/SecurityCoordinator.camkes>;
+import <TimerService/TimerService.camkes>;
+import <MailboxDriver/MailboxDriver.camkes>;
+import <SDKRuntime/SDKRuntime.camkes>;
 
 component OpenTitanUART {
     hardware;

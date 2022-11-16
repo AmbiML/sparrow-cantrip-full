@@ -93,5 +93,6 @@ DeclareCAmkESComponent(SecurityCoordinator
 # Platform-specific components (typically drivers)
 include(${CMAKE_CURRENT_LIST_DIR}/platforms/${KernelPlatform}/CMakeLists.txt OPTIONAL)
 
-# XXX fallback to system.camkes or require every platform to have a copy?
+# Every platform has their own CAmkES assembly so services are built
+# only when the needed drivers are present (e.g. TimerService).
 DeclareCAmkESRootserver(platforms/${KernelPlatform}/system.camkes)
