@@ -207,6 +207,21 @@ pub unsafe extern "C" fn run() -> ! {
                 Ok(SDKRuntimeRequest::PollForTimers) => {
                     timer_poll_request(app_id, request_slice, reply_slice)
                 }
+                Ok(SDKRuntimeRequest::OneshotModel) => {
+                    model_oneshot_request(app_id, request_slice, reply_slice)
+                }
+                Ok(SDKRuntimeRequest::PeriodicModel) => {
+                    model_periodic_request(app_id, request_slice, reply_slice)
+                }
+                Ok(SDKRuntimeRequest::CancelModel) => {
+                    model_cancel_request(app_id, request_slice, reply_slice)
+                }
+                Ok(SDKRuntimeRequest::WaitForModel) => {
+                    model_wait_request(app_id, request_slice, reply_slice)
+                }
+                Ok(SDKRuntimeRequest::PollForModels) => {
+                    model_poll_request(app_id, request_slice, reply_slice)
+                }
                 Err(_) => {
                     // TODO(b/254286176): possible ddos
                     error!("Unknown RPC request {}", info.get_label());
@@ -354,6 +369,64 @@ fn timer_poll_request(
 ) -> Result<(), SDKError> {
     let mask = unsafe { CANTRIP_SDK.timer_poll(app_id)? };
     let _ = postcard::to_slice(&sdk_interface::TimerWaitResponse { mask }, reply_slice)
+        .map_err(serialize_failure)?;
+    Ok(())
+}
+
+fn model_oneshot_request(
+    app_id: SDKAppId,
+    request_slice: &[u8],
+    reply_slice: &mut [u8],
+) -> Result<(), SDKError> {
+    let request = postcard::from_bytes::<sdk_interface::ModelOneshotRequest>(request_slice)
+        .map_err(deserialize_failure)?;
+    let id = unsafe { CANTRIP_SDK.model_oneshot(app_id, request.model_id)? };
+    let _ = postcard::to_slice(&sdk_interface::ModelStartResponse { id }, reply_slice)
+        .map_err(serialize_failure)?;
+    Ok(())
+}
+
+fn model_periodic_request(
+    app_id: SDKAppId,
+    request_slice: &[u8],
+    reply_slice: &mut [u8],
+) -> Result<(), SDKError> {
+    let request = postcard::from_bytes::<sdk_interface::ModelPeriodicRequest>(request_slice)
+        .map_err(deserialize_failure)?;
+    let id = unsafe { CANTRIP_SDK.model_periodic(app_id, request.model_id, request.duration_ms)? };
+    let _ = postcard::to_slice(&sdk_interface::ModelStartResponse { id }, reply_slice)
+        .map_err(serialize_failure)?;
+    Ok(())
+}
+
+fn model_cancel_request(
+    app_id: SDKAppId,
+    request_slice: &[u8],
+    _reply_slice: &mut [u8],
+) -> Result<(), SDKError> {
+    let request = postcard::from_bytes::<sdk_interface::ModelCancelRequest>(request_slice)
+        .map_err(deserialize_failure)?;
+    unsafe { CANTRIP_SDK.model_cancel(app_id, request.id) }
+}
+
+fn model_wait_request(
+    app_id: SDKAppId,
+    _request_slice: &[u8],
+    reply_slice: &mut [u8],
+) -> Result<(), SDKError> {
+    let mask = unsafe { CANTRIP_SDK.model_wait(app_id)? };
+    let _ = postcard::to_slice(&sdk_interface::ModelWaitResponse { mask }, reply_slice)
+        .map_err(serialize_failure)?;
+    Ok(())
+}
+
+fn model_poll_request(
+    app_id: SDKAppId,
+    _request_slice: &[u8],
+    reply_slice: &mut [u8],
+) -> Result<(), SDKError> {
+    let mask = unsafe { CANTRIP_SDK.model_poll(app_id)? };
+    let _ = postcard::to_slice(&sdk_interface::ModelWaitResponse { mask }, reply_slice)
         .map_err(serialize_failure)?;
     Ok(())
 }

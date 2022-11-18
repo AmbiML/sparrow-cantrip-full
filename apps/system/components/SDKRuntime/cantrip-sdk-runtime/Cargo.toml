@@ -24,13 +24,16 @@ sel4-config = { path = "../../cantrip-os-common/src/sel4-config" }
 [features]
 default = []
 timer_support = ["cantrip-timer-interface"]
+ml_support = ["cantrip-ml-interface"]
 # Target platform support
-CONFIG_PLAT_SPARROW = ["timer_support"]
+CONFIG_PLAT_SPARROW = ["timer_support", "ml_support"]
 
 
 [dependencies]
+bitvec = { version = "1.0", default-features = false }
 cfg-if = "1.0"
 hashbrown = { version = "0.11", features = ["ahash-compile-time-rng"] }
+cantrip-ml-interface = { path = "../../MlCoordinator/cantrip-ml-interface", optional = true }
 cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-security-interface = { path = "../../SecurityCoordinator/cantrip-security-interface" }
 cantrip-timer-interface = { path = "../../TimerService/cantrip-timer-interface", optional = true }
@@ -38,4 +41,5 @@ cantrip-sdk-manager = { path = "../cantrip-sdk-manager" }
 log = { version = "0.4", features = ["release_max_level_info"] }
 sdk-interface = { path = "../sdk-interface" }
 smallstr = "0.2"
+smallvec = "1.10"
 spin = "0.9"

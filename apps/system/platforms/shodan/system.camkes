@@ -140,6 +140,7 @@ assembly {
         connection seL4RPCCall shell_process(from debug_console.proc_ctrl,
                                              to process_manager.proc_ctrl);
         connection seL4RPCCallSignal shell_ml(from debug_console.mlcoord,
+                                        from sdk_runtime.mlcoord, // XXX split out?
                                         to ml_coordinator.mlcoord);
 
         // ProcessMaanager talks to the SDKManager (the privileged part of

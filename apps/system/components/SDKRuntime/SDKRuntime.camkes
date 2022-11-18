@@ -16,6 +16,7 @@
 
 import <LoggerInterface.camkes>;
 import <MemoryInterface.camkes>;
+import <MlCoordinatorInterface.camkes>;
 import <SDKManagerInterface.camkes>;
 import <SecurityCoordinatorInterface.camkes>;
 import <TimerServiceInterface.camkes>;
@@ -26,6 +27,7 @@ component SDKRuntime {
 
   maybe uses LoggerInterface logger;
   uses MemoryInterface memory;
+  maybe uses MlCoordinatorInterface mlcoord;
   uses SecurityCoordinatorInterface security;
   maybe uses Timer timer;
 

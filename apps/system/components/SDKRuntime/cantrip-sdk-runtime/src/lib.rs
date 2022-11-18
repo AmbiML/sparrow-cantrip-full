@@ -21,6 +21,8 @@ use cantrip_sdk_manager::SDKManagerError;
 use cantrip_sdk_manager::SDKManagerInterface;
 use sdk_interface::error::SDKError;
 use sdk_interface::KeyValueData;
+use sdk_interface::ModelId;
+use sdk_interface::ModelMask;
 use sdk_interface::SDKAppId;
 use sdk_interface::SDKRuntimeInterface;
 use sdk_interface::TimerDuration;
@@ -73,6 +75,8 @@ impl SDKRuntimeInterface for CantripSDKRuntime {
     fn log(&self, app_id: SDKAppId, msg: &str) -> Result<(), SDKError> {
         self.runtime.lock().as_ref().unwrap().log(app_id, msg)
     }
+
+    // Key-value store interfaces.
     fn read_key<'a>(
         &self,
         app_id: SDKAppId,
@@ -99,41 +103,77 @@ impl SDKRuntimeInterface for CantripSDKRuntime {
             .unwrap()
             .delete_key(app_id, key)
     }
+
+    // Timer interfaces.
     fn timer_oneshot(
-        &self,
+        &mut self,
         app_id: SDKAppId,
         id: TimerId,
         duration_ms: TimerDuration,
     ) -> Result<(), SDKError> {
         self.runtime
             .lock()
-            .as_ref()
+            .as_mut()
             .unwrap()
             .timer_oneshot(app_id, id, duration_ms)
     }
     fn timer_periodic(
-        &self,
+        &mut self,
         app_id: SDKAppId,
         id: TimerId,
         duration_ms: TimerDuration,
     ) -> Result<(), SDKError> {
         self.runtime
             .lock()
-            .as_ref()
+            .as_mut()
             .unwrap()
             .timer_periodic(app_id, id, duration_ms)
     }
-    fn timer_cancel(&self, app_id: SDKAppId, id: TimerId) -> Result<(), SDKError> {
+    fn timer_cancel(&mut self, app_id: SDKAppId, id: TimerId) -> Result<(), SDKError> {
         self.runtime
             .lock()
-            .as_ref()
+            .as_mut()
             .unwrap()
             .timer_cancel(app_id, id)
     }
-    fn timer_wait(&self, app_id: SDKAppId) -> Result<TimerMask, SDKError> {
-        self.runtime.lock().as_ref().unwrap().timer_wait(app_id)
+    fn timer_wait(&mut self, app_id: SDKAppId) -> Result<TimerMask, SDKError> {
+        self.runtime.lock().as_mut().unwrap().timer_wait(app_id)
     }
-    fn timer_poll(&self, app_id: SDKAppId) -> Result<TimerMask, SDKError> {
-        self.runtime.lock().as_ref().unwrap().timer_poll(app_id)
+    fn timer_poll(&mut self, app_id: SDKAppId) -> Result<TimerMask, SDKError> {
+        self.runtime.lock().as_mut().unwrap().timer_poll(app_id)
+    }
+
+    // Model interfaces.
+    fn model_oneshot(&mut self, app_id: SDKAppId, model_id: &str) -> Result<ModelId, SDKError> {
+        self.runtime
+            .lock()
+            .as_mut()
+            .unwrap()
+            .model_oneshot(app_id, model_id)
+    }
+    fn model_periodic(
+        &mut self,
+        app_id: SDKAppId,
+        model_id: &str,
+        duration_ms: TimerDuration,
+    ) -> Result<ModelId, SDKError> {
+        self.runtime
+            .lock()
+            .as_mut()
+            .unwrap()
+            .model_periodic(app_id, model_id, duration_ms)
+    }
+    fn model_cancel(&mut self, app_id: SDKAppId, id: ModelId) -> Result<(), SDKError> {
+        self.runtime
+            .lock()
+            .as_mut()
+            .unwrap()
+            .model_cancel(app_id, id)
+    }
+    fn model_wait(&mut self, app_id: SDKAppId) -> Result<ModelMask, SDKError> {
+        self.runtime.lock().as_mut().unwrap().model_wait(app_id)
+    }
+    fn model_poll(&mut self, app_id: SDKAppId) -> Result<ModelMask, SDKError> {
+        self.runtime.lock().as_mut().unwrap().model_poll(app_id)
     }
 }

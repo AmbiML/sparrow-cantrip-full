@@ -31,6 +31,10 @@ pub enum SDKError {
     NoSuchTimer,
     TimerAlreadyExists,
     NoPlatformSupport,
+    NoSuchModel,
+    InvalidTimer,
+    LoadModelFailed,
+    OutOfResources,
 }
 
 impl From<postcard::Error> for SDKError {
@@ -56,6 +60,10 @@ pub enum SDKRuntimeError {
     SDKNoSuchTimer,
     SDKTimerAlreadyExists,
     SDKNoPlatformSupport,
+    SDKNoSuchModel,
+    SDKInvalidTimer,
+    SDKLoadModelFailed,
+    SDKOutOfResources,
 }
 
 /// Mapping function from Rust -> C.
@@ -75,6 +83,10 @@ impl From<SDKError> for SDKRuntimeError {
             SDKError::UnknownRequest => SDKRuntimeError::SDKUnknownRequest,
             SDKError::UnknownResponse => SDKRuntimeError::SDKUnknownResponse,
             SDKError::NoPlatformSupport => SDKRuntimeError::SDKNoPlatformSupport,
+            SDKError::NoSuchModel => SDKRuntimeError::SDKNoSuchModel,
+            SDKError::InvalidTimer => SDKRuntimeError::SDKInvalidTimer,
+            SDKError::LoadModelFailed => SDKRuntimeError::SDKLoadModelFailed,
+            SDKError::OutOfResources => SDKRuntimeError::SDKOutOfResources,
         }
     }
 }
@@ -104,6 +116,10 @@ impl From<SDKRuntimeError> for Result<(), SDKError> {
             SDKRuntimeError::SDKUnknownRequest => Err(SDKError::UnknownRequest),
             SDKRuntimeError::SDKUnknownResponse => Err(SDKError::UnknownResponse),
             SDKRuntimeError::SDKNoPlatformSupport => Err(SDKError::NoPlatformSupport),
+            SDKRuntimeError::SDKNoSuchModel => Err(SDKError::NoSuchModel),
+            SDKRuntimeError::SDKInvalidTimer => Err(SDKError::InvalidTimer),
+            SDKRuntimeError::SDKLoadModelFailed => Err(SDKError::LoadModelFailed),
+            SDKRuntimeError::SDKOutOfResources => Err(SDKError::OutOfResources),
         }
     }
 }

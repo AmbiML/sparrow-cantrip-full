@@ -112,7 +112,7 @@ pub struct TimerStartRequest {
     pub duration_ms: TimerDuration,
 }
 
-/// SDKRuntimeRequest::TimerCancel
+/// SDKRuntimeRequest::CancelTimer
 #[derive(Serialize, Deserialize)]
 pub struct TimerCancelRequest {
     pub id: TimerId,
@@ -124,6 +124,44 @@ pub struct TimerWaitRequest {}
 #[derive(Serialize, Deserialize)]
 pub struct TimerWaitResponse {
     pub mask: TimerMask,
+}
+
+/// MlCoordinator api's
+
+pub type ModelId = u32;
+pub type ModelMask = u32;
+// TODO(sleffler): could alias TimerDuration
+
+/// SDKRuntimeRequest::OneshotModel
+#[derive(Serialize, Deserialize)]
+pub struct ModelOneshotRequest<'a> {
+    pub model_id: &'a str,
+}
+#[derive(Serialize, Deserialize)]
+pub struct ModelStartResponse {
+    pub id: ModelId,
+}
+
+/// SDKRuntimeRequest::PeriodicModel
+#[derive(Serialize, Deserialize)]
+pub struct ModelPeriodicRequest<'a> {
+    pub model_id: &'a str,
+    pub duration_ms: TimerDuration,
+}
+// NB: returns ModelStartResponse
+
+/// SDKRuntimeRequest::CancelModel
+#[derive(Serialize, Deserialize)]
+pub struct ModelCancelRequest {
+    pub id: ModelId,
+}
+
+/// SDKRuntimeRequest::WaitForModel and SDKRuntimeRequest::PollForModels
+#[derive(Serialize, Deserialize)]
+pub struct ModelWaitRequest {}
+#[derive(Serialize, Deserialize)]
+pub struct ModelWaitResponse {
+    pub mask: ModelMask,
 }
 
 /// SDKRequest token sent over the seL4 IPC interface. We need repr(seL4_Word)
@@ -141,8 +179,14 @@ pub enum SDKRuntimeRequest {
     OneshotTimer,  // One-shot timer: [id: TimerId, duration_ms: TimerDuration]
     PeriodicTimer, // Periodic timer: [id: TimerId, duration_ms: TimerDuration]
     CancelTimer,   // Cancel timer: [id: TimerId]
-    WaitForTimers, // Wait for timers to expire: []
-    PollForTimers, // Poll for timers to expire: []
+    WaitForTimers, // Wait for timers to expire: [] -> TimerMask
+    PollForTimers, // Poll for timers to expire: [] -> TimerMask
+
+    OneshotModel,  // One-shot model executtion: [model_id: &str] -> id: ModelId
+    PeriodicModel, // Periodic model executtion: [model_id: &str, duration_ms: TimerDuration] -> ModelId
+    CancelModel,   // Cancel running model: [id: ModelId]
+    WaitForModel,  // Wait for any running model to complete: [] -> ModelMask
+    PollForModels, // Poll for running models to complete: [] -> ModelMask
 }
 
 /// Rust interface for the SDKRuntime.
@@ -180,24 +224,40 @@ pub trait SDKRuntimeInterface {
 
     /// Create a one-shot timer named |id| of |duration_ms|.
     fn timer_oneshot(
-        &self,
+        &mut self,
         app_id: SDKAppId,
         id: TimerId,
         duration_ms: TimerDuration,
     ) -> Result<(), SDKError>;
     /// Create a periodic (repeating) timer named |id| of |duration_ms|.
     fn timer_periodic(
-        &self,
+        &mut self,
         app_id: SDKAppId,
         id: TimerId,
         duration_ms: TimerDuration,
     ) -> Result<(), SDKError>;
     /// Cancel a previously created timer.
-    fn timer_cancel(&self, app_id: SDKAppId, id: TimerId) -> Result<(), SDKError>;
+    fn timer_cancel(&mut self, app_id: SDKAppId, id: TimerId) -> Result<(), SDKError>;
     /// Wait for any running timer to complete.
-    fn timer_wait(&self, app_id: SDKAppId) -> Result<TimerMask, SDKError>;
+    fn timer_wait(&mut self, app_id: SDKAppId) -> Result<TimerMask, SDKError>;
     /// Poll for any running timer that have completed.
-    fn timer_poll(&self, app_id: SDKAppId) -> Result<TimerMask, SDKError>;
+    fn timer_poll(&mut self, app_id: SDKAppId) -> Result<TimerMask, SDKError>;
+
+    /// Create a one-shot run of |model_id|.
+    fn model_oneshot(&mut self, app_id: SDKAppId, model_id: &str) -> Result<ModelId, SDKError>;
+    /// Create a periodic (repeating) timer named |id| of |duration_ms|.
+    fn model_periodic(
+        &mut self,
+        app_id: SDKAppId,
+        model_id: &str,
+        duration_ms: TimerDuration,
+    ) -> Result<ModelId, SDKError>;
+    /// Cancel a previously created timer.
+    fn model_cancel(&mut self, app_id: SDKAppId, id: ModelId) -> Result<(), SDKError>;
+    /// Wait for any running timer to complete.
+    fn model_wait(&mut self, app_id: SDKAppId) -> Result<ModelMask, SDKError>;
+    /// Poll for any running timer that have completed.
+    fn model_poll(&mut self, app_id: SDKAppId) -> Result<ModelMask, SDKError>;
 }
 
 /// Rust client-side request processing. Note there is no CAmkES stub to
@@ -351,6 +411,66 @@ pub fn sdk_timer_poll() -> Result<TimerMask, SDKRuntimeError> {
     let response = sdk_request::<TimerWaitRequest, TimerWaitResponse>(
         SDKRuntimeRequest::PollForTimers,
         &TimerWaitRequest {},
+    )?;
+    Ok(response.mask)
+}
+
+/// Rust client-side wrapper for the model_oneshot method.
+#[inline]
+#[allow(dead_code)]
+pub fn sdk_model_oneshot(model_id: &str) -> Result<ModelId, SDKRuntimeError> {
+    let response = sdk_request::<ModelOneshotRequest, ModelStartResponse>(
+        SDKRuntimeRequest::OneshotModel,
+        &ModelOneshotRequest { model_id },
+    )?;
+    Ok(response.id)
+}
+
+/// Rust client-side wrapper for the model_periodic method.
+#[inline]
+#[allow(dead_code)]
+pub fn sdk_model_periodic(
+    model_id: &str,
+    duration_ms: TimerDuration,
+) -> Result<ModelId, SDKRuntimeError> {
+    let response = sdk_request::<ModelPeriodicRequest, ModelStartResponse>(
+        SDKRuntimeRequest::PeriodicModel,
+        &ModelPeriodicRequest {
+            model_id,
+            duration_ms,
+        },
+    )?;
+    Ok(response.id)
+}
+
+/// Rust client-side wrapper for the model_cancel method.
+#[inline]
+#[allow(dead_code)]
+pub fn sdk_model_cancel(id: ModelId) -> Result<(), SDKRuntimeError> {
+    sdk_request::<ModelCancelRequest, ()>(
+        SDKRuntimeRequest::CancelModel,
+        &ModelCancelRequest { id },
+    )
+}
+
+/// Rust client-side wrapper for the modelk_wait method.
+#[inline]
+#[allow(dead_code)]
+pub fn sdk_model_wait() -> Result<ModelMask, SDKRuntimeError> {
+    let response = sdk_request::<ModelWaitRequest, ModelWaitResponse>(
+        SDKRuntimeRequest::WaitForModel,
+        &ModelWaitRequest {},
+    )?;
+    Ok(response.mask)
+}
+
+/// Rust client-side wrapper for the model_poll method.
+#[inline]
+#[allow(dead_code)]
+pub fn sdk_model_poll() -> Result<ModelMask, SDKRuntimeError> {
+    let response = sdk_request::<ModelWaitRequest, ModelWaitResponse>(
+        SDKRuntimeRequest::PollForModels,
+        &ModelWaitRequest {},
     )?;
     Ok(response.mask)
 }
