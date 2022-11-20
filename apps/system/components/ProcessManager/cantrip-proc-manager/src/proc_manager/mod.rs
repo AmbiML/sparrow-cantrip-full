@@ -104,6 +104,26 @@ impl PackageManagementInterface for ProcessManager {
         Ok(bundle.app_id)
     }
 
+    fn install_app(
+        &mut self,
+        app_id: &str,
+        pkg_contents: &ObjDescBundle,
+    ) -> Result<(), ProcessManagerError> {
+        trace!("install_app {} pkg_contents {}", app_id, pkg_contents);
+
+        // NB: defer to StorageManager for handling an install of a previously
+        // installed app
+        self.manager.install_app(app_id, pkg_contents)?;
+
+        let bundle = Bundle::new(app_id);
+        assert!(self
+            .bundles
+            .insert(BundleId::from_str(app_id), BundleData::new(&bundle))
+            .is_none());
+
+        Ok(())
+    }
+
     fn uninstall(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError> {
         trace!("uninstall bundle_id {}", bundle_id);
 

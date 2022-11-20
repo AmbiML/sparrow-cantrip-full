@@ -106,6 +106,11 @@ pub enum ProcessManagerError {
 // used to inject fakes for unit tests.
 pub trait ProcessManagerInterface {
     fn install(&mut self, pkg_contents: &ObjDescBundle) -> Result<String, ProcessManagerError>;
+    fn install_app(
+        &mut self,
+        app_id: &str,
+        pkg_contents: &ObjDescBundle,
+    ) -> Result<(), ProcessManagerError>;
     fn uninstall(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError>;
     fn start(
         &mut self,
@@ -123,6 +128,11 @@ pub trait ProcessManagerInterface {
 
 pub trait PackageManagementInterface {
     fn install(&mut self, pkg_contents: &ObjDescBundle) -> Result<String, ProcessManagerError>;
+    fn install_app(
+        &mut self,
+        app_id: &str,
+        pkg_contents: &ObjDescBundle,
+    ) -> Result<(), ProcessManagerError>;
     fn uninstall(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError>;
 }
 
@@ -218,6 +228,32 @@ pub fn cantrip_pkg_mgmt_install(
             let bundle_id = postcard::from_bytes::<String>(raw_data.as_ref())?;
             Ok(bundle_id)
         }
+        status => Err(status),
+    }
+}
+
+#[inline]
+#[allow(dead_code)]
+pub fn cantrip_pkg_mgmt_install_app(
+    app_id: &str,
+    pkg_contents: &ObjDescBundle,
+) -> Result<(), ProcessManagerError> {
+    extern "C" {
+        fn pkg_mgmt_install_app(
+            c_app_id: *const cstr_core::c_char,
+            c_request_len: u32,
+            c_request: *const u8,
+        ) -> ProcessManagerError;
+    }
+    let app_cstr = CString::new(app_id)?;
+    // TODO(sleffler): ~3K on the stack maybe too much
+    let raw_request = &mut [0u8; RAW_OBJ_DESC_DATA_SIZE];
+    let request = postcard::to_slice(&pkg_contents, raw_request)?;
+    match unsafe {
+        let _cleanup = Camkes::set_request_cap(pkg_contents.cnode);
+        pkg_mgmt_install_app(app_cstr.as_ptr(), request.len() as u32, request.as_ptr())
+    } {
+        ProcessManagerError::Success => Ok(()),
         status => Err(status),
     }
 }

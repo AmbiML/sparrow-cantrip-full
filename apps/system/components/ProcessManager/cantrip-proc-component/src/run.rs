@@ -93,6 +93,35 @@ pub unsafe extern "C" fn pkg_mgmt_install(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn pkg_mgmt_install_app(
+    c_app_id: *const cstr_core::c_char,
+    c_request_len: u32,
+    c_request: *const u8,
+) -> ProcessManagerError {
+    let recv_path = CAMKES.get_current_recv_path();
+    // NB: make sure noone clobbers the setup done in pkg_mgmt__init
+    CAMKES.assert_recv_path();
+
+    let request_slice = slice::from_raw_parts(c_request, c_request_len as usize);
+    let ret_status = match CStr::from_ptr(c_app_id).to_str() {
+        Ok(app_id) => match postcard::from_bytes::<ObjDescBundle>(request_slice) {
+            Ok(mut pkg_contents) => {
+                Camkes::debug_assert_slot_cnode("pkg_mgmt_install_app", &recv_path);
+                pkg_contents.cnode = recv_path.1;
+                match CANTRIP_PROC.install_app(app_id, &pkg_contents) {
+                    Ok(_) => ProcessManagerError::Success,
+                    Err(e) => e,
+                }
+            }
+            Err(e) => e.into(),
+        },
+        Err(_) => ProcessManagerError::BundleIdInvalid,
+    };
+    CAMKES.clear_recv_path();
+    ret_status
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn pkg_mgmt_uninstall(
     c_bundle_id: *const cstr_core::c_char,
 ) -> ProcessManagerError {

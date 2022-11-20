@@ -57,6 +57,27 @@ impl SecurityCoordinatorInterface for CantripSecurityCoordinator {
     fn install(&mut self, pkg_contents: &ObjDescBundle) -> Result<String, SecurityRequestError> {
         self.manager.as_mut().unwrap().install(pkg_contents)
     }
+    fn install_app(
+        &mut self,
+        app_id: &str,
+        pkg_contents: &ObjDescBundle,
+    ) -> Result<(), SecurityRequestError> {
+        self.manager
+            .as_mut()
+            .unwrap()
+            .install_app(app_id, pkg_contents)
+    }
+    fn install_model(
+        &mut self,
+        app_id: &str,
+        model_id: &str,
+        pkg_contents: &ObjDescBundle,
+    ) -> Result<(), SecurityRequestError> {
+        self.manager
+            .as_mut()
+            .unwrap()
+            .install_model(app_id, model_id, pkg_contents)
+    }
     fn uninstall(&mut self, bundle_id: &str) -> Result<(), SecurityRequestError> {
         self.manager.as_mut().unwrap().uninstall(bundle_id)
     }

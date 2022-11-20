@@ -156,6 +156,35 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinator {
             .is_none());
         Ok(bundle_id)
     }
+    fn install_app(
+        &mut self,
+        app_id: &str,
+        pkg_contents: &ObjDescBundle,
+    ) -> Result<(), SecurityRequestError> {
+        if self.bundles.contains_key(app_id) {
+            return Err(SecurityRequestError::SreDeleteFirst);
+        }
+        assert!(self
+            .bundles
+            .insert(app_id.into(), BundleData::new(pkg_contents))
+            .is_none());
+        Ok(())
+    }
+    fn install_model(
+        &mut self,
+        _app_id: &str,
+        model_id: &str,
+        pkg_contents: &ObjDescBundle,
+    ) -> Result<(), SecurityRequestError> {
+        if self.bundles.contains_key(model_id) {
+            return Err(SecurityRequestError::SreDeleteFirst);
+        }
+        assert!(self
+            .bundles
+            .insert(model_id.into(), BundleData::new(pkg_contents))
+            .is_none());
+        Ok(())
+    }
     fn uninstall(&mut self, bundle_id: &str) -> Result<(), SecurityRequestError> {
         self.remove_bundle(bundle_id)
     }
@@ -178,15 +207,14 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinator {
     }
     fn load_model(
         &self,
-        bundle_id: &str,
-        _model_id: &str,
+        _bundle_id: &str,
+        model_id: &str,
     ) -> Result<ObjDescBundle, SecurityRequestError> {
-        let bundle_data = self.get_bundle(bundle_id)?;
-        // TODO(sleffler): check model id
+        // TODO(sleffler): models are meant to be associated with bundle_id
+        let model_data = self.get_bundle(model_id)?;
         // Clone everything (struct + associated seL4 objects) so the
         // return is as though it was newly instantiated from flash.
-        // XXX just return the package for now
-        deep_copy(&bundle_data.pkg_contents).map_err(|_| SecurityRequestError::SreLoadModelFailed)
+        deep_copy(&model_data.pkg_contents).map_err(|_| SecurityRequestError::SreLoadModelFailed)
     }
     fn read_key(&self, bundle_id: &str, key: &str) -> Result<&KeyValueData, SecurityRequestError> {
         let bundle = self.get_bundle(bundle_id)?;

@@ -15,6 +15,7 @@
 #![no_std]
 
 extern crate alloc;
+use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt;
 use core::fmt::Write;
@@ -29,11 +30,14 @@ use cantrip_ml_interface::*;
 use cantrip_os_common::sel4_sys;
 use cantrip_os_common::slot_allocator;
 use cantrip_proc_interface::cantrip_pkg_mgmt_install;
+use cantrip_proc_interface::cantrip_pkg_mgmt_install_app;
 use cantrip_proc_interface::cantrip_pkg_mgmt_uninstall;
 use cantrip_proc_interface::cantrip_proc_ctrl_get_running_bundles;
 use cantrip_proc_interface::cantrip_proc_ctrl_start;
 use cantrip_proc_interface::cantrip_proc_ctrl_stop;
+use cantrip_proc_interface::ProcessManagerError;
 use cantrip_security_interface::cantrip_security_delete_key;
+use cantrip_security_interface::cantrip_security_install_model;
 use cantrip_security_interface::cantrip_security_read_key;
 use cantrip_security_interface::cantrip_security_write_key;
 
@@ -474,33 +478,129 @@ fn install_command(
         }
     }
 
-    // Collect/setup the package frames. If a -z arg is present a zmodem
-    // upload is used; otherwise we use some raw pages (for testing).
-    let mut pkg_contents = match args.next() {
-        Some("-z") => collect_from_zmodem(input, &mut output).ok_or(CommandError::IO)?,
-        Some(filename) => {
-            collect_from_cpio(filename, builtin_cpio, output).ok_or(CommandError::IO)?
+    enum PkgType {
+        Bundle(ObjDescBundle),
+        App {
+            app_id: String,
+            contents: ObjDescBundle,
+        },
+        Model {
+            app_id: String,
+            model_id: String,
+            contents: ObjDescBundle,
+        },
+    }
+    impl PkgType {
+        // Returns an immutable ref to |contents|.
+        pub fn get(&self) -> &ObjDescBundle {
+            match self {
+                PkgType::Bundle(contents) => contents,
+                PkgType::App {
+                    app_id: _,
+                    contents,
+                } => contents,
+                PkgType::Model {
+                    app_id: _,
+                    model_id: _,
+                    contents,
+                } => contents,
+            }
         }
-        None => {
-            // TODO: pattern-fill pages
-            cantrip_frame_alloc(8192).map_err(|_| CommandError::IO)?
+        // Returns a mutable ref to |contents|.
+        pub fn get_mut(&mut self) -> &mut ObjDescBundle {
+            match self {
+                PkgType::Bundle(contents) => contents,
+                PkgType::App {
+                    app_id: _,
+                    contents,
+                } => contents,
+                PkgType::Model {
+                    app_id: _,
+                    model_id: _,
+                    contents,
+                } => contents,
+            }
+        }
+        pub fn install(&self) -> Result<String, ProcessManagerError> {
+            match self {
+                PkgType::Bundle(contents) => cantrip_pkg_mgmt_install(contents),
+                PkgType::App { app_id, contents } => {
+                    cantrip_pkg_mgmt_install_app(app_id, contents).map(|_| app_id.clone())
+                }
+                PkgType::Model {
+                    app_id,
+                    model_id,
+                    contents,
+                } =>
+                // NB: models go directly to the SecurityCoordinator
+                // NB: true error is masked, ok for now as this is stopgap
+                {
+                    cantrip_security_install_model(app_id, model_id, contents).map_or_else(
+                        |_| Err(ProcessManagerError::InstallFailed),
+                        |_| Ok(model_id.clone()),
+                    )
+                }
+            }
+        }
+    }
+    impl fmt::Display for PkgType {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            match self {
+                PkgType::Bundle(_) => write!(f, "Bundle"),
+                PkgType::App {
+                    app_id: _,
+                    contents: _,
+                } => write!(f, "Application"),
+                PkgType::Model {
+                    app_id: _,
+                    model_id: _,
+                    contents: _,
+                } => write!(f, "Model"),
+            }
+        }
+    }
+    // XXX add drop that reclaims contents
+
+    // Collect/setup the package frames. If a -z arg is supplied a zmodem
+    // upload is used; Otherwise the arg specifies the name of a file in
+    // the builtins cpio archive.
+    let mut pkg_contents: PkgType = match args.next().ok_or(CommandError::BadArgs)? {
+        "-z" => PkgType::Bundle(collect_from_zmodem(input, &mut output).ok_or(CommandError::IO)?),
+        filename => {
+            let contents =
+                collect_from_cpio(filename, builtin_cpio, output).ok_or(CommandError::IO)?;
+            if let Some(app_id) = filename.strip_suffix(".app") {
+                PkgType::App {
+                    app_id: app_id.into(),
+                    contents,
+                }
+            } else if let Some(model_id) = filename.strip_suffix(".model") {
+                PkgType::Model {
+                    app_id: filename.into(),
+                    model_id: model_id.into(),
+                    contents,
+                }
+            } else {
+                PkgType::Bundle(contents)
+            }
         }
     };
 
     // The frames are in SELF_CNODE; wrap them in a dynamically allocated
     // CNode (as expected by cantrip_pgk_mgmt_install).
     // TODO(sleffler): useful idiom, add to MemoryManager
-    let cnode_depth = pkg_contents.count_log2();
-    let cnode = cantrip_cnode_alloc(cnode_depth).map_err(|_| CommandError::Memory)?; // XXX leaks pkg_contents
+    let cnode_depth = pkg_contents.get().count_log2();
+    let cnode = cantrip_cnode_alloc(cnode_depth).map_err(|_| CommandError::Memory)?;
     pkg_contents
+        .get_mut()
         .move_objects_from_toplevel(cnode.objs[0].cptr, cnode_depth as u8)
-        .map_err(|_| CommandError::Memory)?; // XXX leaks pkg_contents + cnode
-    match cantrip_pkg_mgmt_install(&pkg_contents) {
-        Ok(bundle_id) => {
-            writeln!(output, "Bundle \"{}\" installed", bundle_id)?;
+        .map_err(|_| CommandError::Memory)?;
+    match pkg_contents.install() {
+        Ok(id) => {
+            writeln!(output, "{} \"{}\" installed", pkg_contents, id)?;
         }
         Err(status) => {
-            writeln!(output, "install failed: {:?}", status)?;
+            writeln!(output, "{} install failed: {:?}", pkg_contents, status)?;
         }
     }
 

@@ -81,6 +81,41 @@ pub struct InstallResponse<'a> {
 }
 impl<'a> SecurityCapability for InstallResponse<'a> {}
 
+// XXX temporary api for handling manifest-related work outside the SEC
+// Instead of sending the bundle (including manifest), send application +
+// model(s) separately.
+
+// SecurityRequestInstallApp
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InstallAppRequest<'a> {
+    pub app_id: &'a str,
+    // NB: serde does not support a borrow
+    pub pkg_contents: ObjDescBundle,
+}
+impl<'a> SecurityCapability for InstallAppRequest<'a> {
+    fn get_container_cap(&self) -> Option<seL4_CPtr> { Some(self.pkg_contents.cnode) }
+    fn set_container_cap(&mut self, cap: seL4_CPtr) { self.pkg_contents.cnode = cap; }
+}
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InstallAppResponse {}
+impl SecurityCapability for InstallAppResponse {}
+
+// SecurityRequestInstallModel
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InstallModelRequest<'a> {
+    pub app_id: &'a str,
+    pub model_id: &'a str,
+    // NB: serde does not support a borrow
+    pub pkg_contents: ObjDescBundle,
+}
+impl<'a> SecurityCapability for InstallModelRequest<'a> {
+    fn get_container_cap(&self) -> Option<seL4_CPtr> { Some(self.pkg_contents.cnode) }
+    fn set_container_cap(&mut self, cap: seL4_CPtr) { self.pkg_contents.cnode = cap; }
+}
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InstallModelResponse {}
+impl SecurityCapability for InstallModelResponse {}
+
 // SecurityRequestUninstall
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UninstallRequest<'a> {
@@ -231,8 +266,10 @@ pub enum SecurityRequestError {
 pub enum SecurityRequest {
     SrEcho = 0, // Security core replies with request payload
 
-    SrInstall,   // Install package [pkg_buffer] -> bundle_id
-    SrUninstall, // Uninstall package [bundle_id]
+    SrInstall,      // Install package [pkg_buffer] -> bundle_id
+    SrInstallApp,   // Install application [app_id, pkg_buffer]
+    SrInstallModel, // Install model [app_id, model_id, pkg_buffer]
+    SrUninstall,    // Uninstall package [bundle_id]
 
     SrSizeBuffer,      // Size application image [bundle_id] -> u32
     SrGetManifest,     // Return application manifest [bundle_id] -> String
@@ -251,6 +288,17 @@ pub enum SecurityRequest {
 // Interface to underlying facilities; also used to inject fakes for unit tests.
 pub trait SecurityCoordinatorInterface {
     fn install(&mut self, pkg_contents: &ObjDescBundle) -> Result<String, SecurityRequestError>;
+    fn install_app(
+        &mut self,
+        app_id: &str,
+        pkg_contents: &ObjDescBundle,
+    ) -> Result<(), SecurityRequestError>;
+    fn install_model(
+        &mut self,
+        app_id: &str,
+        model_id: &str,
+        pkg_contents: &ObjDescBundle,
+    ) -> Result<(), SecurityRequestError>;
     fn uninstall(&mut self, bundle_id: &str) -> Result<(), SecurityRequestError>;
     fn size_buffer(&self, bundle_id: &str) -> Result<usize, SecurityRequestError>;
     fn get_manifest(&self, bundle_id: &str) -> Result<String, SecurityRequestError>;
@@ -273,7 +321,7 @@ pub trait SecurityCoordinatorInterface {
 
 #[inline]
 #[allow(dead_code)]
-pub fn cantrip_security_request<T: Serialize + SecurityCapability>(
+pub fn cantrip_security_request<T: Serialize + SecurityCapability + core::fmt::Debug>(
     request: SecurityRequest,
     request_args: &T,
     reply_buffer: &mut SecurityReplyData,
@@ -289,7 +337,7 @@ pub fn cantrip_security_request<T: Serialize + SecurityCapability>(
     }
     trace!(
         "cantrip_security_request {:?} cap {:?}",
-        &request,
+        &request_args,
         request_args.get_container_cap()
     );
     let mut request_buffer = [0u8; SECURITY_REQUEST_DATA_SIZE];
@@ -355,6 +403,50 @@ pub fn cantrip_security_install(
         reply,
     )?;
     postcard::from_bytes::<String>(reply).map_err(|_| SecurityRequestError::SreDeserializeFailed)
+}
+
+#[inline]
+#[allow(dead_code)]
+pub fn cantrip_security_install_application(
+    app_id: &str,
+    pkg_contents: &ObjDescBundle,
+) -> Result<(), SecurityRequestError> {
+    Camkes::debug_assert_slot_cnode(
+        "cantrip_security_install_application",
+        &Camkes::top_level_path(pkg_contents.cnode),
+    );
+    let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
+    cantrip_security_request(
+        SecurityRequest::SrInstallApp,
+        &InstallAppRequest {
+            app_id,
+            pkg_contents: pkg_contents.clone(),
+        },
+        reply,
+    )
+}
+
+#[inline]
+#[allow(dead_code)]
+pub fn cantrip_security_install_model(
+    app_id: &str,
+    model_id: &str,
+    pkg_contents: &ObjDescBundle,
+) -> Result<(), SecurityRequestError> {
+    Camkes::debug_assert_slot_cnode(
+        "cantrip_security_install_model",
+        &Camkes::top_level_path(pkg_contents.cnode),
+    );
+    let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
+    cantrip_security_request(
+        SecurityRequest::SrInstallModel,
+        &InstallModelRequest {
+            app_id,
+            model_id,
+            pkg_contents: pkg_contents.clone(),
+        },
+        reply,
+    )
 }
 
 #[inline]

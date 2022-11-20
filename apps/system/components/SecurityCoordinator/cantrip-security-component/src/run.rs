@@ -108,6 +108,48 @@ fn install_request(
     Ok(())
 }
 
+fn install_app_request(
+    request_buffer: &[u8],
+    _reply_buffer: &mut [u8],
+) -> Result<(), SecurityRequestError> {
+    let recv_path = unsafe { CAMKES.get_current_recv_path() };
+    Camkes::debug_assert_slot_cnode("install_application_request", &recv_path);
+
+    let mut request =
+        postcard::from_bytes::<InstallAppRequest>(request_buffer).map_err(deserialize_failure)?; // XXX clear_path
+
+    // Move the container CNode so it's not clobbered.
+    let mut container_slot = CSpaceSlot::new();
+    container_slot
+        .move_to(recv_path.0, recv_path.1, recv_path.2 as u8)
+        .map_err(|_| SecurityRequestError::SreCapMoveFailed)?; // XXX expect?
+    request.set_container_cap(container_slot.release());
+
+    unsafe { CANTRIP_SECURITY.install_app(request.app_id, &request.pkg_contents) }
+}
+
+fn install_model_request(
+    request_buffer: &[u8],
+    _reply_buffer: &mut [u8],
+) -> Result<(), SecurityRequestError> {
+    let recv_path = unsafe { CAMKES.get_current_recv_path() };
+    Camkes::debug_assert_slot_cnode("install_model_request", &recv_path);
+
+    let mut request =
+        postcard::from_bytes::<InstallModelRequest>(request_buffer).map_err(deserialize_failure)?; // XXX clear_path
+
+    // Move the container CNode so it's not clobbered.
+    let mut container_slot = CSpaceSlot::new();
+    container_slot
+        .move_to(recv_path.0, recv_path.1, recv_path.2 as u8)
+        .map_err(|_| SecurityRequestError::SreCapMoveFailed)?; // XXX expect?
+    request.set_container_cap(container_slot.release());
+
+    unsafe {
+        CANTRIP_SECURITY.install_model(request.app_id, request.model_id, &request.pkg_contents)
+    }
+}
+
 fn uninstall_request(
     request_buffer: &[u8],
     _reply_buffer: &mut [u8],
@@ -262,6 +304,8 @@ pub unsafe extern "C" fn security_request(
     match c_request {
         SecurityRequest::SrEcho => echo_request(request_buffer, reply_buffer),
         SecurityRequest::SrInstall => install_request(request_buffer, reply_buffer),
+        SecurityRequest::SrInstallApp => install_app_request(request_buffer, reply_buffer),
+        SecurityRequest::SrInstallModel => install_model_request(request_buffer, reply_buffer),
         SecurityRequest::SrUninstall => uninstall_request(request_buffer, reply_buffer),
         SecurityRequest::SrSizeBuffer => size_buffer_request(request_buffer, reply_buffer),
         SecurityRequest::SrGetManifest => get_manifest_request(request_buffer, reply_buffer),

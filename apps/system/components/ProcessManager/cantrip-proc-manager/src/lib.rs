@@ -29,6 +29,7 @@ use cantrip_proc_interface::ProcessControlInterface;
 use cantrip_proc_interface::ProcessManagerError;
 use cantrip_proc_interface::ProcessManagerInterface;
 use cantrip_security_interface::cantrip_security_install;
+use cantrip_security_interface::cantrip_security_install_application;
 use cantrip_security_interface::cantrip_security_load_application;
 use cantrip_security_interface::cantrip_security_uninstall;
 use log::trace;
@@ -71,6 +72,17 @@ impl PackageManagementInterface for CantripProcManager {
     fn install(&mut self, pkg_contents: &ObjDescBundle) -> Result<String, ProcessManagerError> {
         self.manager.lock().as_mut().unwrap().install(pkg_contents)
     }
+    fn install_app(
+        &mut self,
+        app_id: &str,
+        pkg_contents: &ObjDescBundle,
+    ) -> Result<(), ProcessManagerError> {
+        self.manager
+            .lock()
+            .as_mut()
+            .unwrap()
+            .install_app(app_id, pkg_contents)
+    }
     fn uninstall(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError> {
         self.manager.lock().as_mut().unwrap().uninstall(bundle_id)
     }
@@ -103,6 +115,18 @@ impl ProcessManagerInterface for CantripManagerInterface {
 
         // This is handled by the SecurityCoordinator.
         Ok(cantrip_security_install(pkg_contents)?)
+    }
+    fn install_app(
+        &mut self,
+        app_id: &str,
+        pkg_contents: &ObjDescBundle,
+    ) -> Result<(), ProcessManagerError> {
+        trace!(
+            "ProcessManagerInterface::install_app {} pkg_contents {}",
+            app_id,
+            pkg_contents
+        );
+        Ok(cantrip_security_install_application(app_id, pkg_contents)?)
     }
     fn uninstall(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError> {
         trace!("ProcessManagerInterface::uninstall bundle_id {}", bundle_id);
