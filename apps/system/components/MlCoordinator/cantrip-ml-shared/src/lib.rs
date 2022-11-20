@@ -19,6 +19,7 @@
 
 extern crate alloc;
 
+use alloc::fmt;
 use alloc::string::String;
 use bitflags::bitflags;
 
@@ -28,6 +29,11 @@ use bitflags::bitflags;
 pub struct ImageId {
     pub bundle_id: String,
     pub model_id: String,
+}
+impl fmt::Display for ImageId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}:{}", self.bundle_id, self.model_id)
+    }
 }
 
 /// An image consists of five sections. See go/sparrow-vc-memory for a

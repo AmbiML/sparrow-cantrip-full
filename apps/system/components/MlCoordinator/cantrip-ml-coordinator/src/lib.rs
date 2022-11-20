@@ -125,17 +125,17 @@ impl MLCoordinator {
                                 round_up(section.msize, WMMU_PAGE_SIZE);
                         }
                         vaddr => {
-                            warn!("While validating found unexpected section at {}", vaddr);
+                            warn!("{}: skipping unexpected section at {:#x}", &id, vaddr);
                         }
                     }
                 }
 
                 if !in_memory_sizes.is_valid() {
-                    error!("Image invalid, section missing: {:?}", in_memory_sizes);
+                    error!("{} invalid, section missing: {:?}", &id, in_memory_sizes);
                     return None;
                 }
                 if in_memory_sizes.total_size() > TCM_SIZE {
-                    error!("Image too big to fit in TCM: {:?}", in_memory_sizes);
+                    error!("{} too big to fit in TCM: {:?}", &id, in_memory_sizes);
                     return None;
                 }
 
@@ -145,7 +145,7 @@ impl MLCoordinator {
                 Some((on_flash_sizes, in_memory_sizes))
             }
             Err(status) => {
-                error!("Security Core error {:?}", status);
+                error!("{}: Security Core error {:?}", &id, status);
                 None
             }
         }
@@ -232,10 +232,7 @@ impl MLCoordinator {
                     let _ = cantrip_object_free_in_cnode(&model_frames);
                 }
                 Err(e) => {
-                    error!(
-                        "LoadModel of bundle {}:{} failed: {:?}",
-                        &model.id.bundle_id, &model.id.model_id, e
-                    );
+                    error!("{}: LoadModel failed: {:?}", &model.id, e);
                     self.statistics.load_failures += 1;
                     return Err(MlCoordError::LoadModelFailed);
                 }
