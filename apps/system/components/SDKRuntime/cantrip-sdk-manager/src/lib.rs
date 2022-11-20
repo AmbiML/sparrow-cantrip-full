@@ -60,7 +60,7 @@ pub fn cantrip_sdk_manager_get_endpoint(
     app_id: &str,
     container_slot: &CSpaceSlot,
 ) -> Result<(), SDKManagerError> {
-    container_slot.set_recv_path();
+    let _cleanup = container_slot.push_recv_path();
     // NB: make sure the receive slot is empty or the cap will be dropped.
     sel4_sys::debug_assert_slot_empty!(
         container_slot.slot,

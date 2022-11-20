@@ -401,7 +401,7 @@ pub fn cantrip_security_load_application(
     bundle_id: &str,
     container_slot: &CSpaceSlot,
 ) -> Result<ObjDescBundle, SecurityRequestError> {
-    container_slot.set_recv_path();
+    let _cleanup = container_slot.push_recv_path();
     // NB: SrLoadApplication returns a CNode with the application
     //   contents, make sure the receive slot is empty or it can
     //   silently fail.
@@ -434,7 +434,7 @@ pub fn cantrip_security_load_model(
     model_id: &str,
     container_slot: &CSpaceSlot,
 ) -> Result<ObjDescBundle, SecurityRequestError> {
-    container_slot.set_recv_path();
+    let _cleanup = container_slot.push_recv_path();
     // NB: SrLoadApplication returns a CNode with the application
     //   contents, make sure the receive slot is empty or it can
     //   silently fail.

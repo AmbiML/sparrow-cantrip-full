@@ -26,6 +26,7 @@ use sel4_sys::seL4_CNode_Move;
 use sel4_sys::seL4_CNode_Mutate;
 use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_CapRights;
+use sel4_sys::seL4_GetCapReceivePath;
 use sel4_sys::seL4_Result;
 use sel4_sys::seL4_SetCapReceivePath;
 use sel4_sys::seL4_Word;
@@ -33,6 +34,21 @@ use sel4_sys::seL4_WordBits;
 
 extern "C" {
     static SELF_CNODE: seL4_CPtr;
+}
+
+// RAII wrapper for push_recv_path.
+pub struct RecvPathCleanup {
+    slot: seL4_CPtr,
+}
+impl RecvPathCleanup {
+    pub fn new() -> Self {
+        Self {
+            slot: unsafe { seL4_GetCapReceivePath() }.1,
+        }
+    }
+}
+impl Drop for RecvPathCleanup {
+    fn drop(&mut self) { unsafe { seL4_SetCapReceivePath(SELF_CNODE, self.slot, seL4_WordBits) } }
 }
 
 pub struct CSpaceSlot {
@@ -45,26 +61,30 @@ impl CSpaceSlot {
         }
     }
 
-    // Release ownership of the slot; this inhibits the normal cleanup
-    // done by drop. The slot that was being managed is returned.
+    /// Releases ownership of the slot; this inhibits the normal cleanup
+    /// done by drop. The slot that was being managed is returned.
     pub fn release(&mut self) -> seL4_CPtr {
         let slot = self.slot;
         self.slot = seL4_CPtr::MAX;
         slot
     }
 
-    // Returns the (root, index, depth) seL4 path for the slot.
+    /// Returns the (root, index, depth) seL4 path for the slot.
     pub fn get_path(&self) -> (seL4_CPtr, seL4_CPtr, u8) {
         (unsafe { SELF_CNODE }, self.slot, seL4_WordBits as u8)
     }
 
-    // Sets the receive path used for receiving a capability attached
-    // to an seL4 IPC message.
-    pub fn set_recv_path(&self) {
+    /// Temporarily sets the receive path used for receiving a capability
+    /// attached to an seL4 IPC message. The previous receive path is restored
+    /// on scope exit.
+    #[must_use]
+    pub fn push_recv_path(&self) -> RecvPathCleanup {
+        let cleanup = RecvPathCleanup::new();
         unsafe { seL4_SetCapReceivePath(SELF_CNODE, self.slot, seL4_WordBits) };
+        cleanup
     }
 
-    // Copies the specified path to our slot.
+    /// Copies the specified path to our slot.
     pub fn copy_to(
         &self,
         src_root: seL4_CPtr,
@@ -85,7 +105,7 @@ impl CSpaceSlot {
         }
     }
 
-    // Copies the specified path to our slot.
+    /// Copies the specified path to our slot.
     pub fn dup_to(&self, src_root: seL4_CPtr, src_index: seL4_CPtr, src_depth: u8) -> seL4_Result {
         let seL4_AllRights = seL4_CapRights::new(
             /*grant_reply=*/ 1, /*grant=*/ 1, /*read=*/ 1, /*write=*/ 1,
@@ -93,7 +113,7 @@ impl CSpaceSlot {
         self.copy_to(src_root, src_index, src_depth, seL4_AllRights)
     }
 
-    // Mints the specified path to our slot.
+    /// Mints the specified path to our slot.
     pub fn mint_to(
         &self,
         src_root: seL4_CPtr,
@@ -116,7 +136,7 @@ impl CSpaceSlot {
         }
     }
 
-    // Moves the specified path to our slot.
+    /// Moves the specified path to our slot.
     pub fn move_to(&self, src_root: seL4_CPtr, src_slot: seL4_CPtr, src_depth: u8) -> seL4_Result {
         unsafe {
             seL4_CNode_Move(
@@ -130,7 +150,7 @@ impl CSpaceSlot {
         }
     }
 
-    // Moves our slot to the specified path.
+    /// Moves our slot to the specified path.
     pub fn move_from(
         &self,
         dest_root: seL4_CPtr,
@@ -149,7 +169,7 @@ impl CSpaceSlot {
         }
     }
 
-    // Mutates the specified path to our slot.
+    /// Mutates the specified path to our slot.
     pub fn mutate_to(
         &self,
         src_root: seL4_CPtr,
@@ -170,7 +190,7 @@ impl CSpaceSlot {
         }
     }
 
-    // Delete any cap in our slot.
+    /// Delete any cap in our slot.
     // NB: deleting an empty slot is a noop to seL4
     pub fn delete(&self) -> seL4_Result {
         unsafe { seL4_CNode_Delete(SELF_CNODE, self.slot, seL4_WordBits as u8) }
@@ -179,10 +199,8 @@ impl CSpaceSlot {
 impl Drop for CSpaceSlot {
     fn drop(&mut self) {
         if self.slot != seL4_CPtr::MAX {
-            unsafe {
-                self.delete().expect("CSpaceSlot");
-                CANTRIP_CSPACE_SLOTS.free(self.slot, 1);
-            }
+            self.delete().expect("CSpaceSlot");
+            unsafe { CANTRIP_CSPACE_SLOTS.free(self.slot, 1) }
         }
     }
 }
