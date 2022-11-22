@@ -19,3 +19,4 @@ edition = "2021"
 
 [dependencies]
 cstr_core = { version = "0.2.3", default-features = false }
+cantrip-os-common = { path = "../../cantrip-os-common" }

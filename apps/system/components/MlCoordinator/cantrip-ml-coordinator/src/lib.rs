@@ -24,11 +24,14 @@ use cantrip_ml_interface::MlCoordError;
 use cantrip_ml_shared::*;
 use cantrip_ml_support::image_manager::ImageManager;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
+use cantrip_os_common::sel4_sys;
 use cantrip_proc_interface::BundleImage;
 use cantrip_security_interface::*;
 use cantrip_timer_interface::*;
 use cantrip_vec_core as MlCore;
 use log::{error, info, warn};
+
+use sel4_sys::seL4_Word;
 
 /// Represents a single loadable model.
 #[derive(Debug)]
@@ -37,6 +40,7 @@ struct LoadableModel {
     on_flash_sizes: ImageSizes,
     in_memory_sizes: ImageSizes,
     rate_in_ms: Option<u32>,
+    client_id: seL4_Word,
 }
 
 /// Statistics on non-happy-path events.
@@ -55,6 +59,9 @@ pub struct MLCoordinator {
     /// A queue of models that are ready for immediate execution on the vector
     /// core, once the currently running model has finished.
     execution_queue: Vec<ModelIdx>,
+    /// Bitmask of completed model runs.
+    // XXX needs to be per-client
+    completed_job_mask: usize,
     /// The image manager is responsible for tracking, loading, and unloading
     /// images.
     image_manager: ImageManager,
@@ -73,6 +80,7 @@ impl MLCoordinator {
             running_model: None,
             models: [INIT_NONE; MAX_MODELS],
             execution_queue: Vec::new(),
+            completed_job_mask: 0,
             image_manager: ImageManager::new(),
             statistics: Statistics {
                 load_failures: 0,
@@ -256,6 +264,7 @@ impl MLCoordinator {
     pub fn handle_return_interrupt(&mut self) {
         extern "C" {
             fn finish_acknowledge() -> u32;
+            fn mlcoord_emit(badge: seL4_Word);
         }
 
         if let Some(image_id) = self.running_model.as_ref() {
@@ -274,6 +283,12 @@ impl MLCoordinator {
                 // This can happen during normal execution if mlcancel happens
                 // during an execution.
                 warn!("Executable finished running but image is not loaded.");
+            }
+
+            let idx = self.get_model_index(image_id).unwrap();
+            self.completed_job_mask |= 1 << idx;
+            unsafe {
+                mlcoord_emit(self.models[idx].as_ref().unwrap().client_id);
             }
         } else {
             error!("Unexpected return interrupt with no running model.")
@@ -308,11 +323,15 @@ impl MLCoordinator {
         let (on_flash_sizes, in_memory_sizes) =
             self.validate_image(&id).ok_or(MlCoordError::InvalidImage)?;
 
+        extern "C" {
+            fn mlcoord_get_sender_id() -> seL4_Word;
+        }
         self.models[index] = Some(LoadableModel {
             id,
             on_flash_sizes,
             in_memory_sizes,
             rate_in_ms,
+            client_id: unsafe { mlcoord_get_sender_id() },
         });
 
         Ok(index)
@@ -383,6 +402,7 @@ impl MLCoordinator {
         }
 
         self.image_manager.unload_image(id);
+        self.completed_job_mask |= 1 << model_idx;
 
         self.models[model_idx] = None;
         Ok(())
@@ -410,6 +430,13 @@ impl MLCoordinator {
         }
 
         Ok(())
+    }
+
+    pub fn completed_jobs(&mut self) -> u32 {
+        // XXX restrict mask to client jobs
+        let mask = self.completed_job_mask;
+        self.completed_job_mask = 0;
+        mask as u32
     }
 
     pub fn handle_host_req_interrupt(&self) {

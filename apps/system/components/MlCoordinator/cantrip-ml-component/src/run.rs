@@ -47,7 +47,7 @@ pub unsafe extern "C" fn run() {
         assert!(completed != 0);
         for i in 0..31 {
             let mask: TimerMask = 1 << i;
-            if completed & mask != 0 {
+            if (completed & mask) != 0 {
                 if let Err(e) = ML_COORD.lock().timer_completed(i as ModelIdx) {
                     error!("Error when trying to run periodic model: {:?}", e);
                 }
@@ -126,6 +126,9 @@ pub unsafe extern "C" fn mlcoord_cancel(
 
     MlCoordError::MlCoordOk
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn mlcoord_completed_jobs() -> u32 { ML_COORD.lock().completed_jobs() }
 
 #[no_mangle]
 pub unsafe extern "C" fn host_req_handle() { ML_COORD.lock().handle_host_req_interrupt(); }
