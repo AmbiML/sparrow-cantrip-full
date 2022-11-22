@@ -1,8 +1,8 @@
 #include <model/statedata.h>
 #include <object/structures.h>
 
-/* Dual-domain schedule for Cantrip to isolate third party applications from system
- * applications.
+/* Dual-domain schedule for Cantrip to isolate third party applications from
+ * system applications.
  *
  * Note that this doesn't actually implement the schedule -- that's hardwired in
  * seL4's kernel source. See also cantrip/kernel/src/kernel/thread.c, in the

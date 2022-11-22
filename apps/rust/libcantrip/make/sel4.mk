@@ -12,5 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-OUT_CANTRIP    ?= $(OUT)/cantrip/$(ARCH_PREFIX)/$(BUILD_TYPE)
+OUT_CANTRIP ?= $(OUT)/cantrip/$(ARCH_PREFIX)/$(BUILD_TYPE)
 TLS_MODEL 	:= local-exec
