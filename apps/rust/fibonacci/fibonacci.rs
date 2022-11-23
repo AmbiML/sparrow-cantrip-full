@@ -4,29 +4,22 @@
  * Demo to show that concurrent applications can be running.
  *
  * This program prints the first LOG_FIBONACCI_LIMIT Fibonacci numbers
- * to the console, waiting for INTERRUPTS_PER_WAIT interrupts between each
- * number.
+ * to the console, waiting a fixed interval between each number.
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 #![no_std]
 #![no_main]
-#![feature(asm)]
 
 extern crate alloc;
 extern crate libcantrip;
 use alloc::format;
 use cantrip_os_common::allocator;
+use cantrip_os_common::logger::CantripLogger;
 use sdk_interface::sdk_log;
 
 // How many Fibonacci numbers to write to the log.
 const LOG_FIBONACCI_LIMIT: u64 = 80;
-
-const CONFIG_TIMER_TICK_MS: usize = 5;
-const INTERRUPTS_PER_VIRT_SEC: u64 = (1000 / CONFIG_TIMER_TICK_MS) as u64;
-const INTERRUPTS_PER_WAIT: u64 = 1 * INTERRUPTS_PER_VIRT_SEC;
-
-type ICount = u64;
 
 struct Fibonacci {
     f1: u64,
@@ -47,68 +40,38 @@ impl Fibonacci {
         self.n = 0;
     }
 
-    pub fn log(&self, interrupt_count: ICount) {
-        let _ = sdk_log(&format!(
-            "n == {}; f == {:x}; interrupt_count == {}; rdtime == {}; virt_sec ~= {:2}",
-            self.n,
-            self.f1,
-            interrupt_count,
-            rdtime(),
-            virtual_seconds(interrupt_count),
-        ));
+    pub fn log(&self, time_ms: TimerDuration) {
+        let _ = sdk_log(&format!("[{:2}] {:20}  {}", self.n, self.f1, time_ms));
     }
 }
 
-fn wait(interrupt_count_to_wait: ICount, count: &mut ICount) {
-    for _ in 0..interrupt_count_to_wait {
-        unsafe { asm!("wfi") }
-        (*count) += 1;
-    }
-}
-
-fn virtual_seconds(interrupt_count: ICount) -> f32 {
-    (interrupt_count as f32) / (INTERRUPTS_PER_VIRT_SEC as f32)
-}
-
-#[allow(unused_assignments)]
-fn rdtime() -> u64 {
-    let mut upper: u32 = 0;
-    let mut lower: u32 = 0;
-    let mut upper_reread: u32 = 0;
-    loop {
-        unsafe {
-            asm!(
-                "rdtimeh {upper}
-        rdtime  {lower}
-        rdtimeh {upper_reread}",
-                upper = out (reg) upper,
-                lower = out (reg) lower,
-                upper_reread = out (reg) upper_reread,
-            )
-        }
-        if upper_reread == upper {
-            break;
-        }
-    }
-    ((upper as u64) << 32) | (lower as u64)
+// Connect the logger so panic msgs are displayed.
+#[no_mangle]
+pub fn logger_log(_level: u8, msg: *const cstr_core::c_char) {
+    let _ = sdk_log(unsafe { cstr_core::CStr::from_ptr(msg).to_str().unwrap() });
 }
 
 #[no_mangle]
 pub fn main() {
+    // NB: setup for panic messages to be logged
     static mut HEAP: [u8; 4096] = [0; 4096];
     unsafe {
         allocator::ALLOCATOR.init(HEAP.as_mut_ptr() as _, HEAP.len());
     }
+    static CANTRIP_LOGGER: CantripLogger = CantripLogger;
+    log::set_logger(&CANTRIP_LOGGER).unwrap();
 
-    let _ = sdk_log("Fibonacci");
-    let mut interrupt_count: ICount = 0;
     let mut fib = Fibonacci::new();
+    const INTERVAL: TimerDuration = 100; // 100ms
+    let mut time_ms = 0;
+    sdk_timer_periodic(0, INTERVAL).expect("periodic");
     loop {
-        wait(INTERRUPTS_PER_WAIT, &mut interrupt_count);
         if fib.n >= LOG_FIBONACCI_LIMIT {
             fib.reset();
         }
-        fib.log(interrupt_count);
+        fib.log(time_ms);
         fib.increment();
+        sdk_timer_wait().expect("wait");
+        time_ms += INTERVAL;
     }
 }
