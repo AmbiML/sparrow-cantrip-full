@@ -23,7 +23,6 @@ path = "logtest.rs"
 crate-type = ["staticlib"]
 
 [dependencies]
-cstr_core = { version = "0.2.3", default-features = false }
 cantrip-os-common = { path = "../../system/components/cantrip-os-common", default-features = false }
 libcantrip = { path = "../libcantrip" }
 log = "0.4"

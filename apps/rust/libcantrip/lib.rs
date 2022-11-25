@@ -17,8 +17,11 @@
 #![feature(global_asm)]
 #![feature(thread_local)]
 
+use cantrip_os_common::allocator;
+use cantrip_os_common::logger::CantripLogger;
+use cantrip_os_common::sel4_sys::seL4_IPCBuffer;
 use core::arch::global_asm;
-use sel4_sys::seL4_IPCBuffer;
+use sdk_interface::sdk_log;
 use static_assertions::*;
 
 // NB: this mimics the logic in build.rs
@@ -52,3 +55,18 @@ global_asm!(include_str!("arch/riscv64/crt0.S"));
 #[no_mangle]
 #[thread_local]
 static mut __sel4_ipc_buffer: *mut seL4_IPCBuffer = 0 as _;
+
+// Connect the logger so panic msgs are displayed.
+#[no_mangle]
+pub fn logger_log(_level: u8, msg: *const cstr_core::c_char) {
+    let _ = sdk_log(unsafe { cstr_core::CStr::from_ptr(msg).to_str().unwrap() });
+}
+
+pub fn sdk_init(heap: &'static mut [u8]) {
+    unsafe {
+        allocator::ALLOCATOR.init(heap.as_mut_ptr(), heap.len());
+    }
+    static CANTRIP_LOGGER: CantripLogger = CantripLogger;
+    log::set_logger(&CANTRIP_LOGGER).unwrap();
+    log::set_max_level(log::LevelFilter::Trace);
+}

@@ -21,5 +21,8 @@ edition = "2021"
 path = "lib.rs"
 
 [dependencies]
-sel4-sys = { path = "../../system/components/cantrip-os-common/src/sel4-sys", default-features = false }
+cstr_core = { version = "0.2.3", default-features = false }
+cantrip-os-common = { path = "../../system/components/cantrip-os-common", default-features = false }
+log = "0.4"
+sdk-interface = { path = "../../system/components/SDKRuntime/sdk-interface" }
 static_assertions = "1.1"

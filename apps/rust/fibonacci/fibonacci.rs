@@ -11,12 +11,9 @@
 #![no_std]
 #![no_main]
 
-extern crate alloc;
-extern crate libcantrip;
-use alloc::format;
-use cantrip_os_common::allocator;
-use cantrip_os_common::logger::CantripLogger;
-use sdk_interface::sdk_log;
+use libcantrip::sdk_init;
+use log::info;
+use sdk_interface::*;
 
 // How many Fibonacci numbers to write to the log.
 const LOG_FIBONACCI_LIMIT: u64 = 80;
@@ -41,25 +38,14 @@ impl Fibonacci {
     }
 
     pub fn log(&self, time_ms: TimerDuration) {
-        let _ = sdk_log(&format!("[{:2}] {:20}  {}", self.n, self.f1, time_ms));
+        info!("[{:2}] {:20}  {}", self.n, self.f1, time_ms);
     }
-}
-
-// Connect the logger so panic msgs are displayed.
-#[no_mangle]
-pub fn logger_log(_level: u8, msg: *const cstr_core::c_char) {
-    let _ = sdk_log(unsafe { cstr_core::CStr::from_ptr(msg).to_str().unwrap() });
 }
 
 #[no_mangle]
 pub fn main() {
-    // NB: setup for panic messages to be logged
     static mut HEAP: [u8; 4096] = [0; 4096];
-    unsafe {
-        allocator::ALLOCATOR.init(HEAP.as_mut_ptr() as _, HEAP.len());
-    }
-    static CANTRIP_LOGGER: CantripLogger = CantripLogger;
-    log::set_logger(&CANTRIP_LOGGER).unwrap();
+    sdk_init(unsafe { &mut HEAP });
 
     let mut fib = Fibonacci::new();
     const INTERVAL: TimerDuration = 100; // 100ms

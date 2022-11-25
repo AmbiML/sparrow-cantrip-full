@@ -16,16 +16,6 @@
 name = "timer"
 version = "0.1.0"
 edition = "2021"
-build = "build.rs"
-
-[build-dependencies]
-# build.rs depends on SEL4_OUT_DIR = "${ROOTDIR}/out/cantrip/kernel"
-sel4-config = { path = "../../system/components/cantrip-os-common/src/sel4-config" }
-
-[features]
-default = []
-# Used by sel4-config to extract kernel config
-CONFIG_PRINTING = []
 
 [lib]
 name = "timer"
@@ -33,7 +23,6 @@ path = "timer.rs"
 crate-type = ["staticlib"]
 
 [dependencies]
-cstr_core = { version = "0.2.3", default-features = false }
 cantrip-os-common = { path = "../../system/components/cantrip-os-common", default-features = false }
 libcantrip = { path = "../libcantrip" }
 log = "0.4"
