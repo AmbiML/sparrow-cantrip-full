@@ -1,0 +1,39 @@
+# Copyright 2022 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+[package]
+name = "mltest"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[build-dependencies]
+sel4-config = { path = "../../system/components/cantrip-os-common/src/sel4-config" }
+
+[features]
+default = []
+# Used by sel4-config to extract kernel config
+CONFIG_PRINTING = []
+
+[lib]
+name = "mltest"
+path = "mltest.rs"
+crate-type = ["staticlib"]
+
+[dependencies]
+cstr_core = { version = "0.2.3", default-features = false }
+cantrip-os-common = { path = "../../system/components/cantrip-os-common", default-features = false }
+libcantrip = { path = "../libcantrip" }
+log = "0.4"
+sdk-interface = { path = "../../system/components/SDKRuntime/sdk-interface" }
