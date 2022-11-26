@@ -48,7 +48,7 @@ impl HardwareTimer for OtTimer {
         let low: u32 = opentitan_timer::get_value_low();
         let high: u32 = opentitan_timer::get_value_high();
 
-        Ticks::from(((high as u64) << 32) | low as u64)
+        ((high as u64) << 32) | low as u64
     }
 
     fn deadline(&self, duration: Duration) -> Ticks {

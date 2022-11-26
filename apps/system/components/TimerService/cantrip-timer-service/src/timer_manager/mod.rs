@@ -63,7 +63,7 @@ impl TimerManager {
             error!("client_id {} out of range", client_id);
             return Err(TimerServiceError::NoSuchTimer);
         }
-        if !(timer_id < TIMERS_PER_CLIENT as _) {
+        if timer_id >= TIMERS_PER_CLIENT as _ {
             return Err(TimerServiceError::NoSuchTimer);
         }
 
@@ -143,7 +143,7 @@ impl TimerInterface for TimerManager {
             .events
             .iter()
             .find(|(_, ev)| ev.client_id == client_id && ev.timer_id == timer_id)
-            .and_then(|(&key, _)| Some(key))
+            .map(|(&key, _)| key)
             .ok_or(TimerServiceError::NoSuchTimer)?;
         self.events.remove(&key);
 
