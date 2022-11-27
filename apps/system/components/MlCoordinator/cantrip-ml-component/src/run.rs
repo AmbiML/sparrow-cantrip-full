@@ -18,13 +18,13 @@
 extern crate alloc;
 
 use alloc::string::String;
-use cstr_core::CStr;
 use cantrip_ml_coordinator::MLCoordinator;
 use cantrip_ml_coordinator::ModelIdx;
 use cantrip_ml_interface::MlCoordError;
 use cantrip_ml_shared::ImageId;
 use cantrip_os_common::camkes::Camkes;
 use cantrip_timer_interface::*;
+use cstr_core::CStr;
 use log::error;
 use spin::Mutex;
 

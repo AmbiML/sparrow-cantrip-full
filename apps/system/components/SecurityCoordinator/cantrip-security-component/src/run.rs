@@ -18,12 +18,12 @@
 #![no_std]
 #![allow(clippy::missing_safety_doc)]
 
-use core::slice;
 use cantrip_os_common::camkes::Camkes;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_os_common::sel4_sys;
 use cantrip_security_coordinator::CANTRIP_SECURITY;
 use cantrip_security_interface::*;
+use core::slice;
 use log::trace;
 
 use SecurityRequestError::*;

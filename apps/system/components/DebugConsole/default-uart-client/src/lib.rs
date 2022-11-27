@@ -14,8 +14,8 @@
 
 #![no_std]
 
-use core2::io::{Cursor, Read};
 use cantrip_io as io;
+use core2::io::{Cursor, Read};
 
 /// Rx io trait that returns data from a byte string.
 pub struct Rx<'a> {

@@ -15,8 +15,8 @@
 #![no_std]
 #![allow(dead_code)]
 
-use core::time::Duration;
 use cantrip_os_common::sel4_sys;
+use core::time::Duration;
 
 use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_NBWait;

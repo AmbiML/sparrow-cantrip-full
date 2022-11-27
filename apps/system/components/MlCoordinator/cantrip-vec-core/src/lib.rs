@@ -21,10 +21,10 @@ extern crate alloc;
 
 mod vc_top;
 
-use core::mem::size_of;
-use core::slice;
 use cantrip_io::Read;
 use cantrip_ml_shared::{OutputHeader, Permission, WindowId, TCM_PADDR, TCM_SIZE};
+use core::mem::size_of;
+use core::slice;
 use log::{error, trace};
 
 extern "C" {

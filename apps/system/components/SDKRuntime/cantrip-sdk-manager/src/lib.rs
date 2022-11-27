@@ -16,9 +16,9 @@
 
 #![cfg_attr(not(test), no_std)]
 
-use cstr_core::CString;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_os_common::sel4_sys;
+use cstr_core::CString;
 
 use sel4_sys::seL4_CPtr;
 

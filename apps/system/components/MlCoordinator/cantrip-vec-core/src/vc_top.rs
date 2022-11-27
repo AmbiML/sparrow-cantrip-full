@@ -16,8 +16,8 @@
 
 //! Setters and getters for the Vector Core CSRs.
 
-use core::ptr;
 use cantrip_ml_shared::Permission;
+use core::ptr;
 use modular_bitfield::prelude::*;
 
 extern "C" {

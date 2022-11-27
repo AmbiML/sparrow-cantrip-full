@@ -17,9 +17,6 @@
 extern crate alloc;
 use alloc::fmt;
 use alloc::string::{String, ToString};
-use core::mem::size_of;
-use core::ptr;
-use hashbrown::HashMap;
 use cantrip_memory_interface::cantrip_frame_alloc_in_cnode;
 use cantrip_memory_interface::cantrip_object_free_in_cnode;
 use cantrip_memory_interface::ObjDescBundle;
@@ -27,6 +24,9 @@ use cantrip_os_common::copyregion::CopyRegion;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_os_common::sel4_sys;
 use cantrip_security_interface::*;
+use core::mem::size_of;
+use core::ptr;
+use hashbrown::HashMap;
 use log::info;
 
 use sel4_sys::seL4_Error;

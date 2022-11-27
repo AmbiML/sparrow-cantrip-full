@@ -59,7 +59,9 @@ impl CantripProcManager {
     }
 
     // Finishes the setup started by empty():
-    pub fn init(&self) { *self.manager.lock() = Some(ProcessManager::new(CantripManagerInterface)); }
+    pub fn init(&self) {
+        *self.manager.lock() = Some(ProcessManager::new(CantripManagerInterface));
+    }
 
     // Returns the bundle capacity.
     pub fn capacity(&self) -> usize { self.manager.lock().as_ref().unwrap().capacity() }

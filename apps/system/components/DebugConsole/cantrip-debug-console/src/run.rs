@@ -26,11 +26,11 @@
 #![no_std]
 #![allow(clippy::missing_safety_doc)]
 
+use cantrip_os_common::camkes::Camkes;
 use core::fmt::Write;
 use core::slice;
 use cpio::CpioNewcReader;
 use cstr_core::CStr;
-use cantrip_os_common::camkes::Camkes;
 use log::LevelFilter;
 
 // NB: this controls filtering log messages from all components because

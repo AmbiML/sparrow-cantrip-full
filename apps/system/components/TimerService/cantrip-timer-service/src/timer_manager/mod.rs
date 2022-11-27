@@ -16,9 +16,9 @@ extern crate alloc;
 
 use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
-use core::time::Duration;
 use cantrip_os_common::sel4_sys::seL4_Word;
 use cantrip_timer_interface::*;
+use core::time::Duration;
 use log::error;
 
 // TODO(jesionowski): NUM_CLIENTS should be derived through the static

@@ -17,13 +17,13 @@
 // TODO(sleffler): maybe extract the page-at-a-time support to it's own crate
 
 use alloc::vec;
+use cantrip_memory_interface::cantrip_frame_alloc;
+use cantrip_memory_interface::ObjDescBundle;
+use cantrip_os_common::sel4_sys;
 use core::cmp;
 use core::ptr;
 use crc::crc32;
 use crc::Hasher32;
-use cantrip_memory_interface::cantrip_frame_alloc;
-use cantrip_memory_interface::ObjDescBundle;
-use cantrip_os_common::sel4_sys;
 
 use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_CapRights;

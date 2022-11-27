@@ -169,8 +169,11 @@ impl MLCoordinator {
             // mapped into the MlCoordinator's VSpace before being copied
             // to their destination.
             let mut container_slot = CSpaceSlot::new();
-            match cantrip_security_load_model(&model.id.bundle_id, &model.id.model_id, &container_slot)
-            {
+            match cantrip_security_load_model(
+                &model.id.bundle_id,
+                &model.id.model_id,
+                &container_slot,
+            ) {
                 Ok(model_frames) => {
                     container_slot.release(); // NB: take ownership
                     let mut image = BundleImage::new(&model_frames);

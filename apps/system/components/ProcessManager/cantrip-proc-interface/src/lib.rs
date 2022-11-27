@@ -20,12 +20,12 @@ extern crate alloc;
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
-use core::str;
-use cstr_core::CString;
 use cantrip_memory_interface::ObjDescBundle;
 use cantrip_memory_interface::RAW_OBJ_DESC_DATA_SIZE;
 use cantrip_os_common::camkes::Camkes;
 use cantrip_security_interface::SecurityRequestError;
+use core::str;
+use cstr_core::CString;
 use serde::{Deserialize, Serialize};
 
 mod bundle_image;
@@ -196,7 +196,9 @@ pub fn cantrip_proc_ctrl_get_running_bundles() -> Result<BundleIdArray, ProcessM
 
 #[inline]
 #[allow(dead_code)]
-pub fn cantrip_pkg_mgmt_install(pkg_contents: &ObjDescBundle) -> Result<String, ProcessManagerError> {
+pub fn cantrip_pkg_mgmt_install(
+    pkg_contents: &ObjDescBundle,
+) -> Result<String, ProcessManagerError> {
     extern "C" {
         fn pkg_mgmt_install(
             c_request_len: u32,

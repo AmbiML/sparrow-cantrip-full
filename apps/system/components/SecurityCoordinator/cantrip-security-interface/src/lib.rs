@@ -18,11 +18,11 @@
 
 extern crate alloc;
 use alloc::string::{String, ToString};
-use core::str;
 use cantrip_memory_interface::ObjDescBundle;
 use cantrip_os_common::camkes::Camkes;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_os_common::sel4_sys;
+use core::str;
 use log::trace;
 use serde::{Deserialize, Serialize};
 
@@ -339,7 +339,9 @@ pub fn cantrip_security_echo(request: &str) -> Result<String, SecurityRequestErr
 
 #[inline]
 #[allow(dead_code)]
-pub fn cantrip_security_install(pkg_contents: &ObjDescBundle) -> Result<String, SecurityRequestError> {
+pub fn cantrip_security_install(
+    pkg_contents: &ObjDescBundle,
+) -> Result<String, SecurityRequestError> {
     Camkes::debug_assert_slot_cnode(
         "cantrip_security_install",
         &Camkes::top_level_path(pkg_contents.cnode),
@@ -369,7 +371,11 @@ pub fn cantrip_security_uninstall(bundle_id: &str) -> Result<(), SecurityRequest
 #[allow(dead_code)]
 pub fn cantrip_security_size_buffer(bundle_id: &str) -> Result<usize, SecurityRequestError> {
     let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
-    cantrip_security_request(SecurityRequest::SrSizeBuffer, &SizeBufferRequest { bundle_id }, reply)?;
+    cantrip_security_request(
+        SecurityRequest::SrSizeBuffer,
+        &SizeBufferRequest { bundle_id },
+        reply,
+    )?;
     let response = postcard::from_bytes::<SizeBufferResponse>(reply)
         .map_err(|_| SecurityRequestError::SreDeserializeFailed)?;
     Ok(response.buffer_size)
@@ -465,7 +471,11 @@ pub fn cantrip_security_read_key(
     keyval: &mut [u8],
 ) -> Result<(), SecurityRequestError> {
     let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
-    cantrip_security_request(SecurityRequest::SrReadKey, &ReadKeyRequest { bundle_id, key }, reply)?;
+    cantrip_security_request(
+        SecurityRequest::SrReadKey,
+        &ReadKeyRequest { bundle_id, key },
+        reply,
+    )?;
     let response = postcard::from_bytes::<ReadKeyResponse>(reply)
         .map_err(|_| SecurityRequestError::SreDeserializeFailed)?;
     keyval.copy_from_slice(response.value);

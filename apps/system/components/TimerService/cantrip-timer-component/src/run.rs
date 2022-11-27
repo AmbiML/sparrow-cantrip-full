@@ -16,13 +16,13 @@
 #![no_std]
 #![allow(clippy::missing_safety_doc)]
 
-use core::time::Duration;
 use cantrip_os_common::camkes::Camkes;
 use cantrip_os_common::sel4_sys::seL4_Word;
 use cantrip_timer_interface::TimerId;
 use cantrip_timer_interface::TimerInterface;
 use cantrip_timer_interface::TimerServiceError;
 use cantrip_timer_service::CantripTimerService;
+use core::time::Duration;
 
 extern "C" {
     fn timer_get_sender_id() -> seL4_Word;
@@ -56,7 +56,9 @@ pub unsafe extern "C" fn timer_completed_timers() -> u32 {
 pub unsafe extern "C" fn timer_oneshot(timer_id: TimerId, duration_ms: u32) -> TimerServiceError {
     let duration = Duration::from_millis(duration_ms as u64);
     let client_id = timer_get_sender_id();
-    CANTRIP_TIMER.add_oneshot(client_id, timer_id, duration).into()
+    CANTRIP_TIMER
+        .add_oneshot(client_id, timer_id, duration)
+        .into()
 }
 
 #[no_mangle]

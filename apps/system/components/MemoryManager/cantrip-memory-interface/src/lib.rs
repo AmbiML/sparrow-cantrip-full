@@ -20,10 +20,10 @@
 extern crate alloc;
 use alloc::vec;
 use alloc::vec::Vec;
-use core::fmt;
 use cantrip_os_common::camkes::Camkes;
 use cantrip_os_common::sel4_sys;
 use cantrip_os_common::slot_allocator;
+use core::fmt;
 use log::trace;
 use serde::{Deserialize, Serialize};
 
@@ -432,7 +432,9 @@ pub fn cantrip_object_alloc_in_toplevel(
 // Note the objects' cptr's are assumed to be consecutive and start at zero.
 // Note the returned |ObjDescBundle| has the new CNode marked as the container.
 #[inline]
-pub fn cantrip_object_alloc_in_cnode(objs: Vec<ObjDesc>) -> Result<ObjDescBundle, MemoryManagerError> {
+pub fn cantrip_object_alloc_in_cnode(
+    objs: Vec<ObjDesc>,
+) -> Result<ObjDescBundle, MemoryManagerError> {
     fn next_log2(value: usize) -> usize {
         // NB: BITS & leading_zeros return u32
         (1 + usize::BITS - usize::leading_zeros(value)) as usize
@@ -585,7 +587,9 @@ pub fn cantrip_frame_alloc(space_bytes: usize) -> Result<ObjDescBundle, MemoryMa
 
 // Like cantrip_frame_alloc but also create a CNode to hold the frames.
 #[inline]
-pub fn cantrip_frame_alloc_in_cnode(space_bytes: usize) -> Result<ObjDescBundle, MemoryManagerError> {
+pub fn cantrip_frame_alloc_in_cnode(
+    space_bytes: usize,
+) -> Result<ObjDescBundle, MemoryManagerError> {
     fn howmany(value: usize, unit: usize) -> usize { (value + (unit - 1)) / unit }
     // NB: always allocate small pages
     let npages = howmany(space_bytes, 1 << seL4_PageBits);

@@ -15,9 +15,9 @@
 #![no_std]
 
 extern crate alloc;
+extern crate cantrip_io;
 extern crate crc as crc32;
 extern crate hex;
-extern crate cantrip_io;
 #[macro_use]
 extern crate log;
 

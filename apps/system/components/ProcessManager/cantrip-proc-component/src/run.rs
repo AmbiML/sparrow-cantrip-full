@@ -18,14 +18,14 @@
 #![no_std]
 #![allow(clippy::missing_safety_doc)]
 
-use core::slice;
-use cstr_core::CStr;
 use cantrip_memory_interface::ObjDescBundle;
 use cantrip_os_common::camkes::Camkes;
 use cantrip_os_common::sel4_sys;
 use cantrip_os_common::slot_allocator;
 use cantrip_proc_interface::*;
 use cantrip_proc_manager::CantripProcManager;
+use core::slice;
+use cstr_core::CStr;
 use log::trace;
 
 use sel4_sys::seL4_CPtr;

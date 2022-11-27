@@ -14,13 +14,13 @@
 
 //! Cantrip OS Bundle image loader.
 
+use cantrip_memory_interface::ObjDescBundle;
+use cantrip_os_common::cspace_slot::CSpaceSlot;
+use cantrip_os_common::sel4_sys;
 use core::cmp;
 use core::mem::size_of;
 use core::ops::Range;
 use core::ptr;
-use cantrip_memory_interface::ObjDescBundle;
-use cantrip_os_common::cspace_slot::CSpaceSlot;
-use cantrip_os_common::sel4_sys;
 use log::{error, trace};
 
 use sel4_sys::seL4_CPtr;
@@ -31,9 +31,9 @@ use sel4_sys::seL4_PageBits;
 use sel4_sys::seL4_Page_Map;
 use sel4_sys::seL4_Page_Unmap;
 
+use cantrip_io as io;
 use io::Read;
 use io::Seek;
-use cantrip_io as io;
 
 // TODO(sleffler): use ObjDesc::size_bytes and support multiple page sizes
 const PAGE_SIZE: usize = 1 << seL4_PageBits;

@@ -17,8 +17,6 @@
 extern crate alloc;
 use alloc::boxed::Box;
 use alloc::string::String;
-use core::marker::Sync;
-use hashbrown::HashMap;
 use cantrip_memory_interface::ObjDescBundle;
 use cantrip_proc_interface::Bundle;
 use cantrip_proc_interface::BundleIdArray;
@@ -28,6 +26,8 @@ use cantrip_proc_interface::ProcessControlInterface;
 use cantrip_proc_interface::ProcessManagerError;
 use cantrip_proc_interface::ProcessManagerInterface;
 use cantrip_proc_interface::DEFAULT_BUNDLE_ID_CAPACITY;
+use core::marker::Sync;
+use hashbrown::HashMap;
 use log::trace;
 use smallstr::SmallString;
 

@@ -20,9 +20,6 @@
 
 extern crate alloc;
 use alloc::string::String;
-use core::cmp;
-use core::mem::size_of;
-use core::ptr;
 use cantrip_memory_interface::cantrip_cnode_alloc;
 use cantrip_memory_interface::cantrip_object_alloc_in_toplevel;
 use cantrip_memory_interface::cantrip_object_free;
@@ -39,12 +36,15 @@ use cantrip_proc_interface::BundleImplInterface;
 use cantrip_proc_interface::ProcessManagerError;
 use cantrip_sdk_manager::cantrip_sdk_manager_get_endpoint;
 use cantrip_sdk_manager::cantrip_sdk_manager_release_endpoint;
+use core::cmp;
+use core::mem::size_of;
+use core::ptr;
 use log::{debug, error, info, trace};
 use smallvec::smallvec;
 use smallvec::SmallVec;
 
-use io::Read;
 use cantrip_io as io;
+use io::Read;
 
 use sel4_sys::seL4_ASIDPool_Assign;
 use sel4_sys::seL4_CNode_CapData;

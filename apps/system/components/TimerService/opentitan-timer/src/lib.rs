@@ -18,8 +18,8 @@
 
 mod opentitan_timer;
 
-use core::time::Duration;
 use cantrip_timer_interface::{HardwareTimer, Ticks};
+use core::time::Duration;
 use opentitan_timer::*;
 
 // TODO(jesionowski): Grab frequency from top_matcha.h.

@@ -1,7 +1,6 @@
 //! Cantrip OS global memory management support
 
 extern crate alloc;
-use core::ops::Range;
 use cantrip_memory_interface::MemoryError;
 use cantrip_memory_interface::MemoryManagerInterface;
 use cantrip_memory_interface::MemoryManagerStats;
@@ -9,6 +8,7 @@ use cantrip_memory_interface::ObjDesc;
 use cantrip_memory_interface::ObjDescBundle;
 use cantrip_os_common::camkes::{seL4_CPath, Camkes};
 use cantrip_os_common::sel4_sys;
+use core::ops::Range;
 use log::{debug, error, info, trace, warn};
 use smallvec::SmallVec;
 

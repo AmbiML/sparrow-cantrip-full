@@ -43,14 +43,14 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
-use core::cmp;
 use cantrip_ml_shared::*;
+use core::cmp;
 use log::{info, trace};
 
-#[cfg(test)]
-use fake_vec_core as MlCore;
 #[cfg(not(test))]
 use cantrip_vec_core as MlCore;
+#[cfg(test)]
+use fake_vec_core as MlCore;
 
 // For each loaded image we need to track where the image's first segment is:
 // data_top ---> +---------------+

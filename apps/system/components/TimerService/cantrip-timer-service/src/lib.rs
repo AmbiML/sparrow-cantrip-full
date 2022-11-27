@@ -16,8 +16,8 @@
 #![feature(map_first_last)]
 #![feature(const_btree_new)]
 
-use core::time::Duration;
 use cantrip_timer_interface::*;
+use core::time::Duration;
 use spin::Mutex;
 
 mod timer_manager;

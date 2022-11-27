@@ -18,8 +18,6 @@
 #![no_std]
 #![allow(clippy::missing_safety_doc)]
 
-use core::ops::Range;
-use core::slice;
 use cantrip_memory_interface::MemoryManagerError;
 use cantrip_memory_interface::MemoryManagerInterface;
 use cantrip_memory_interface::ObjDescBundle;
@@ -27,6 +25,8 @@ use cantrip_memory_interface::RawMemoryStatsData;
 use cantrip_memory_manager::CantripMemoryManager;
 use cantrip_os_common::camkes::Camkes;
 use cantrip_os_common::sel4_sys;
+use core::ops::Range;
+use core::slice;
 use log::info;
 
 use sel4_sys::seL4_BootInfo;

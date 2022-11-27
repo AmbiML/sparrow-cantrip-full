@@ -31,9 +31,6 @@ assert_cfg!(feature = "CONFIG_KERNEL_MCS");
 
 extern crate alloc;
 use alloc::vec;
-use core::mem::size_of;
-use core::ptr;
-use cstr_core::CStr;
 use cantrip_memory_interface::cantrip_object_alloc_in_toplevel;
 use cantrip_memory_interface::ObjDesc;
 use cantrip_os_common::camkes::{seL4_CPath, Camkes};
@@ -43,6 +40,9 @@ use cantrip_os_common::sel4_sys;
 use cantrip_sdk_manager::SDKManagerError;
 use cantrip_sdk_manager::SDKManagerInterface;
 use cantrip_sdk_runtime::CantripSDKRuntime;
+use core::mem::size_of;
+use core::ptr;
+use cstr_core::CStr;
 use log::error;
 
 use sdk_interface::KeyValueData;

@@ -15,8 +15,6 @@
 use cfg_if::cfg_if;
 
 extern crate alloc;
-use core::hash::BuildHasher;
-use hashbrown::HashMap;
 use cantrip_os_common::camkes::seL4_CPath;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_os_common::sel4_sys;
@@ -25,6 +23,8 @@ use cantrip_sdk_manager::SDKManagerInterface;
 use cantrip_security_interface::cantrip_security_delete_key;
 use cantrip_security_interface::cantrip_security_read_key;
 use cantrip_security_interface::cantrip_security_write_key;
+use core::hash::BuildHasher;
+use hashbrown::HashMap;
 cfg_if! {
     if #[cfg(feature = "timer_support")] {
         use cantrip_timer_interface::cantrip_timer_cancel;
