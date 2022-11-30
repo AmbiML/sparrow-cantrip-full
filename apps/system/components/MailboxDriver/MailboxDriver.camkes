@@ -26,4 +26,7 @@ component MailboxDriver {
   consumes Interrupt eirq;
 
   maybe uses LoggerInterface logger;
+
+  // Enable CantripOS CAmkES support.
+  attribute int cantripos = true;
 }
