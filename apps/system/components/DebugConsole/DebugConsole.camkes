@@ -17,7 +17,7 @@ import <ProcessControlInterface.camkes>;
 import <PackageManagementInterface.camkes>;
 import <MlCoordinatorInterface.camkes>;
 import <MemoryInterface.camkes>;
-import <RustIO.idl4>;
+import <UARTDriverInterface.camkes>;
 import <SecurityCoordinatorInterface.camkes>;
 import <TimerServiceInterface.camkes>;
 import <SDKManagerInterface.camkes>;
@@ -45,10 +45,10 @@ component DebugConsole {
 
   // UART device
   maybe dataport Buf tx_dataport;
-  maybe uses rust_write_inf uart_write;
+  maybe uses uart_write_inf uart_write;
 
   maybe dataport Buf rx_dataport;
-  maybe uses rust_read_inf uart_read;
+  maybe uses uart_read_inf uart_read;
 
   // Enable CantripOS CAmkES support.
   attribute int cantripos = true;

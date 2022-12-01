@@ -15,7 +15,7 @@
 import <std_connector.camkes>;
 import <global-connectors.camkes>;
 
-import <OpenTitanUARTDriver/OpenTitanUARTDriver.camkes>;
+import <UARTDriver/UARTDriver.camkes>;
 import <DebugConsole/DebugConsole.camkes>;
 import <ProcessManager/ProcessManager.camkes>;
 import <MlCoordinator/MlCoordinator.camkes>;
@@ -72,7 +72,7 @@ assembly {
         component BuiltinCpioArchive cpio;
 
         component OpenTitanUART uart;
-        component OpenTitanUARTDriver uart_driver;
+        component UARTDriver uart_driver;
         component OpenTitanTimer timer;
 
         component MemoryManager memory_manager;
@@ -182,11 +182,11 @@ assembly {
         connection seL4SharedData tx_channel(
             from debug_console.tx_dataport, to uart_driver.tx_dataport);
         connection seL4RPCCall write_call(
-            from debug_console.uart_write, to uart_driver.write);
+            from debug_console.uart_write, to uart_driver.write_inf);
         connection seL4SharedData rx_channel(
             from debug_console.rx_dataport, to uart_driver.rx_dataport);
         connection seL4RPCCall read_call(
-            from debug_console.uart_read, to uart_driver.read);
+            from debug_console.uart_read, to uart_driver.read_inf);
 
         // Connect the LoggerInterface to each component that needs to log
         // to the console. Note this allocates a 4KB shared memory region to
