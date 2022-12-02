@@ -238,5 +238,20 @@ assembly {
         random.ID = 1;
 
         uart.integrity_label = "opentitan_uart_driver";
+
+        memory_manager._stack_size = 16*1024;
+        memory_manager.memory_stack_size = 16*1024;
+
+        process_manager._stack_size = 16*1024;
+        process_manager.proc_ctrl_stack_size = 16*1024;
+        process_manager.pkg_mgmt_stack_size = 16*1024;
+
+        debug_console._stack_size = 16*1024;
+
+        security_coordinator._stack_size = 16*1024;
+        security_coordinator.security_stack_size = 16*1024;
+
+        sdk_runtime._stack_size = 16*1024;
+        sdk_runtime.sdk_manager_stack_size = 16*1024;
     }
 }
