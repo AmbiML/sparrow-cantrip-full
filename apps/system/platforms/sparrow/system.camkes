@@ -246,6 +246,7 @@ assembly {
         process_manager.proc_ctrl_stack_size = 16*1024;
         process_manager.pkg_mgmt_stack_size = 16*1024;
 
+        ml_coordinator._stack_size = 16*1024;
         ml_coordinator.mlcoord_stack_size = 16*1024;
 
         debug_console._stack_size = 16*1024;
