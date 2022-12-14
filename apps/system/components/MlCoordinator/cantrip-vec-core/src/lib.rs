@@ -56,10 +56,12 @@ pub fn set_wmmu_window(
         start_address,
         length
     );
+
     vc_top::set_mmu_window_offset(window_id as usize, start_address);
     // The length of the window is not the size of the window, but rather
     // the last address of the window. This saves us a bit in hardware:
     // 0x400000 is 23 bits vs. 0x3FFFFF 22 bits.
+    assert!(length > 0);
     vc_top::set_mmu_window_length(window_id as usize, length - 1);
     vc_top::set_mmu_window_permission(window_id as usize, permission);
 }

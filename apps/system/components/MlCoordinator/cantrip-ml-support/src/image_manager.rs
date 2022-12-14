@@ -227,6 +227,10 @@ impl ImageManager {
     // Sets the size of the temporary section based on the remaining images.
     fn set_tcm_bottom(&mut self) {
         let temp_data_size = self.required_temporary_data();
+        if temp_data_size == 0 {
+            // NB: setting the window to zero is not supported
+            return;
+        }
         self.tcm_bottom = TCM_PADDR + TCM_SIZE - temp_data_size;
         MlCore::set_wmmu_window(
             WindowId::TempData,
