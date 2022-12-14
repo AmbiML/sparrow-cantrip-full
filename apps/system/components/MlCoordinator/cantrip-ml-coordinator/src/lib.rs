@@ -329,10 +329,13 @@ impl MLCoordinator {
                 warn!("Executable finished running but image is not loaded.");
             }
 
-            let idx = self.get_model_index(image_id).unwrap();
-            self.completed_job_mask |= 1 << idx;
-            unsafe {
-                mlcoord_emit(self.models[idx].as_ref().unwrap().client_id);
+            // NB: an application that started the model may have unloaded
+            //   the image when stopping; just do nothing
+            if let Some(idx) = self.get_model_index(image_id) {
+                self.completed_job_mask |= 1 << idx;
+                unsafe {
+                    mlcoord_emit(self.models[idx].as_ref().unwrap().client_id);
+                }
             }
         } else {
             error!("Unexpected return interrupt with no running model.")
@@ -409,16 +412,30 @@ impl MLCoordinator {
     /// Start a periodic model execution, to be executed immediately and
     /// then every rate_in_ms.
     pub fn periodic(&mut self, id: ImageId, rate_in_ms: u32) -> Result<(), MlCoordError> {
+        // XXX mucks with model state before we are assured of succcess
         // Check if we've loaded this model already.
         let idx = match self.get_model_index(&id) {
-            Some(idx) => idx,
+            Some(idx) => {
+                // Force the timer duration in case the image was loaded as a oneshot
+                // XXX if was periodic is there a timer running that needs to be canceled?
+                self.models[idx].as_mut().unwrap().rate_in_ms = Some(rate_in_ms);
+                idx
+            }
             None => self.ready_model(id, Some(rate_in_ms))?,
         };
 
-        self.execution_queue.push(idx);
-        self.schedule_next_model()?;
-
-        cantrip_timer_periodic(idx as TimerId, rate_in_ms).map_err(|_| MlCoordError::InvalidTimer)
+        match cantrip_timer_periodic(idx as TimerId, rate_in_ms) {
+            Ok(_) => {
+                self.execution_queue.push(idx);
+                self.schedule_next_model()?;
+                Ok(())
+            }
+            Err(e) => {
+                error!("cantrip_timer_periodic({}, {}) returns {:?}", idx, rate_in_ms, e);
+                // XXX map error?
+                Err(MlCoordError::InvalidTimer)
+            }
+        }
     }
 
     /// Cancels an outstanding execution.
@@ -433,7 +450,10 @@ impl MLCoordinator {
             .rate_in_ms
             .is_some()
         {
-            cantrip_timer_cancel(model_idx as TimerId).map_err(|_| MlCoordError::InvalidTimer)?;
+            // XXX just continue if error
+            if let Err(e) = cantrip_timer_cancel(model_idx as TimerId) {
+                warn!("Cancel timer {} failed: {:?}", model_idx, e);
+            }
         }
 
         // If the model is scheduled to be executed, remove it.
