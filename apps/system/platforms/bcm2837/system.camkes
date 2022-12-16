@@ -101,7 +101,8 @@ assembly {
         process_manager.proc_ctrl_stack_size = 32*1024; // 2x for bundle creation
         process_manager.pkg_mgmt_stack_size = 16*1024;
 
-        debug_console._stack_size = 16*1024;
+        // TODO(sleffler): need to understand why a larger stack is needed
+        debug_console._stack_size = 32*1024;  // 2x to run autostart.repl
         debug_console.logger_stack_size = 16*1024;
 
         security_coordinator._stack_size = 16*1024;
