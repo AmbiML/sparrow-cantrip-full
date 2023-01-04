@@ -8,11 +8,16 @@ build = "build.rs"
 sel4-config = { path = "../sel4-config" }
 
 [features]
+default = ["libc_compat"]
 CONFIG_PRINTING = []
+libc_compat = []
 
 [dependencies]
 log = { version = "0.4", features = ["release_max_level_info"] }
 allocator = { path = "../allocator" }
+cstr_core = { version = "0.2.3", default-features = false }
+cty = "0.2.1"
 logger = { path = "../logger" }
+printf-compat = { version = "0.1.1", default-features = false }
 sel4-sys = { path = "../sel4-sys" }
 slot-allocator = { path = "../slot-allocator" }

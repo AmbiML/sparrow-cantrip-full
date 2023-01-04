@@ -16,6 +16,10 @@
 
 #![no_std]
 #![allow(non_camel_case_types)]
+#![feature(c_variadic)]
+
+#[cfg(feature = "libc_compat")]
+pub mod compat;
 
 use allocator;
 use log::trace;
