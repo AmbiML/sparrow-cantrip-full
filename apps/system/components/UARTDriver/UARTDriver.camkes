@@ -22,4 +22,7 @@ component UARTDriver {
   has semaphore rx_nonempty_semaphore;
   has semaphore rx_empty_semaphore;
   has mutex rx_mutex;
+
+  // Enable CantripOS CAmkES support.
+  attribute int cantripos = true;
 }
