@@ -18,8 +18,10 @@
 #![allow(non_snake_case)]
 #![allow(clippy::missing_safety_doc)]
 
-use cantrip_os_common::logger::CantripLogger;
+use cantrip_os_common::camkes::Camkes;
 use log::{error, trace};
+
+static mut CAMKES: Camkes = Camkes::new("MailboxDriver");
 
 //------------------------------------------------------------------------------
 // TODO(aappleby): Can we replace this with the register_struct! thing?
@@ -149,9 +151,7 @@ fn drain_read_fifo() {
 
 #[no_mangle]
 pub unsafe extern "C" fn pre_init() {
-    static CANTRIP_LOGGER: CantripLogger = CantripLogger;
-    log::set_logger(&CANTRIP_LOGGER).unwrap();
-    log::set_max_level(log::LevelFilter::Trace);
+    CAMKES.init_logger(log::LevelFilter::Trace);
 
     // We always want our receive interrupt to fire as soon as anything appears
     // in the mailbox, so set the threshold to 0.
