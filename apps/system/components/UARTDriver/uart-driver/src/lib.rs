@@ -21,6 +21,7 @@ include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 mod register;
 
 use core::cmp;
+use cantrip_os_common::camkes::Camkes;
 use cantrip_os_common::sel4_sys;
 use sel4_sys::seL4_PageBits;
 
@@ -51,6 +52,8 @@ static mut RX_BUFFER: Buffer = Buffer::new();
 // in the transmit FIFO.
 static mut TX_BUFFER: Buffer = Buffer::new();
 
+static mut CAMKES: Camkes = Camkes::new("UARTDriver");
+
 extern "C" {
     static rx_dataport: *mut u8;
     static tx_dataport: *mut u8;
@@ -75,6 +78,8 @@ fn cantrip_assert(expr: bool) {
 /// Performs initial programming of the OpenTitan UART at mmio_region.
 #[no_mangle]
 pub unsafe extern "C" fn pre_init() {
+    CAMKES.init_logger(log::LevelFilter::Trace);
+
     // Computes NCO value corresponding to baud rate.
     // nco = 2^20 * baud / fclk  (assuming NCO width is 16-bit)
     assert_eq!(UART_CTRL_NCO_MASK, 0xffff);

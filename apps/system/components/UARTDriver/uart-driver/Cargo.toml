@@ -26,9 +26,10 @@ sel4-config = { path = "../../cantrip-os-common/src/sel4-config" }
 CONFIG_PLAT_SPARROW = []
 
 [dependencies]
-cantrip-os-common = { path = "../../cantrip-os-common", default-features = false }
+cantrip-os-common = { path = "../../cantrip-os-common" }
 circular-buffer = { path = "../circular-buffer" }
 cty = "0.2.1"
+log = { version = "0.4", features = ["release_max_level_info"] }
 
 [lib]
 name = "uart_driver"
