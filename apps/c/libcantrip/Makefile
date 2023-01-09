@@ -13,13 +13,16 @@
 # limitations under the License.
 
 include make/common.mk
-include arch/$(BUILD_ARCH)/arch.mk
 
 INCLUDES += -Iinclude
 
+RUST_ARCH_DIR = ../../rust/libcantrip/arch
+
 SRC_FILES += \
 	printf.c \
-	globals.c
+	globals.c \
+	$(RUST_ARCH_DIR)/riscv32/crt0.S \
+	$(RUST_ARCH_DIR)/aarch64/crt0.S
 
 INCLUDE_FILES := \
 	include/cantrip.h
@@ -27,7 +30,7 @@ INCLUDE_FILES := \
 BUILD_DIR      := $(BUILD_ROOT)/libcantrip
 BUILD_ARCH_DIR := $(BUILD_DIR)/arch/$(BUILD_ARCH)
 
-OBJ_FILES := $(patsubst arch/$(BUILD_ARCH)/%.S,$(BUILD_ARCH_DIR)/%.o,$(SRC_FILES))
+OBJ_FILES := $(patsubst $(RUST_ARCH_DIR)/$(BUILD_ARCH)/%.S,$(BUILD_ARCH_DIR)/%.o,$(SRC_FILES))
 OBJ_FILES := $(patsubst %.c,$(BUILD_DIR)/%.o,$(OBJ_FILES))
 
 ## Build Rules ###########################################
@@ -42,13 +45,13 @@ includes: $(INCLUDE_FILES)
 $(BUILD_DIR)/%.o: %.c
 	$(CC) $(CFLAGS) -Iinclude -c -o $@ $<
 
-$(BUILD_DIR)/%.o: %.S
+$(BUILD_DIR)/%.o: $(RUST_ARCH_DIR)/$(BUILD_ARCH)/%.S
 	$(AS) $(ASFLAGS) -o $@ $<
 
 $(BUILD_ARCH_DIR)/%.o: %.c
 	$(CC) $(CFLAGS) -Iinclude -c -o $@ $<
 
-$(BUILD_ARCH_DIR)/%.o: %.S
+$(BUILD_ARCH_DIR)/%.o: $(RUST_ARCH_DIR)/$(BUILD_ARCH)/%.S
 	$(AS) $(ASFLAGS) -o $@ $<
 
 $(BUILD_DIR):
