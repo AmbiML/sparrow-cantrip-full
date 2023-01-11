@@ -251,7 +251,7 @@ pub unsafe extern "C" fn rx_watermark_handle() {
         }
         let to_read = cmp::min(rx_fifo_level(), available_data);
         for _ in 0..to_read {
-            RX_BUFFER.push(uart_getchar());
+            cantrip_assert(RX_BUFFER.push(uart_getchar()));
         }
     }
     cantrip_assert(rx_nonempty_semaphore_post() == 0);
