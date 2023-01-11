@@ -394,7 +394,9 @@ pub struct seL4_BootInfo {
 impl seL4_BootInfo {
     /// This is safe if you don't mutate the `untyped` field and corrupt its length.
     pub unsafe fn untyped_descs(&self) -> &[seL4_UntypedDesc] {
-        let len = self.untyped.end - self.untyped.start;
+        // TODO(sleffler): release builds infer untyped.{end,start} are zero if read directly
+        let untyped = core::ptr::addr_of!(self.untyped).read_volatile();
+        let len = untyped.end - untyped.start;
         // sanity check that the number of untypeds doesn't extend past the end of the page
         debug_assert!(
             len <= (4096 - size_of::<seL4_BootInfo>() + size_of::<seL4_UntypedDesc>())

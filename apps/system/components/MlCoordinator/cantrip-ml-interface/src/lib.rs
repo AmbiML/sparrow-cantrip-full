@@ -13,37 +13,40 @@
 // limitations under the License.
 
 #![no_std]
+use cantrip_os_common::camkes;
 use cantrip_os_common::sel4_sys;
 use log::trace;
+use num_enum::{FromPrimitive, IntoPrimitive};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+
+use camkes::*;
 
 use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_NBWait;
 use sel4_sys::seL4_Wait;
 
-use static_assertions::const_assert_eq;
-
 pub type MlJobId = u32;
 pub type MlJobMask = u32;
 
 /// Errors that can occur when interacting with the MlCoordinator.
-#[repr(C)]
-#[derive(Debug, Eq, PartialEq)]
+#[repr(usize)]
+#[derive(Debug, Default, Eq, PartialEq, FromPrimitive, IntoPrimitive)]
 pub enum MlCoordError {
-    MceOk = 0,
-    MceInvalidImage,
-    MceInvalidTimer,
-    MceLoadModelFailed,
-    MceNoModelSlotsLeft,
-    MceNoSuchModel,
-    MceSerializeFailed,
-    MceDeserializeFailed,
+    Success = 0,
+    InvalidImage,
+    InvalidTimer,
+    LoadModelFailed,
+    NoModelSlotsLeft,
+    NoSuchModel,
+    SerializeError,
+    DeserializeError,
+    #[default]
+    UnknownError,
 }
-
 impl From<MlCoordError> for Result<(), MlCoordError> {
     fn from(err: MlCoordError) -> Result<(), MlCoordError> {
-        if err == MlCoordError::MceOk {
+        if err == MlCoordError::Success {
             Ok(())
         } else {
             Err(err)
@@ -80,43 +83,21 @@ pub struct CompleteJobsResponse {
     pub job_mask: MlJobMask,
 }
 
-// Size of the data buffer used to pass a serialized MlCoordRequest between Rust <> C.
-// The data structure size is bounded by the camkes ipc buffer (120 bytes!)
-// and also by it being allocated on the stack of the rpc glue code.
-const MLCOORD_REQUEST_DATA_SIZE: usize = 100;
-// Size of the serialized response.
-pub const MLCOORD_RESPONSE_DATA_SIZE: usize = 4;
-const_assert_eq!(
-    MLCOORD_RESPONSE_DATA_SIZE,
-    core::mem::size_of::<CompleteJobsResponse>()
-);
-pub type MlCoordResponseData = [u8; MLCOORD_RESPONSE_DATA_SIZE];
+pub const MLCOORD_REQUEST_DATA_SIZE: usize = 100;
 
 #[inline]
 fn cantrip_mlcoord_request<T: DeserializeOwned>(
     request: &MlCoordRequest,
 ) -> Result<T, MlCoordError> {
-    extern "C" {
-        pub fn mlcoord_request(
-            c_request_buffer_len: u32,
-            c_request_buffer: *const u8,
-            c_reply_buffer: *mut MlCoordResponseData,
-        ) -> MlCoordError;
-    }
     trace!("cantrip_mlcoord_request {:?}", &request);
-    let mut request_buffer = [0u8; MLCOORD_REQUEST_DATA_SIZE];
-    let request_slice = postcard::to_slice(request, &mut request_buffer)
-        .or(Err(MlCoordError::MceSerializeFailed))?;
-    let mut reply_buffer = [0u8; MLCOORD_RESPONSE_DATA_SIZE];
-    match unsafe {
-        mlcoord_request(
-            request_slice.len() as u32,
-            request_slice.as_ptr(),
-            &mut reply_buffer as *mut _,
-        )
-    } {
-        MlCoordError::MceOk => {
-            postcard::from_bytes(&reply_buffer).or(Err(MlCoordError::MceDeserializeFailed))
+    let (request_buffer, reply_slice) = rpc_basic_buffer!().split_at_mut(MLCOORD_REQUEST_DATA_SIZE);
+    let request_slice =
+        postcard::to_slice(request, request_buffer).or(Err(MlCoordError::SerializeError))?;
+    match rpc_basic_send!(mlcoord, request_slice.len()).0.into() {
+        MlCoordError::Success => {
+            let reply =
+                postcard::from_bytes(reply_slice).or(Err(MlCoordError::DeserializeError))?;
+            Ok(reply)
         }
         err => Err(err),
     }
@@ -151,15 +132,6 @@ pub fn cantrip_mlcoord_cancel(bundle_id: &str, model_id: &str) -> Result<(), MlC
     })
 }
 
-/// Returns the cptr for the notification object used to signal events.
-#[inline]
-pub fn cantrip_mlcoord_notification() -> seL4_CPtr {
-    extern "C" {
-        fn mlcoord_notification() -> seL4_CPtr;
-    }
-    unsafe { mlcoord_notification() }
-}
-
 /// Returns a bitmask of job id's registered with cantrip_mlcoord_oneshot
 /// and cantrip_mlcoord_periodic that have expired.
 #[inline]
@@ -173,7 +145,10 @@ pub fn cantrip_mlcoord_completed_jobs() -> Result<MlJobMask, MlCoordError> {
 #[inline]
 pub fn cantrip_mlcoord_wait() -> Result<MlJobMask, MlCoordError> {
     unsafe {
-        seL4_Wait(cantrip_mlcoord_notification(), core::ptr::null_mut());
+        extern "Rust" {
+            static MLCOORD_INTERFACE_NOTIFICATION: seL4_CPtr;
+        }
+        seL4_Wait(MLCOORD_INTERFACE_NOTIFICATION, core::ptr::null_mut());
     }
     cantrip_mlcoord_completed_jobs()
 }
@@ -183,7 +158,10 @@ pub fn cantrip_mlcoord_wait() -> Result<MlJobMask, MlCoordError> {
 #[inline]
 pub fn cantrip_mlcoord_poll() -> Result<MlJobMask, MlCoordError> {
     unsafe {
-        seL4_NBWait(cantrip_mlcoord_notification(), core::ptr::null_mut());
+        extern "Rust" {
+            static MLCOORD_INTERFACE_NOTIFICATION: seL4_CPtr;
+        }
+        seL4_NBWait(MLCOORD_INTERFACE_NOTIFICATION, core::ptr::null_mut());
     }
     cantrip_mlcoord_completed_jobs()
 }

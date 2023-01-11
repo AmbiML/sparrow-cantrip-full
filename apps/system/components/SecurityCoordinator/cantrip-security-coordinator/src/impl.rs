@@ -25,20 +25,19 @@ use cantrip_os_common::copyregion::CopyRegion;
 use cantrip_os_common::sel4_sys;
 use cantrip_security_interface::*;
 use core::mem::size_of;
-use core::ptr;
 use log::trace;
-use sel4_sys::seL4_CPtr;
+use mailbox_interface::*;
+
 use sel4_sys::seL4_PageBits;
 use sel4_sys::seL4_Page_GetAddress;
 use sel4_sys::seL4_Word;
 
 const PAGE_SIZE: usize = 1 << seL4_PageBits;
 
-extern "C" {
-    static SECURITY_RECV_SLOT: seL4_CPtr;
-    // Regions for deep_copy work.
-    static mut DEEP_COPY_SRC: [seL4_Word; PAGE_SIZE / size_of::<seL4_Word>()];
-    static mut DEEP_COPY_DEST: [seL4_Word; PAGE_SIZE / size_of::<seL4_Word>()];
+const PAGE_SIZE: usize = 1 << seL4_PageBits;
+
+extern "Rust" {
+    fn get_deep_copy_src_mut() -> &'static mut [u8];
 }
 
 pub struct SeL4SecurityCoordinator {
@@ -54,7 +53,7 @@ pub type CantripSecurityCoordinatorInterface = SeL4SecurityCoordinator;
 
 impl SecurityCoordinatorInterface for CantripSecurityCoordinatorInterface {
     fn install(&mut self, _pkg_contents: &ObjDescBundle) -> Result<String, SecurityRequestError> {
-        Err(SecurityRequestError::SreInstallFailed)
+        Err(SecurityRequestError::InstallFailed)
     }
 
     fn install_app(
@@ -62,7 +61,7 @@ impl SecurityCoordinatorInterface for CantripSecurityCoordinatorInterface {
         app_id: &str,
         pkg_contents: &ObjDescBundle,
     ) -> Result<(), SecurityRequestError> {
-        Err(SecurityRequestError::SreInstallFailed)
+        Err(SecurityRequestError::InstallFailed)
     }
 
     fn install_model(
@@ -71,30 +70,30 @@ impl SecurityCoordinatorInterface for CantripSecurityCoordinatorInterface {
         model_id: &str,
         pkg_contents: &ObjDescBundle,
     ) -> Result<(), SecurityRequestError> {
-        Err(SecurityRequestError::SreInstallModelFailed)
+        Err(SecurityRequestError::InstallModelFailed)
     }
 
     fn uninstall(&mut self, _bundle_id: &str) -> Result<(), SecurityRequestError> {
-        Err(SecurityRequestError::SreUninstallFailed)
+        Err(SecurityRequestError::UninstallFailed)
     }
 
     fn get_packages(&self) -> Result<BundleIdArray, SecurityRequestError> {
-        Err(SecurityRequestError::SreGetPackagesFailed)
+        Err(SecurityRequestError::GetPackagesFailed)
     }
 
     fn size_buffer(&self, _bundle_id: &str) -> Result<usize, SecurityRequestError> {
-        Err(SecurityRequestError::SreSizeBufferFailed)
+        Err(SecurityRequestError::SizeBufferFailed)
     }
 
     fn get_manifest(&self, _bundle_id: &str) -> Result<String, SecurityRequestError> {
-        Err(SecurityRequestError::SreGetManifestFailed)
+        Err(SecurityRequestError::GetManifestFailed)
     }
 
     fn load_application(
         &mut self,
         _bundle_id: &str,
     ) -> Result<ObjDescBundle, SecurityRequestError> {
-        Err(SecurityRequestError::SreLoadApplicationFailed)
+        Err(SecurityRequestError::LoadApplicationFailed)
     }
 
     fn load_model(
@@ -102,7 +101,7 @@ impl SecurityCoordinatorInterface for CantripSecurityCoordinatorInterface {
         _bundle_id: &str,
         _model_id: &str,
     ) -> Result<ObjDescBundle, SecurityRequestError> {
-        Err(SecurityRequestError::SreLoadModelFailed)
+        Err(SecurityRequestError::LoadModelFailed)
     }
 
     fn read_key(
@@ -110,7 +109,7 @@ impl SecurityCoordinatorInterface for CantripSecurityCoordinatorInterface {
         _bundle_id: &str,
         _key: &str,
     ) -> Result<&KeyValueData, SecurityRequestError> {
-        Err(SecurityRequestError::SreReadFailed)
+        Err(SecurityRequestError::ReadFailed)
     }
 
     fn write_key(
@@ -119,11 +118,11 @@ impl SecurityCoordinatorInterface for CantripSecurityCoordinatorInterface {
         _key: &str,
         value: &[u8],
     ) -> Result<(), SecurityRequestError> {
-        Err(SecurityRequestError::SreWriteFailed)
+        Err(SecurityRequestError::WriteFailed)
     }
 
     fn delete_key(&mut self, _bundle_id: &str, _key: &str) -> Result<(), SecurityRequestError> {
-        Err(SecurityRequestError::SreDeleteFailed)
+        Err(SecurityRequestError::DeleteFailed)
     }
 
     fn test_mailbox(&mut self) -> Result<(), SecurityRequestError> {
@@ -131,23 +130,18 @@ impl SecurityCoordinatorInterface for CantripSecurityCoordinatorInterface {
 
         const MESSAGE_SIZE_DWORDS: usize = 17; // Just a random message size for testing.
 
-        extern "C" {
-            fn mailbox_api_send(paddr: u32, size: u32);
-            fn mailbox_api_receive(paddr: *mut u32, size: *mut u32);
-        }
-
         // Allocate a 4k page to serve as our message buffer.
         let frame_bundle =
-            cantrip_frame_alloc(PAGE_SIZE).or(Err(SecurityRequestError::SreTestFailed))?;
+            cantrip_frame_alloc(PAGE_SIZE).or(Err(SecurityRequestError::TestFailed))?;
         trace!("test_mailbox: Frame {:?}", frame_bundle);
 
         unsafe {
             // Map the message buffer into our copyregion so we can access it.
             // NB: re-use one of the deep_copy copyregions.
-            let mut msg_region = CopyRegion::new(ptr::addr_of_mut!(DEEP_COPY_SRC[0]), PAGE_SIZE);
+            let mut msg_region = CopyRegion::new(get_deep_copy_src_mut());
             msg_region
                 .map(frame_bundle.objs[0].cptr)
-                .or(Err(SecurityRequestError::SreTestFailed))?;
+                .or(Err(SecurityRequestError::TestFailed))?;
 
             let message_ptr = msg_region.as_word_mut();
 
@@ -165,12 +159,12 @@ impl SecurityCoordinatorInterface for CantripSecurityCoordinatorInterface {
             // Send the _physical_ address of the message buffer to the security
             // core.
             let paddr = seL4_Page_GetAddress(frame_bundle.objs[0].cptr);
-            mailbox_api_send(paddr.paddr as u32, (MESSAGE_SIZE_DWORDS * size_of::<u32>()) as u32);
+            mailbox_send(paddr.paddr as u32, (MESSAGE_SIZE_DWORDS * size_of::<u32>()) as u32)
+                .or(Err(SecurityRequestError::TestFailed))?;
 
             // Wait for the response to arrive.
-            let mut response_paddr: u32 = 0;
-            let mut response_size: u32 = 0;
-            mailbox_api_receive(&mut response_paddr as *mut u32, &mut response_size as *mut u32);
+            let (response_paddr, response_size) =
+                mailbox_recv().or(Err(SecurityRequestError::TestFailed))?;
 
             // The security core should have replaced the first and last dwords
             // with 0x12345678 and 0x87654321.
@@ -186,14 +180,14 @@ impl SecurityCoordinatorInterface for CantripSecurityCoordinatorInterface {
 
             msg_region
                 .unmap()
-                .or(Err(SecurityRequestError::SreTestFailed))?;
+                .or(Err(SecurityRequestError::TestFailed))?;
 
             // Done, free the message buffer.
             cantrip_object_free_toplevel(&frame_bundle)
-                .or(Err(SecurityRequestError::SreTestFailed))?;
+                .or(Err(SecurityRequestError::TestFailed))?;
 
             if dword_a != 0x12345678 || dword_b != 0x87654321 {
-                return Err(SecurityRequestError::SreTestFailed);
+                return Err(SecurityRequestError::TestFailed);
             }
         }
 

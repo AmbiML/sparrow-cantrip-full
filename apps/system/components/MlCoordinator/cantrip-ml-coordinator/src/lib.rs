@@ -201,7 +201,7 @@ impl MLCoordinator {
                                 model.on_flash_sizes.text,
                                 model.in_memory_sizes.text,
                             )
-                            .ok_or(MlCoordError::MceLoadModelFailed)?;
+                            .ok_or(MlCoordError::LoadModelFailed)?;
 
                             temp_top += model.in_memory_sizes.text;
                         } else if section.vaddr == CONST_DATA_VADDR {
@@ -211,7 +211,7 @@ impl MLCoordinator {
                                 model.on_flash_sizes.constant_data,
                                 model.in_memory_sizes.constant_data,
                             )
-                            .ok_or(MlCoordError::MceLoadModelFailed)?;
+                            .ok_or(MlCoordError::LoadModelFailed)?;
 
                             temp_top += model.in_memory_sizes.constant_data;
                         } else if section.vaddr == MODEL_OUTPUT_VADDR {
@@ -224,7 +224,7 @@ impl MLCoordinator {
                                 model.on_flash_sizes.static_data,
                                 model.in_memory_sizes.static_data,
                             )
-                            .ok_or(MlCoordError::MceLoadModelFailed)?;
+                            .ok_or(MlCoordError::LoadModelFailed)?;
 
                             temp_top += model.in_memory_sizes.static_data;
                         }
@@ -241,7 +241,7 @@ impl MLCoordinator {
                 Err(e) => {
                     error!("{}: LoadModel failed: {:?}", &model.id, e);
                     self.statistics.load_failures += 1;
-                    return Err(MlCoordError::MceLoadModelFailed);
+                    return Err(MlCoordError::LoadModelFailed);
                 }
             }
         }
@@ -261,11 +261,6 @@ impl MLCoordinator {
     }
 
     pub fn handle_return_interrupt(&mut self) {
-        extern "C" {
-            fn finish_acknowledge() -> u32;
-            fn mlcoord_emit(badge: seL4_Word);
-        }
-
         if let Some(image_id) = self.running_model.as_ref() {
             if let Some(output_header) = self.image_manager.output_header(image_id) {
                 // TODO(jesionowski): Move the result from TCM to SRAM,
@@ -289,6 +284,9 @@ impl MLCoordinator {
             if let Some(idx) = self.get_model_index(image_id) {
                 self.completed_job_mask |= 1 << idx;
                 unsafe {
+                    extern "Rust" {
+                        fn mlcoord_emit(badge: seL4_Word);
+                    }
                     mlcoord_emit(self.models[idx].as_ref().unwrap().client_id);
                 }
             }
@@ -305,13 +303,13 @@ impl MLCoordinator {
         }
 
         MlCore::clear_finish();
-        assert!(unsafe { finish_acknowledge() == 0 });
     }
 
     // Constructs a new model and add to an open slot, returning the index
     // of that slot.
     fn ready_model(
         &mut self,
+        client_id: usize,
         id: ImageId,
         rate_in_ms: Option<u32>,
     ) -> Result<ModelIdx, MlCoordError> {
@@ -320,21 +318,17 @@ impl MLCoordinator {
             .models
             .iter()
             .position(|m| m.is_none())
-            .ok_or(MlCoordError::MceNoModelSlotsLeft)?;
+            .ok_or(MlCoordError::NoModelSlotsLeft)?;
 
-        let (on_flash_sizes, in_memory_sizes) = self
-            .validate_image(&id)
-            .ok_or(MlCoordError::MceInvalidImage)?;
+        let (on_flash_sizes, in_memory_sizes) =
+            self.validate_image(&id).ok_or(MlCoordError::InvalidImage)?;
 
-        extern "C" {
-            fn mlcoord_get_sender_id() -> seL4_Word;
-        }
         self.models[index] = Some(LoadableModel {
             id,
             on_flash_sizes,
             in_memory_sizes,
             rate_in_ms,
-            client_id: unsafe { mlcoord_get_sender_id() },
+            client_id,
         });
 
         Ok(index)
@@ -352,11 +346,11 @@ impl MLCoordinator {
     }
 
     /// Start a one-time model execution, to be executed immediately.
-    pub fn oneshot(&mut self, id: ImageId) -> Result<(), MlCoordError> {
+    pub fn oneshot(&mut self, client_id: usize, id: ImageId) -> Result<(), MlCoordError> {
         // Check if we've loaded this model already.
         let idx = match self.get_model_index(&id) {
             Some(idx) => idx,
-            None => self.ready_model(id, None)?,
+            None => self.ready_model(client_id, id, None)?,
         };
 
         self.execution_queue.push(idx);
@@ -367,7 +361,12 @@ impl MLCoordinator {
 
     /// Start a periodic model execution, to be executed immediately and
     /// then every rate_in_ms.
-    pub fn periodic(&mut self, id: ImageId, rate_in_ms: u32) -> Result<(), MlCoordError> {
+    pub fn periodic(
+        &mut self,
+        client_id: usize,
+        id: ImageId,
+        rate_in_ms: u32,
+    ) -> Result<(), MlCoordError> {
         // XXX mucks with model state before we are assured of succcess
         // Check if we've loaded this model already.
         let idx = match self.get_model_index(&id) {
@@ -377,7 +376,7 @@ impl MLCoordinator {
                 self.models[idx].as_mut().unwrap().rate_in_ms = Some(rate_in_ms);
                 idx
             }
-            None => self.ready_model(id, Some(rate_in_ms))?,
+            None => self.ready_model(client_id, id, Some(rate_in_ms))?,
         };
 
         match cantrip_timer_periodic(idx as TimerId, rate_in_ms) {
@@ -389,7 +388,7 @@ impl MLCoordinator {
             Err(e) => {
                 error!("cantrip_timer_periodic({}, {}) returns {:?}", idx, rate_in_ms, e);
                 // XXX map error?
-                Err(MlCoordError::MceInvalidTimer)
+                Err(MlCoordError::InvalidTimer)
             }
         }
     }
@@ -397,9 +396,7 @@ impl MLCoordinator {
     /// Cancels an outstanding execution.
     pub fn cancel(&mut self, id: &ImageId) -> Result<(), MlCoordError> {
         // Find the model index matching the bundle/model id.
-        let model_idx = self
-            .get_model_index(id)
-            .ok_or(MlCoordError::MceNoSuchModel)?;
+        let model_idx = self.get_model_index(id).ok_or(MlCoordError::NoSuchModel)?;
 
         // If the model is periodic, cancel the timer.
         if self.models[model_idx]
@@ -461,36 +458,16 @@ impl MLCoordinator {
         mask as u32
     }
 
-    pub fn handle_host_req_interrupt(&self) {
-        extern "C" {
-            fn host_req_acknowledge() -> u32;
-        }
-        MlCore::clear_host_req();
-        unsafe {
-            assert!(host_req_acknowledge() == 0);
-        }
-    }
+    pub fn handle_host_req_interrupt(&self) { MlCore::clear_host_req(); }
 
     pub fn handle_instruction_fault_interrupt(&self) {
-        extern "C" {
-            fn instruction_fault_acknowledge() -> u32;
-        }
         error!("Instruction fault in Vector Core.");
         MlCore::clear_instruction_fault();
-        unsafe {
-            assert!(instruction_fault_acknowledge() == 0);
-        }
     }
 
     pub fn handle_data_fault_interrupt(&self) {
-        extern "C" {
-            fn data_fault_acknowledge() -> u32;
-        }
         error!("Data fault in Vector Core.");
         MlCore::clear_data_fault();
-        unsafe {
-            assert!(data_fault_acknowledge() == 0);
-        }
     }
 
     fn ids_at(&self, idx: ModelIdx) -> (&str, &str) {

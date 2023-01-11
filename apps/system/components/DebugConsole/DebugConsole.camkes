@@ -51,14 +51,19 @@ component DebugConsole {
   // Enable CantripOS CAmkES support.
   attribute int cantripos = true;
 
-  // Install requires enough slots to hold dynamically allocated
-  // memory for package contents. Size this to handle up to 4MB
+  // When dynamic loading is configured, install requests upload a
+  // package that requires enough slots to hold dynamically allocated
+  // memory for the package contents. Size this to handle up to 4MB
   // (at 4KB / page) though that exceeds our target memory config.
-  attribute int cnode_headroom = 1024;
+//  attribute int cnode_headroom = 1024;
 
   // Copyregions for zmodem upload and for loading bundle images.
   // Could do this with one region since upload never happens
   // concurrently with bundle image loading.
   has copyregion BUNDLE_IMAGE;
   has copyregion UPLOAD;
+
+  // Disable unused threads.
+  attribute int timer_has_thread = false;
+  attribute int mlcoord_has_thread = false;
 }

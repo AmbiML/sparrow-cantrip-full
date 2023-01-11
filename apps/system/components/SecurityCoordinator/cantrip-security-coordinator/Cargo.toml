@@ -20,7 +20,7 @@ edition = "2021"
 [features]
 default = ["fake"]  # TODO(sleffler): sel4 once it exists
 fake = ["cpio"]
-sel4 = []
+sel4 = ["mailbox-interface"]
 
 [dependencies]
 hashbrown = { version = "0.11", features = ["ahash-compile-time-rng"] }
@@ -29,4 +29,5 @@ cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-security-interface = { path = "../cantrip-security-interface" }
 cpio = { git = "https://github.com/rcore-os/cpio", optional = true }
 log = { version = "0.4", features = ["release_max_level_info"] }
+mailbox-interface = { path  = "../../MailboxDriver/mailbox-interface", optional = true }
 postcard = { version = "0.7", features = ["alloc"], default-features = false }

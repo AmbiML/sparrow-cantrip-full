@@ -24,7 +24,7 @@ component SecurityCoordinator {
 
   maybe uses LoggerInterface logger;
   uses MemoryInterface memory;
-  maybe uses MailboxAPI mailbox_api;
+  maybe uses MailboxAPI api;
 
   // Mapped cpio archive to emulate eFLASH for use by fake impl.
   // The real hw has no access to this region; it must go through

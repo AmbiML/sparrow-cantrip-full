@@ -89,120 +89,112 @@ assembly {
         component TimerService timer_service;
 
         // Built-in CPIO archive is visible only to the SecurityCoordinator.
-        connection seL4HardwareMMIO cpio_archive(from security_coordinator.cpio_archive,
-                                                 to cpio.cpio);
+        connection cantripMMIO cpio_archive(
+            from security_coordinator.cpio_archive, to cpio.cpio);
 
-        // MailboxHardware & MailboxDriver:
-        connection seL4HardwareMMIO mailbox_driver_mmio(
+        // MailboxDriver
+        connection cantripMMIO mailbox_driver_mmio(
             from mailbox_driver.mailbox_mmio, to mailbox_hardware.mmio);
-        connection seL4HardwareInterrupt mailbox_driver_wtirq(
+        connection cantripIRQ mailbox_driver_wtirq(
             from mailbox_hardware.wtirq, to mailbox_driver.wtirq);
-        connection seL4HardwareInterrupt mailbox_driver_rtirq(
+        connection cantripIRQ mailbox_driver_rtirq(
             from mailbox_hardware.rtirq, to mailbox_driver.rtirq);
-        connection seL4HardwareInterrupt mailbox_driver_eirq(
+        connection cantripIRQ mailbox_driver_eirq(
             from mailbox_hardware.eirq, to mailbox_driver.eirq);
-        connection seL4RPCCall security_coordinator_to_mailbox_api(
-            from security_coordinator.mailbox_api, to mailbox_driver.api);
+        connection cantripRPCCall security_coordinator_to_mailbox_api(
+            from security_coordinator.api, to mailbox_driver.api);
 
-        // OpenTitanUARTDriver:
-        connection seL4HardwareMMIO uart_mem(
+        // OpenTitanUARTDriver
+        connection cantripMMIO uart_mem(
             from uart_driver.mmio_region, to uart.mmio_region);
-        connection seL4HardwareInterrupt uart_tx_watermark(
+        connection cantripIRQ uart_tx_watermark(
             from uart.tx_watermark, to uart_driver.tx_watermark);
-        connection seL4HardwareInterrupt uart_rx_watermark(
+        connection cantripIRQ uart_rx_watermark(
             from uart.rx_watermark, to uart_driver.rx_watermark);
-        connection seL4HardwareInterrupt uart_tx_empty(
+        connection cantripIRQ uart_tx_empty(
             from uart.tx_empty, to uart_driver.tx_empty);
 
-        // UARTDriver:
-        // The DebugConsole owns access to the device.
-        connection seL4SharedData tx_channel(
-            from debug_console.tx_dataport, to uart_driver.tx_dataport);
-        connection seL4RPCCall write_call(
-            from debug_console.uart_write, to uart_driver.write_inf);
-        connection seL4SharedData rx_channel(
-            from debug_console.rx_dataport, to uart_driver.rx_dataport);
-        connection seL4RPCCall read_call(
-            from debug_console.uart_read, to uart_driver.read_inf);
-
-        // VectorCoreDriver:
-        connection seL4HardwareMMIO vc_csr(
+        // VectorCoreDriver
+        connection cantripMMIO vc_csr(
             from ml_coordinator.CSR, to vctop.CSR);
-        connection seL4HardwareInterrupt vctop_host_req(
+        connection cantripIRQ vctop_host_req(
             from vctop.host_req, to ml_coordinator.host_req);
-        connection seL4HardwareInterrupt vctop_finish(
+        connection cantripIRQ vctop_finish(
             from vctop.finish, to ml_coordinator.finish);
-        connection seL4HardwareInterrupt vctop_instruction_fault(
+        connection cantripIRQ vctop_instruction_fault(
             from vctop.instruction_fault, to ml_coordinator.instruction_fault);
-        connection seL4HardwareInterrupt vctop_data_fault(
+        connection cantripIRQ vctop_data_fault(
             from vctop.data_fault, to ml_coordinator.data_fault);
-        connection seL4HardwareMMIO vc_tcm(
+        connection cantripMMIO vc_tcm(
             from ml_coordinator.TCM, to vctop.TCM);
 
 
-        // TimerService:
-        connection seL4HardwareMMIO timer_csr(
+        // TimerService
+        connection cantripMMIO timer_csr(
             from timer_service.csr, to timer.csr);
-        connection seL4HardwareInterrupt timer_interrupt(
+        connection cantripIRQ timer_interrupt(
             from timer.timer_interrupt, to timer_service.timer_interrupt);
-        connection seL4RPCCallSignal timer_rpc(
-            from debug_console.timer,        // NB: sleep & debug/test
-            from ml_coordinator.timer,       // NB: periodic model support
-            from sdk_runtime.timer,          // NB: app timer support
-            to timer_service.timer);
+        connection cantripRPCCallSignal timer_rpc(from debug_console.timer,
+                                               from ml_coordinator.timer,
+                                               from sdk_runtime.timer,
+                                               to timer_service.timer);
 
-        // ProcessManager:
-        connection seL4RPCCall shell_process(
-            from debug_console.proc_ctrl,    // NB: start, stop, etc
-            to process_manager.proc_ctrl);
-        // NB: this allocates a 4KB shared region to pass an ObjDescArray
-// NB: requires dynamic_load_support, otherwise only builtins are available
-//        connection seL4RPCOverMultiSharedData shell_package(
-//            from debug_console.pkg_mgmt,     // NB: install* & uninstall
-//            to process_manager.pkg_mgmt);
+        // Hookup ProcessManager to DebugConsole for shell commands.
+        connection cantripRPCCall shell_process(from debug_console.proc_ctrl,
+                                             to process_manager.proc_ctrl);
+        connection cantripRPCCallSignal shell_ml(from debug_console.mlcoord,
+                                        from sdk_runtime.mlcoord, // XXX split out?
+                                        to ml_coordinator.mlcoord);
 
-        // MlCoordinator:
-        connection seL4RPCCallSignal shell_ml(
-            from debug_console.mlcoord,      // NB: debug/test & capscan
-            to ml_coordinator.mlcoord);
-        connection seL4RPCCallSignal sdk_ml(
-            from sdk_runtime.mlcoord,        // NB: launching models
-            to ml_coordinator.mlcoord);
-
-        // SDKRuntime:
         // ProcessMaanager talks to the SDKManager (the privileged part of
         // the SDKRuntime) to plumb a badged connection between applications
         // and the SDKRuntime.
-        connection seL4RPCCall multi_sdk_manager(
-            from process_manager.sdk_manager,// NB: app endopint setup
-            from debug_console.sdk_manager,  // NB: capscan support
+        connection cantripRPCCall multi_sdk_manager(
+            from process_manager.sdk_manager,
+            from debug_console.sdk_manager,  // NB: for capscan support
             to sdk_runtime.sdk_manager);
 
-        // MemoryManager:
-        // Connect each component that needs to allocate system objects.
-        // NB: this allocates a 4KB shared memory region for each component.
-        connection seL4RPCOverMultiSharedData multi_memory(
-            from debug_console.memory,       // NB: pkg loading from builtins/zmodem
-            from process_manager.memory,     // NB: app construction
-            from security_coordinator.memory, // NB: app/model loading from SC
-            from sdk_runtime.memory,         // NB: endpoint setup
-            from ml_coordinator.memory,      // NB: model loading
+        // Note this allocates a 4KB shared memory region for pkg install
+        // to pass an ObjDescArray
+        connection cantripRPCOverMultiSharedData shell_package(
+            from debug_console.pkg_mgmt,
+            to process_manager.pkg_mgmt);
+
+        // Connect the MemoryInterface to each component that needs to allocate
+        // global memory. Note this allocates a 4KB shared memory region to each
+        // component and copies data between components.
+        connection cantripRPCOverMultiSharedData multi_memory(
+            from debug_console.memory,
+            from process_manager.memory,
+            from security_coordinator.memory,
+            from sdk_runtime.memory,
+            from ml_coordinator.memory,
             to memory_manager.memory);
 
-        // SecurityCoordinator:
-        // Connect each component that needs access to the Security Core.
-        // NB: this allocates a 4KB shared memory region for each component.
-        connection seL4RPCOverMultiSharedData multi_security(
-            from debug_console.security,     // NB: debug/test
-            from process_manager.security,   // NB: pkg mgmt & LoadApplication
-            from ml_coordinator.security,    // NB: LoadModel
-            from sdk_runtime.security,       // NB: key-value store
+        // Connect the SecurityCoordinatorInterface to each component that needs
+        // access to the Security Core. Note this allocates a 4KB shared memory
+        // region to each component and copies data between components.
+        connection cantripRPCOverMultiSharedData multi_security(
+            from debug_console.security,   // NB: for debug/test
+            from process_manager.security,
+            from ml_coordinator.security,  // NB: for LoadModel
+            from sdk_runtime.security,     // NB: for key-value store
             to security_coordinator.security);
 
-        // DebugConsole:
-        // Connect each component that needs the logger.
-        // NB: this allocates a 4KB shared memory region for each component.
-        connection seL4RPCOverMultiSharedData multi_logger(
+        // Connect the DebugConsole to the OpenTitanUARTDriver.
+        connection cantripSharedData tx_channel(
+            from debug_console.tx_dataport, to uart_driver.tx_dataport);
+        connection cantripRPCCall write_call(
+            from debug_console.uart_write, to uart_driver.write);
+        connection cantripSharedData rx_channel(
+            from debug_console.rx_dataport, to uart_driver.rx_dataport);
+        connection cantripRPCCall read_call(
+            from debug_console.uart_read, to uart_driver.read);
+
+        // Connect the LoggerInterface to each component that needs to log
+        // to the console. Note this allocates a 4KB shared memory region to
+        // each component and copies data between components.
+        connection cantripRPCOverMultiSharedData multi_logger(
             from process_manager.logger,
             from ml_coordinator.logger,
             from memory_manager.logger,
@@ -210,6 +202,7 @@ assembly {
             from timer_service.logger,
             from mailbox_driver.logger,
             from sdk_runtime.logger,
+            from uart_driver.logger,
             to debug_console.logger);
     }
 
@@ -255,20 +248,24 @@ assembly {
 
         uart.integrity_label = "opentitan_uart_driver";
 
-        memory_manager._stack_size = 16*1024;
+        // Super-size stacks we know need it. Otherwise we assume the
+        // default stack size is 4KB which is sufficient for most threads.
+        // Note in particular that most control threads don't even have
+        // a run method so only need enough stack to run pre_init (which
+        // typically just sets up the heap, slot allocator, and logger.
+        //
+        // NB: these sizes derived from running all known applications
+        //   one at a time (start; stop; start; stop; ...)
+        memory_manager._stack_size = 16*1024; // NB: for debug build
         memory_manager.memory_stack_size = 16*1024;
-
-        process_manager._stack_size = 16*1024;
         process_manager.proc_ctrl_stack_size = 16*1024;
-        // NB: only meaningful with dynamic_load_support
+        // NB: the pkg_mgmt thread is only used with dynamic_load_support
+        //  which is off by default
         process_manager.pkg_mgmt_stack_size = 16*1024;
-
-        ml_coordinator._stack_size = 16*1024;
+        ml_coordinator._stack_size = 12*1024; // NB: for debug build
         ml_coordinator.mlcoord_stack_size = 16*1024;
-
+        ml_coordinator.timer_stack_size = 8*1024; // NB: for debug build
         debug_console._stack_size = 16*1024;
-
-        security_coordinator._stack_size = 16*1024;
         security_coordinator.security_stack_size = 16*1024;
 
         sdk_runtime._stack_size = 16*1024;

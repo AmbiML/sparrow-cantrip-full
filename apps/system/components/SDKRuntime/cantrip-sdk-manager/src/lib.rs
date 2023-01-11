@@ -16,25 +16,32 @@
 
 #![cfg_attr(not(test), no_std)]
 
+use cantrip_os_common::camkes;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_os_common::sel4_sys;
-use cstr_core::CString;
+use num_enum::{FromPrimitive, IntoPrimitive};
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
+
+use camkes::*;
 
 use sel4_sys::seL4_CPtr;
 
-#[repr(C)]
-#[derive(Eq, PartialEq)]
+#[repr(usize)]
+#[derive(Debug, Default, Eq, PartialEq, FromPrimitive, IntoPrimitive)]
 pub enum SDKManagerError {
-    SmSuccess = 0,
-    SmSerializeFailed,
-    SmAppIdInvalid,
-    SmGetEndpointFailed,
-    SmReleaseEndpointFailed,
+    Success = 0,
+    DeserializeFailed,
+    SerializeFailed,
+    AppIdInvalid,
+    GetEndpointFailed,
+    ReleaseEndpointFailed,
+    #[default]
+    UnknownError,
 }
-
 impl From<SDKManagerError> for Result<(), SDKManagerError> {
     fn from(err: SDKManagerError) -> Result<(), SDKManagerError> {
-        if err == SDKManagerError::SmSuccess {
+        if err == SDKManagerError::Success {
             Ok(())
         } else {
             Err(err)
@@ -54,6 +61,34 @@ pub trait SDKManagerInterface {
     fn release_endpoint(&mut self, app_id: &str) -> Result<(), SDKManagerError>;
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub enum SDKManagerRequest<'a> {
+    GetEndpoint(&'a str), // -> cap_endpoint
+    ReleaseEndpoint(&'a str),
+    Capscan,
+}
+
+pub const SDK_MANAGER_REQUEST_DATA_SIZE: usize = 128;
+
+#[inline]
+fn cantrip_sdk_manager_request<D: DeserializeOwned>(
+    request: &SDKManagerRequest,
+) -> Result<D, SDKManagerError> {
+    let (request_buffer, reply_slice) =
+        rpc_basic_buffer!().split_at_mut(SDK_MANAGER_REQUEST_DATA_SIZE);
+    let request_slice =
+        postcard::to_slice(request, request_buffer).or(Err(SDKManagerError::SerializeFailed))?;
+    // XXX returned cap
+    match rpc_basic_send!(sdk_manager, request_slice.len()).0.into() {
+        SDKManagerError::Success => {
+            let reply =
+                postcard::from_bytes(reply_slice).or(Err(SDKManagerError::DeserializeFailed))?;
+            Ok(reply)
+        }
+        err => Err(err),
+    }
+}
+
 #[inline]
 pub fn cantrip_sdk_manager_get_endpoint(
     app_id: &str,
@@ -68,29 +103,15 @@ pub fn cantrip_sdk_manager_get_endpoint(
         sel4_sys::cap_identify(container_slot.slot)
     );
 
-    extern "C" {
-        pub fn sdk_manager_get_endpoint(c_bundle_id: *const cstr_core::c_char) -> SDKManagerError;
-    }
-    let cstr = CString::new(app_id).or(Err(SDKManagerError::SmSerializeFailed))?;
-    unsafe { sdk_manager_get_endpoint(cstr.as_ptr()) }.into()
+    cantrip_sdk_manager_request(&SDKManagerRequest::GetEndpoint(app_id))
 }
 
 #[inline]
 pub fn cantrip_sdk_manager_release_endpoint(app_id: &str) -> Result<(), SDKManagerError> {
-    extern "C" {
-        pub fn sdk_manager_release_endpoint(
-            c_bundle_id: *const cstr_core::c_char,
-        ) -> SDKManagerError;
-    }
-    let cstr = CString::new(app_id).or(Err(SDKManagerError::SmSerializeFailed))?;
-    unsafe { sdk_manager_release_endpoint(cstr.as_ptr()) }.into()
+    cantrip_sdk_manager_request(&SDKManagerRequest::ReleaseEndpoint(app_id))
 }
 
 #[inline]
 pub fn cantrip_sdk_manager_capscan() -> Result<(), SDKManagerError> {
-    extern "C" {
-        pub fn sdk_manager_capscan();
-    }
-    unsafe { sdk_manager_capscan() }
-    Ok(())
+    cantrip_sdk_manager_request(&SDKManagerRequest::Capscan)
 }

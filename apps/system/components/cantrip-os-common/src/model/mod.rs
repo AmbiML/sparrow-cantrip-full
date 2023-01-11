@@ -178,6 +178,10 @@ pub struct CantripOsModel<'a> {
     extended_bootinfo_table: [*const seL4_BootInfoHeader; SEL4_BOOTINFO_HEADER_NUM],
 
     vspace_roots: SmallVec<[CDL_ObjID; 32]>, // NB: essentially #components
+
+    // CPIO archive lookup cache.
+    last_filename: &'a str, // NB: ref into self.spec
+    last_data: &'a [u8],    // NB: ref into self.capdl_archive
 }
 impl<'a> CantripOsModel<'a> {
     pub fn new(
@@ -208,6 +212,9 @@ impl<'a> CantripOsModel<'a> {
             extended_bootinfo_table: [ptr::null(); SEL4_BOOTINFO_HEADER_NUM],
 
             vspace_roots: SmallVec::new(),
+
+            last_filename: "",
+            last_data: capdl_archive,
         }
     }
 
@@ -723,7 +730,7 @@ impl<'a> CantripOsModel<'a> {
     }
 
     fn init_frame(
-        &self,
+        &mut self,
         sel4_frame: seL4_CPtr,
         frame_fill: &CDL_FrameFill_Element_t,
     ) -> seL4_Result {
@@ -850,26 +857,33 @@ impl<'a> CantripOsModel<'a> {
 
     // Fill a frame's contents from a file in the cpio archive;
     // in particular this loads each CAmkES component's executable.
-    fn fill_frame_with_filedata(&self, base: usize, frame_fill: &CDL_FrameFill_Element_t) {
+    fn fill_frame_with_filedata(&mut self, base: usize, frame_fill: &CDL_FrameFill_Element_t) {
+        let cpio_lookup = |filename: &str| -> &[u8] {
+            for e in CpioNewcReader::new(self.capdl_archive) {
+                let entry = e.unwrap();
+                if entry.name == filename {
+                    return entry.data;
+                }
+            }
+            panic!("{} not found in cpio archive", filename);
+        };
         let file_data = frame_fill.get_file_data();
         let filename = unsafe { CStr::from_ptr(file_data.filename) }
             .to_str()
             .unwrap();
-        for e in CpioNewcReader::new(self.capdl_archive) {
-            let entry = e.unwrap();
-            if entry.name == filename {
-                // TODO(sleffler): cache cpio lookup as do it for each frame
-                unsafe {
-                    ptr::copy_nonoverlapping(
-                        ptr::addr_of!(entry.data[file_data.file_offset]),
-                        (base + frame_fill.dest_offset) as *mut u8,
-                        frame_fill.dest_len,
-                    )
-                }
-                return;
-            }
+        // Check the last lookup before scanning the cpio archive.
+        if filename != self.last_filename {
+            trace!("switch filedata fill to {}", self.last_filename);
+            self.last_data = cpio_lookup(filename);
+            self.last_filename = filename;
         }
-        panic!("{} not found in cpio archive", filename);
+        unsafe {
+            ptr::copy_nonoverlapping(
+                ptr::addr_of!(self.last_data[file_data.file_offset]),
+                (base + frame_fill.dest_offset) as *mut u8,
+                frame_fill.dest_len,
+            )
+        }
     }
 
     // Initialize the page tables for each VSpace.

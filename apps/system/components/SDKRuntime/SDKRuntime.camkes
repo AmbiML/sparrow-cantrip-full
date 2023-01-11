@@ -39,4 +39,8 @@ component SDKRuntime {
 
   // Copyregion for mapping application request data.
   has copyregion SDK_PARAMS;
+
+  // Disable unused threads.
+  attribute int timer_has_thread = false;
+  attribute int mlcoord_has_thread = false;
 }

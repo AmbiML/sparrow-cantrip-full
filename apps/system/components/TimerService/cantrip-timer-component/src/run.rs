@@ -13,26 +13,33 @@
 // limitations under the License.
 
 //! The Timer Service provides multiplexed access to a hardware timer.
-#![no_std]
-#![allow(clippy::missing_safety_doc)]
 
-use cantrip_os_common::camkes::Camkes;
-use cantrip_os_common::sel4_sys::seL4_Word;
+#![no_std]
+// XXX for camkes.rs
+#![feature(const_mut_refs)]
+#![allow(dead_code)]
+#![allow(unused_unsafe)]
+#![allow(unused_imports)]
+#![allow(non_upper_case_globals)]
+
+use cantrip_os_common::camkes;
+use cantrip_os_common::logger;
+use cantrip_os_common::sel4_sys;
 use cantrip_timer_interface::CompletedTimersResponse;
 use cantrip_timer_interface::TimerId;
 use cantrip_timer_interface::TimerInterface;
 use cantrip_timer_interface::TimerServiceError;
 use cantrip_timer_interface::TimerServiceRequest;
-use cantrip_timer_interface::TimerServiceResponseData;
+use cantrip_timer_interface::TIMER_REQUEST_DATA_SIZE;
 use cantrip_timer_service::CantripTimerService;
-use core::slice;
 use core::time::Duration;
 
-extern "C" {
-    fn timer_get_sender_id() -> seL4_Word;
-}
+use camkes::irq::seL4_IRQ;
+use camkes::*;
+use logger::*;
 
-static mut CAMKES: Camkes = Camkes::new("TimerService");
+// Generated code...
+include!(concat!(env!("SEL4_OUT_DIR"), "/../timer_service/camkes.rs"));
 
 fn cantrip_timer() -> impl TimerInterface {
     static CANTRIP_TIMER: CantripTimerService<opentitan_timer::OtTimer> =
@@ -48,80 +55,100 @@ fn cantrip_timer() -> impl TimerInterface {
     manager
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn pre_init() {
-    static mut HEAP_MEMORY: [u8; 4 * 1024] = [0; 4 * 1024];
-    CAMKES.pre_init(log::LevelFilter::Debug, &mut HEAP_MEMORY);
-}
+struct TimerServiceControlThread;
+impl CamkesThreadInterface for TimerServiceControlThread {
+    fn pre_init() {
+        // XXX how to handle "maybe" inclusion
+        static_logger!(logger);
 
-#[no_mangle]
-pub unsafe extern "C" fn timer_request(
-    c_reques_buffer_len: u32,
-    c_request_buffer: *const u8,
-    c_reply_buffer: *mut TimerServiceResponseData,
-) -> TimerServiceError {
-    let _cleanup = Camkes::cleanup_request_cap();
-    let request_buffer = slice::from_raw_parts(c_request_buffer, c_reques_buffer_len as usize);
-    let request = match postcard::from_bytes::<TimerServiceRequest>(request_buffer) {
-        Ok(request) => request,
-        Err(_) => return TimerServiceError::TseDeserializeFailed,
-    };
-
-    match request {
-        TimerServiceRequest::CompletedTimers => completed_timers_request(&mut *c_reply_buffer),
-
-        TimerServiceRequest::Oneshot {
-            timer_id,
-            duration_in_ms,
-        } => oneshot_request(timer_id, duration_in_ms),
-        TimerServiceRequest::Periodic {
-            timer_id,
-            duration_in_ms,
-        } => periodic_request(timer_id, duration_in_ms),
-        TimerServiceRequest::Cancel(timer_id) => cancel_request(timer_id),
-
-        TimerServiceRequest::Capscan => {
-            capscan_request();
-            Ok(())
+        unsafe {
+            static mut HEAP_MEMORY: [u8; 4 * 1024] = [0; 4 * 1024];
+            CAMKES.pre_init(&mut HEAP_MEMORY);
         }
     }
-    .map_or_else(|e| e, |()| TimerServiceError::TseTimerOk)
 }
 
-fn completed_timers_request(
-    reply_buffer: &mut TimerServiceResponseData,
-) -> Result<(), TimerServiceError> {
-    let client_id = unsafe { timer_get_sender_id() };
-    let timer_mask = cantrip_timer().completed_timers(client_id)?;
-    let _ = postcard::to_slice(&CompletedTimersResponse { timer_mask }, reply_buffer)
-        .or(Err(TimerServiceError::TseSerializeFailed))?;
-    Ok(())
-}
-
-fn oneshot_request(timer_id: TimerId, duration_ms: u32) -> Result<(), TimerServiceError> {
-    let duration = Duration::from_millis(duration_ms as u64);
-    let client_id = unsafe { timer_get_sender_id() };
-    cantrip_timer().add_oneshot(client_id, timer_id, duration)
-}
-
-fn periodic_request(timer_id: TimerId, duration_ms: u32) -> Result<(), TimerServiceError> {
-    let duration = Duration::from_millis(duration_ms as u64);
-    let client_id = unsafe { timer_get_sender_id() };
-    cantrip_timer().add_periodic(client_id, timer_id, duration)
-}
-
-fn cancel_request(timer_id: TimerId) -> Result<(), TimerServiceError> {
-    let client_id = unsafe { timer_get_sender_id() };
-    cantrip_timer().cancel(client_id, timer_id)
-}
-
-fn capscan_request() { let _ = Camkes::capscan(); }
-
-#[no_mangle]
-pub unsafe extern "C" fn timer_interrupt_handle() {
-    extern "C" {
-        fn timer_interrupt_acknowledge() -> u32;
+struct TimerInterruptInterfaceThread;
+impl TimerInterruptInterfaceThread {
+    fn handler() -> bool {
+        cantrip_timer().service_interrupt();
+        true
     }
-    cantrip_timer().service_interrupt();
-    assert!(timer_interrupt_acknowledge() == 0);
+}
+
+struct TimerInterfaceThread;
+impl CamkesThreadInterface for TimerInterfaceThread {
+    fn run() {
+        rpc_basic_recv!(timer, TIMER_REQUEST_DATA_SIZE, TimerServiceError::Success);
+    }
+}
+impl TimerInterfaceThread {
+    fn dispatch(
+        client_id: usize, //XXX
+        request_buffer: &[u8],
+        reply_buffer: &mut [u8],
+    ) -> Result<usize, TimerServiceError> {
+        let _cleanup = Camkes::cleanup_request_cap();
+        let request = match postcard::from_bytes::<TimerServiceRequest>(request_buffer) {
+            Ok(request) => request,
+            Err(_) => return Err(TimerServiceError::DeserializeFailed),
+        };
+
+        match request {
+            TimerServiceRequest::CompletedTimers => {
+                Self::completed_timers_request(client_id, reply_buffer)
+            }
+            TimerServiceRequest::Oneshot {
+                timer_id,
+                duration_in_ms,
+            } => Self::oneshot_request(client_id, timer_id, duration_in_ms),
+            TimerServiceRequest::Periodic {
+                timer_id,
+                duration_in_ms,
+            } => Self::periodic_request(client_id, timer_id, duration_in_ms),
+            TimerServiceRequest::Cancel(timer_id) => Self::cancel_request(client_id, timer_id),
+            TimerServiceRequest::Capscan => Self::capscan_request(),
+        }
+    }
+
+    fn completed_timers_request(
+        client_id: usize,
+        reply_buffer: &mut [u8],
+    ) -> Result<usize, TimerServiceError> {
+        let timer_mask = cantrip_timer().completed_timers(client_id)?;
+        let reply_slice = postcard::to_slice(&CompletedTimersResponse { timer_mask }, reply_buffer)
+            .or(Err(TimerServiceError::SerializeFailed))?;
+        Ok(reply_slice.len())
+    }
+
+    fn oneshot_request(
+        client_id: usize,
+        timer_id: TimerId,
+        duration_ms: u32,
+    ) -> Result<usize, TimerServiceError> {
+        let duration = Duration::from_millis(duration_ms as u64);
+        cantrip_timer()
+            .add_oneshot(client_id, timer_id, duration)
+            .map(|_| 0)
+    }
+
+    fn periodic_request(
+        client_id: usize,
+        timer_id: TimerId,
+        duration_ms: u32,
+    ) -> Result<usize, TimerServiceError> {
+        let duration = Duration::from_millis(duration_ms as u64);
+        cantrip_timer()
+            .add_periodic(client_id, timer_id, duration)
+            .map(|_| 0)
+    }
+
+    fn cancel_request(client_id: usize, timer_id: TimerId) -> Result<usize, TimerServiceError> {
+        cantrip_timer().cancel(client_id, timer_id).map(|_| 0)
+    }
+
+    fn capscan_request() -> Result<usize, TimerServiceError> {
+        let _ = Camkes::capscan();
+        Ok(0)
+    }
 }

@@ -13,65 +13,109 @@
 // limitations under the License.
 
 #![cfg_attr(not(test), no_std)]
-#![feature(linkage)]
+//error[E0658]: dereferencing raw mutable pointers in statics is unstable
+#![feature(const_mut_refs)]
 
-extern "C" {
-    // NB: components may not have a logging connection in which case
-    //   logger_log will be undefined/null.
-    #[linkage = "extern_weak"]
-    static logger_log: *const ();
+use core::str::from_utf8_unchecked;
+use core2::io::{Cursor, Write};
+use log::{Metadata, Record};
+use num_enum::{FromPrimitive, IntoPrimitive};
+pub use paste::*; // re-export for macros
+use serde::{Deserialize, Serialize};
+use spin::Mutex;
+
+pub const MAX_MSG_LEN: usize = 2048;
+
+#[repr(usize)]
+#[derive(Debug, Default, Eq, PartialEq, FromPrimitive, IntoPrimitive)]
+pub enum LoggerError {
+    Success = 0,
+    SerializeFailed,
+    DeserializeFailed,
+    // Generic errors.
+    LogFailed,
+    #[default]
+    UnknownError,
+}
+impl From<LoggerError> for Result<(), LoggerError> {
+    fn from(err: LoggerError) -> Result<(), LoggerError> {
+        if err == LoggerError::Success {
+            Ok(())
+        } else {
+            Err(err)
+        }
+    }
 }
 
-use core2::io::{Cursor, Write};
-use cstr_core::CStr;
-use log::{Metadata, Record};
+#[macro_export]
+macro_rules! static_logger {
+    ($inf_tag:ident) => {
+        static_logger!($inf_tag, log::LevelFilter::Trace);
+    };
+    ($inf_tag:ident, $inf_level:expr) => {
+        $crate::paste! {
+            static CANTRIP_LOGGER: CantripLogger = logger::CantripLogger::new(
+                [<$inf_tag:upper _INTERFACE_ENDPOINT>],
+                unsafe { &mut [<$inf_tag:upper _INTERFACE_DATA>].data },
+            );
+            log::set_logger(&CANTRIP_LOGGER).unwrap();
+            log::set_max_level($inf_level);
+        }
+    };
+}
 
-// TODO(sleffler): until we can copy directly into shared memory limit
-//   stack allocation (can be up to 4096).
-const MAX_MSG_LEN: usize = 2048;
+#[derive(Debug, Serialize, Deserialize)]
+pub enum LoggerRequest<'a> {
+    Log { level: u8, msg: &'a str },
+}
 
-pub struct CantripLogger;
-
+pub struct CantripLogger {
+    endpoint: sel4_sys::seL4_CPtr,
+    buffer: Mutex<&'static mut [u8]>,
+}
+impl CantripLogger {
+    pub const fn new(endpoint: sel4_sys::seL4_CPtr, buffer: &'static mut [u8]) -> Self {
+        Self {
+            endpoint,
+            buffer: Mutex::new(buffer),
+        }
+    }
+}
 impl log::Log for CantripLogger {
     fn enabled(&self, _metadata: &Metadata) -> bool { true }
 
     fn log(&self, record: &Record) {
-        let typed_logger_log: Option<extern "C" fn(level: u8, msg: *const cstr_core::c_char)> =
-            unsafe { core::mem::transmute(logger_log) };
-        if typed_logger_log.is_none() {
-            return;
-        }
         if self.enabled(record.metadata()) {
-            let mut buf = [0 as u8; MAX_MSG_LEN];
+            // TODO(sleffler): split self.buffer instead of using the stack
+            let mut buf = [0u8; MAX_MSG_LEN];
             let mut cur = Cursor::new(&mut buf[..]);
             // Log msgs are of the form: '<target>::<fmt'd-msg>
-            write!(&mut cur, "{}::{}\0", record.target(), record.args()).unwrap_or_else(|_| {
+            write!(&mut cur, "{}::{}", record.target(), record.args()).unwrap_or_else(|_| {
                 // Too big, indicate overflow with a trailing "...".
-                cur.set_position((MAX_MSG_LEN - 4) as u64);
-                cur.write(b"...\0").expect("write!");
-                ()
+                cur.set_position((MAX_MSG_LEN - 3) as u64);
+                cur.write(b"...").expect("write!");
             });
-            // If an embedded nul is identified, replace the message; there
-            // are likely better solutions but this should not happen.
-            fn embedded_nul_cstr<'a>(
-                buf: &'a mut [u8; MAX_MSG_LEN],
-                record: &Record,
-            ) -> &'a cstr_core::CStr {
-                let mut cur = Cursor::new(&mut buf[..]);
-                write!(&mut cur, "{}::<embedded nul>\0", record.target()).expect("nul!");
-                let pos = cur.position() as usize;
-                CStr::from_bytes_with_nul(&buf[..pos]).unwrap()
-            }
             // NB: this releases the ref on buf held by the Cursor
             let pos = cur.position() as usize;
-            (typed_logger_log.unwrap())(
-                record.level() as u8,
-                match CStr::from_bytes_with_nul(&buf[..pos]) {
-                    Ok(cstr) => cstr,
-                    Err(_) => embedded_nul_cstr(&mut buf, record),
-                }
-                .as_ptr(),
-            );
+
+            let _ = postcard::to_slice(
+                &LoggerRequest::Log {
+                    level: record.level() as u8,
+                    msg: unsafe { from_utf8_unchecked(&buf[..pos]) },
+                    // XXX Ok a hack
+                },
+                *self.buffer.lock(),
+            )
+            .map(|_| unsafe {
+                sel4_sys::seL4_Call(
+                    self.endpoint,
+                    sel4_sys::seL4_MessageInfo::new(
+                        /*label=*/ 0, /*capsUnwrapped=*/ 0, /*extraCaps=*/ 0,
+                        /*length=*/ 0,
+                    ),
+                )
+                .get_label()
+            });
         }
     }
 

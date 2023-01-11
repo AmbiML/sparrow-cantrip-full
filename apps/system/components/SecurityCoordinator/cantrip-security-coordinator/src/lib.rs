@@ -30,6 +30,8 @@ compile_error!("features \"fake\" and \"sel4\" are mutually exclusive");
 mod platform;
 pub use platform::CantripSecurityCoordinatorInterface;
 
+// TODO(sleffler): remove allow(dead_code) once sel4 version has uploads
+#[allow(dead_code)]
 mod upload;
 
 // CantripSecurityCoordinator bundles an instance of the SecurityCoordinator that operates
