@@ -1354,7 +1354,8 @@ impl<'a> CantripOsModel<'a> {
 
     // Top-level CSpace management: a one-level CSpace impl for now
     // with sequential allocation.
-    fn get_free_slot(&self) -> seL4_CPtr { self.free_slot_start }
+    // NB: pub for rootserver use
+    pub fn get_free_slot(&self) -> seL4_CPtr { self.free_slot_start }
     fn next_free_slot(&mut self) {
         self.free_slot_start += 1;
         assert!(self.free_slot_start < self.free_slot_end, "Ran out of free slots!");
