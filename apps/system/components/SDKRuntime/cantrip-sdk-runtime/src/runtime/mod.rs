@@ -291,12 +291,9 @@ impl SDKRuntime {
             if let Some(sdk_id) = state.get_id() {
                 if (sdk_timer_mask & (1 << sdk_id)) != 0 {
                     app_mask |= 1 << app_id;
-                    match *state {
-                        TimerState::Oneshot(_) => {
-                            app_oneshots.push(app_id as u8);
-                            sdk_oneshots.push(sdk_id as u8);
-                        }
-                        _ => {}
+                    if let TimerState::Oneshot(_) = *state {
+                        app_oneshots.push(app_id as u8);
+                        sdk_oneshots.push(sdk_id as u8);
                     }
                     sdk_timer_mask &= !(1 << sdk_id);
                     if sdk_timer_mask == 0 {
