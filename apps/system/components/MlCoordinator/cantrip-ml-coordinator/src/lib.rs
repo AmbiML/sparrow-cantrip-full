@@ -294,7 +294,7 @@ impl MLCoordinator {
 
         if image_is_loaded {
             // TODO(b/258304148): reload .data section to workaround corruption
-            self.reload_static_data(&model)?;
+            self.reload_static_data(model)?;
         }
 
         self.image_manager.set_wmmu(&model.id);
