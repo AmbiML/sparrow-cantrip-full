@@ -22,18 +22,16 @@ fn main() {
     // Add bindings for OpenTitan UART register header file.
     let cantrip_target_arch = env::var("CANTRIP_TARGET_ARCH").unwrap();
     let out_dir = env::var("OUT").unwrap();
-    let opentitan_gen_path = format!(
-        "{}/cantrip/{}/opentitan-gen/include", out_dir, cantrip_target_arch);
-    let mut builder = bindgen::Builder::default().header(
-        format!("{}/opentitan/uart.h", opentitan_gen_path));
+    let opentitan_gen_path =
+        format!("{}/cantrip/{}/opentitan-gen/include", out_dir, cantrip_target_arch);
+    let mut builder =
+        bindgen::Builder::default().header(format!("{}/opentitan/uart.h", opentitan_gen_path));
     builder = builder
         .clang_arg(format!("-I/{}", opentitan_gen_path))
         .clang_arg(format!("--target={}", cantrip_target_arch));
 
     // Write the bindings to the $OUT_DIR/bindings.rs file.
-    let bindings = builder
-        .generate()
-        .expect("Unable to get bindings.");
+    let bindings = builder.generate().expect("Unable to get bindings.");
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     bindings
         .write_to_file(out_path.join("bindings.rs"))

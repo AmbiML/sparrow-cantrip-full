@@ -30,9 +30,17 @@ pub struct Field {
 impl Field {
     pub fn new(mask: u32, offset: u32, val: Option<u32>) -> Self {
         if let Some(value) = val {
-            Field { mask, offset, value: Some((value & mask) << offset) }
+            Field {
+                mask,
+                offset,
+                value: Some((value & mask) << offset),
+            }
         } else {
-            Field { mask, offset, value: None }
+            Field {
+                mask,
+                offset,
+                value: None,
+            }
         }
     }
 }
@@ -40,30 +48,26 @@ impl Field {
 impl Deref for Field {
     type Target = u32;
 
-    fn deref(&self) -> &Self::Target {
-        self.value.as_ref().unwrap()
-    }
+    fn deref(&self) -> &Self::Target { self.value.as_ref().unwrap() }
 }
 
 pub struct Register(u32);
 
 impl Register {
     pub unsafe fn new(offset: u32) -> Self {
-        Register(mmio_region.cast::<u8>().offset(
-            offset as isize).cast::<()>() as u32)
+        Register(
+            mmio_region
+                .cast::<u8>()
+                .offset(offset as isize)
+                .cast::<()>() as u32,
+        )
     }
 
-    pub unsafe fn write(&mut self, value: u32) {
-        (self.0 as *mut u32).write_volatile(value);
-    }
+    pub unsafe fn write(&mut self, value: u32) { (self.0 as *mut u32).write_volatile(value); }
 
-    pub unsafe fn read(&self, field: Field) -> u32 {
-        self.get() >> field.offset & field.mask
-    }
+    pub unsafe fn read(&self, field: Field) -> u32 { self.get() >> field.offset & field.mask }
 
-    pub unsafe fn get(&self) -> u32 {
-        (self.0 as *const u32).read_volatile()
-    }
+    pub unsafe fn get(&self) -> u32 { (self.0 as *const u32).read_volatile() }
 }
 
 pub fn bit(x: u32) -> u32 { 1 << x }

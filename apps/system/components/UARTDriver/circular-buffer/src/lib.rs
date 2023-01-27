@@ -26,7 +26,7 @@ pub struct Buffer {
     begin: usize,
     end: usize,
     size: usize,
-    data: [u8; BUFFER_CAPACITY]
+    data: [u8; BUFFER_CAPACITY],
 }
 
 impl Buffer {
@@ -35,7 +35,7 @@ impl Buffer {
             begin: 0,
             end: 0,
             size: 0,
-            data: [0; BUFFER_CAPACITY]
+            data: [0; BUFFER_CAPACITY],
         }
     }
 
@@ -48,14 +48,10 @@ impl Buffer {
     }
 
     /// Returns true if buffer is empty, false otherwise.
-    pub fn is_empty(&self) -> bool {
-        self.size == 0
-    }
+    pub fn is_empty(&self) -> bool { self.size == 0 }
 
     /// Returns available data slot to be written.
-    pub fn available_data(&self) -> usize {
-        BUFFER_CAPACITY - self.size
-    }
+    pub fn available_data(&self) -> usize { BUFFER_CAPACITY - self.size }
 
     /// Adds an item to the buffer.
     ///
@@ -86,9 +82,7 @@ impl Buffer {
     }
 
     /// Increments the begin or end marker and wrap around if necessary.
-    fn advance(position: usize) -> usize {
-        (position + 1) % BUFFER_CAPACITY
-    }
+    fn advance(position: usize) -> usize { (position + 1) % BUFFER_CAPACITY }
 }
 
 #[cfg(test)]
