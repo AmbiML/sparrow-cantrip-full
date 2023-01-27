@@ -1,7 +1,5 @@
 procedure PackageManagementInterface {
   include <ProcessManagerBindings.h>;
 
-  ProcessManagerError install(in char request[], out RawBundleIdData raw_data);
-  ProcessManagerError install_app(in string appId, in char request[]);
-  ProcessManagerError uninstall(in string bundleId);
+  ProcessManagerError request(in int request_id, in char request[], out RawBundleIdData raw_data);
 };

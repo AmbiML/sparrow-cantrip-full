@@ -22,6 +22,7 @@
 pub mod compat;
 
 use allocator;
+use core::ops::Deref;
 use log::trace;
 use logger::CantripLogger;
 use sel4_sys;
@@ -63,6 +64,25 @@ impl Drop for RequestCapCleanup {
         unsafe {
             seL4_SetCap(0, 0);
         }
+    }
+}
+
+// RAII wrapper for handling cpath cleanup.
+pub struct OwnedCPath {
+    name: &'static str, // Component name
+    cpath: seL4_CPath,
+}
+impl Deref for OwnedCPath {
+    type Target = seL4_CPath;
+
+    fn deref(&self) -> &Self::Target { &self.cpath }
+}
+impl Drop for OwnedCPath {
+    fn drop(&mut self) {
+        // Clears any capability the cpath points to.
+        // Assert since future receives are likely to fail
+        unsafe { seL4_CNode_Delete(self.cpath.0, self.cpath.1, self.cpath.2 as u8) }
+            .expect(self.name);
     }
 }
 
@@ -141,11 +161,16 @@ impl Camkes {
         unsafe { seL4_GetCapReceivePath() }
     }
 
-    // Clears any capability the receive path path points to.
-    pub fn clear_recv_path(self: &Camkes) {
-        let path = &self.recv_path;
-        // Assert since future receives are likely to fail
-        unsafe { seL4_CNode_Delete(path.0, path.1, path.2 as u8) }.expect(self.name);
+    // Returns the current receive path from the IPCBuffer; clears any
+    // capability the cpath points to when dropped.
+    #[must_use]
+    pub fn get_owned_current_recv_path(self: &Camkes) -> OwnedCPath {
+        // NB: make sure noone clobbers the setup done in init_recv_path
+        self.assert_recv_path();
+        OwnedCPath {
+            name: self.name,
+            cpath: self.get_current_recv_path(),
+        }
     }
 
     // Check the current receive path in the IPCBuffer against what was

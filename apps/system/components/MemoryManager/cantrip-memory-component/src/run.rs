@@ -103,12 +103,12 @@ pub unsafe extern "C" fn memory_alloc(
     c_raw_data_len: u32,
     c_raw_data: *const u8,
 ) -> MemoryManagerError {
-    let recv_path = CAMKES.get_current_recv_path();
-    // NB: make sure noone clobbers the setup done in memory__init
-    CAMKES.assert_recv_path();
+    // NB: make sure noone clobbers the setup done in memory__init;
+    // and clear any capability the path points to when dropped, for next request
+    let recv_path = CAMKES.get_owned_current_recv_path();
 
     let raw_slice = slice::from_raw_parts(c_raw_data, c_raw_data_len as usize);
-    let ret_status = match postcard::from_bytes::<ObjDescBundle>(raw_slice) {
+    match postcard::from_bytes::<ObjDescBundle>(raw_slice) {
         Ok(mut bundle) => {
             // We must have a CNode for returning allocated objects.
             Camkes::debug_assert_slot_cnode("memory_alloc", &recv_path);
@@ -118,10 +118,7 @@ pub unsafe extern "C" fn memory_alloc(
             CANTRIP_MEMORY.alloc(&bundle).into()
         }
         Err(_) => MemoryManagerError::MmeDeserializeFailed,
-    };
-    // NB: must clear ReceivePath for next request
-    CAMKES.clear_recv_path();
-    ret_status
+    }
 }
 
 #[no_mangle]
@@ -129,12 +126,12 @@ pub unsafe extern "C" fn memory_free(
     c_raw_data_len: u32,
     c_raw_data: *const u8,
 ) -> MemoryManagerError {
-    let recv_path = CAMKES.get_current_recv_path();
-    // NB: make sure noone clobbers the setup done in memory__init
-    CAMKES.assert_recv_path();
+    // NB: make sure noone clobbers the setup done in memory__init;
+    // and clear any capability the path points to when dropped, for next request
+    let recv_path = CAMKES.get_owned_current_recv_path();
 
     let raw_slice = slice::from_raw_parts(c_raw_data, c_raw_data_len as usize);
-    let ret_status = match postcard::from_bytes::<ObjDescBundle>(raw_slice) {
+    match postcard::from_bytes::<ObjDescBundle>(raw_slice) {
         Ok(mut bundle) => {
             // We must have a CNode for returning allocated objects.
             Camkes::debug_assert_slot_cnode("memory_free", &recv_path);
@@ -144,10 +141,7 @@ pub unsafe extern "C" fn memory_free(
             CANTRIP_MEMORY.free(&bundle).into()
         }
         Err(_) => MemoryManagerError::MmeDeserializeFailed,
-    };
-    // NB: must clear ReceivePath for next request
-    CAMKES.clear_recv_path();
-    ret_status
+    }
 }
 
 #[no_mangle]

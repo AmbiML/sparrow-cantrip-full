@@ -1,10 +1,5 @@
 procedure ProcessControlInterface {
   include <ProcessManagerBindings.h>;
 
-  ProcessManagerError start(in string bundleId);
-  ProcessManagerError stop(in string bundleId);
-  ProcessManagerError get_running_bundles(out RawBundleIdData raw_data);
-
-  void capscan();
-  ProcessManagerError capscan_bundle(in string bundleId);
+  ProcessManagerError request(in int request_id, in char request[], out RawBundleIdData raw_data);
 };

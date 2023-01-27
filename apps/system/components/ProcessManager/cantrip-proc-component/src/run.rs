@@ -18,19 +18,15 @@
 #![no_std]
 #![allow(clippy::missing_safety_doc)]
 
-use cantrip_memory_interface::ObjDescBundle;
 use cantrip_os_common::camkes::Camkes;
+use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_os_common::sel4_sys;
-use cantrip_os_common::slot_allocator;
 use cantrip_proc_interface::*;
 use cantrip_proc_manager::CantripProcManager;
 use core::slice;
-use cstr_core::CStr;
 use log::trace;
 
 use sel4_sys::seL4_CPtr;
-
-use slot_allocator::CANTRIP_CSPACE_SLOTS;
 
 static mut CAMKES: Camkes = Camkes::new("ProcessManager");
 // NB: CANTRIP_PROC cannot be used before setup is completed with a call to init()
@@ -48,7 +44,7 @@ pub unsafe extern "C" fn pre_init() {
     CANTRIP_PROC.init();
     trace!("ProcessManager has capacity for {} bundles", CANTRIP_PROC.capacity());
 
-    PKG_MGMT_RECV_SLOT = CANTRIP_CSPACE_SLOTS.alloc(1).unwrap();
+    PKG_MGMT_RECV_SLOT = CSpaceSlot::new().release();
 }
 
 #[no_mangle]
@@ -62,140 +58,146 @@ pub unsafe extern "C" fn pkg_mgmt__init() {
     CAMKES.init_recv_path(&Camkes::top_level_path(PKG_MGMT_RECV_SLOT));
 }
 
-// PackageManagerInterface glue stubs.
 #[no_mangle]
-pub unsafe extern "C" fn pkg_mgmt_install(
-    c_request_len: u32,
-    c_request: *const u8,
-    c_raw_data: *mut RawBundleIdData,
+pub unsafe extern "C" fn pkg_mgmt_request(
+    c_request: PackageManagementRequest,
+    c_request_buffer_len: u32,
+    c_request_buffer: *const u8,
+    c_reply_buffer: *mut RawBundleIdData,
 ) -> ProcessManagerError {
-    let recv_path = CAMKES.get_current_recv_path();
-    // NB: make sure noone clobbers the setup done in pkg_mgmt__init
-    CAMKES.assert_recv_path();
-
-    let request_slice = slice::from_raw_parts(c_request, c_request_len as usize);
-    let ret_status = match postcard::from_bytes::<ObjDescBundle>(request_slice) {
-        Ok(mut pkg_contents) => {
-            Camkes::debug_assert_slot_cnode("pkg_mgmt_install", &recv_path);
-            pkg_contents.cnode = recv_path.1;
-            match CANTRIP_PROC.install(&pkg_contents) {
-                Ok(bundle_id) => match postcard::to_slice(&bundle_id, &mut (*c_raw_data)[..]) {
-                    Ok(_) => ProcessManagerError::Success,
-                    Err(_) => ProcessManagerError::SerializeError,
-                },
-                Err(e) => e,
-            }
+    let request_buffer = slice::from_raw_parts(c_request_buffer, c_request_buffer_len as usize);
+    let reply_buffer = &mut (*c_reply_buffer)[..];
+    match c_request {
+        PackageManagementRequest::PmrInstall => install_request(request_buffer, reply_buffer),
+        PackageManagementRequest::PmrInstallApp => {
+            install_app_request(request_buffer, reply_buffer)
         }
-        Err(e) => e.into(),
-    };
-    CAMKES.clear_recv_path();
-    ret_status
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn pkg_mgmt_install_app(
-    c_app_id: *const cstr_core::c_char,
-    c_request_len: u32,
-    c_request: *const u8,
-) -> ProcessManagerError {
-    let recv_path = CAMKES.get_current_recv_path();
-    // NB: make sure noone clobbers the setup done in pkg_mgmt__init
-    CAMKES.assert_recv_path();
-
-    let request_slice = slice::from_raw_parts(c_request, c_request_len as usize);
-    let ret_status = match CStr::from_ptr(c_app_id).to_str() {
-        Ok(app_id) => match postcard::from_bytes::<ObjDescBundle>(request_slice) {
-            Ok(mut pkg_contents) => {
-                Camkes::debug_assert_slot_cnode("pkg_mgmt_install_app", &recv_path);
-                pkg_contents.cnode = recv_path.1;
-                match CANTRIP_PROC.install_app(app_id, &pkg_contents) {
-                    Ok(_) => ProcessManagerError::Success,
-                    Err(e) => e,
-                }
-            }
-            Err(e) => e.into(),
-        },
-        Err(_) => ProcessManagerError::BundleIdInvalid,
-    };
-    CAMKES.clear_recv_path();
-    ret_status
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn pkg_mgmt_uninstall(
-    c_bundle_id: *const cstr_core::c_char,
-) -> ProcessManagerError {
-    let recv_path = CAMKES.get_current_recv_path();
-    CAMKES.assert_recv_path();
-    Camkes::debug_assert_slot_empty("pkg_mgmt_uninstall", &recv_path);
-    let ret_status = match CStr::from_ptr(c_bundle_id).to_str() {
-        Ok(bundle_id) => match CANTRIP_PROC.uninstall(bundle_id) {
-            Ok(_) => ProcessManagerError::Success,
-            Err(e) => e,
-        },
-        Err(_) => ProcessManagerError::BundleIdInvalid,
-    };
-    Camkes::debug_assert_slot_empty("pkg_mgmt_uninstall", &recv_path);
-    ret_status
-}
-
-// ProcessControlInterface glue stubs.
-#[no_mangle]
-pub unsafe extern "C" fn proc_ctrl_start(
-    c_bundle_id: *const cstr_core::c_char,
-) -> ProcessManagerError {
-    match CStr::from_ptr(c_bundle_id).to_str() {
-        Ok(bundle_id) => match CANTRIP_PROC.start(bundle_id) {
-            Ok(_) => ProcessManagerError::Success,
-            Err(e) => e,
-        },
-        Err(_) => ProcessManagerError::BundleIdInvalid,
+        PackageManagementRequest::PmrUninstall => uninstall_request(request_buffer, reply_buffer),
     }
+    .map_or_else(|e| e, |_v| ProcessManagerError::Success)
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn proc_ctrl_stop(
-    c_bundle_id: *const cstr_core::c_char,
-) -> ProcessManagerError {
-    match CStr::from_ptr(c_bundle_id).to_str() {
-        Ok(str) => match CANTRIP_PROC.stop(str) {
-            Ok(_) => ProcessManagerError::Success,
-            Err(e) => e,
+fn install_request(
+    request_buffer: &[u8],
+    reply_buffer: &mut [u8],
+) -> Result<(), ProcessManagerError> {
+    // NB: make sure noone clobbers the setup done in pkg_mgmt__init,
+    // and clear any capability the path points to when dropped
+    let recv_path = unsafe { CAMKES.get_owned_current_recv_path() };
+    Camkes::debug_assert_slot_cnode("install_request", &recv_path);
+
+    let mut request = postcard::from_bytes::<InstallRequest>(request_buffer)?;
+    request.set_container_cap(recv_path.1);
+
+    let bundle_id = unsafe { CANTRIP_PROC.install(&request.pkg_contents) }?;
+    let _ = postcard::to_slice(
+        &InstallResponse {
+            bundle_id: &bundle_id,
         },
-        Err(_) => ProcessManagerError::BundleIdInvalid,
-    }
+        reply_buffer,
+    )?;
+    Ok(())
+}
+
+fn install_app_request(
+    request_buffer: &[u8],
+    _reply_buffer: &mut [u8],
+) -> Result<(), ProcessManagerError> {
+    // NB: make sure noone clobbers the setup done in pkg_mgmt__init,
+    // and clear any capability the path points to when dropped
+    let recv_path = unsafe { CAMKES.get_owned_current_recv_path() };
+    Camkes::debug_assert_slot_cnode("install_app_request", &recv_path);
+
+    let mut request = postcard::from_bytes::<InstallAppRequest>(request_buffer)?;
+    request.set_container_cap(recv_path.1);
+
+    unsafe { CANTRIP_PROC.install_app(request.app_id, &request.pkg_contents) }
+}
+
+fn uninstall_request(
+    request_buffer: &[u8],
+    _reply_buffer: &mut [u8],
+) -> Result<(), ProcessManagerError> {
+    // NB: make sure noone clobbers the setup done in pkg_mgmt__init,
+    // and clear any capability the path points to when dropped
+    let recv_path = unsafe { CAMKES.get_owned_current_recv_path() };
+    Camkes::debug_assert_slot_empty("uninstall_request", &recv_path);
+
+    let request = postcard::from_bytes::<UninstallRequest>(request_buffer)?;
+
+    let _ = unsafe { CANTRIP_PROC.uninstall(request.bundle_id) }?;
+    Camkes::debug_assert_slot_empty("uninstall_request", &recv_path);
+    Ok(())
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn proc_ctrl_get_running_bundles(
-    c_raw_data: *mut RawBundleIdData,
+pub unsafe extern "C" fn proc_ctrl_request(
+    c_request: ProcessControlRequest,
+    c_request_buffer_len: u32,
+    c_request_buffer: *const u8,
+    c_reply_buffer: *mut RawBundleIdData,
 ) -> ProcessManagerError {
-    match CANTRIP_PROC.get_running_bundles() {
-        Ok(bundles) => {
-            // Serialize the bundle_id's in the result buffer. If we
-            // overflow the buffer, an error is returned and the
-            // contents are undefined (postcard does not specify).
-            match postcard::to_slice(&bundles, &mut (*c_raw_data)[..]) {
-                Ok(_) => ProcessManagerError::Success,
-                Err(_) => ProcessManagerError::DeserializeError,
-            }
+    let request_buffer = slice::from_raw_parts(c_request_buffer, c_request_buffer_len as usize);
+    let reply_buffer = &mut (*c_reply_buffer)[..];
+    match c_request {
+        ProcessControlRequest::PcrStart => start_request(request_buffer, reply_buffer),
+        ProcessControlRequest::PcrStop => stop_request(request_buffer, reply_buffer),
+        ProcessControlRequest::PcrGetRunningBundles => {
+            get_running_bundles_request(request_buffer, reply_buffer)
         }
-        Err(e) => e,
+
+        ProcessControlRequest::PcrCapScan => capscan_request(),
+        ProcessControlRequest::PcrCapScanBundle => {
+            capscan_bundle_request(request_buffer, reply_buffer)
+        }
     }
+    .map_or_else(|e| e, |_v| ProcessManagerError::Success)
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn proc_ctrl_capscan() { let _ = Camkes::capscan(); }
+fn start_request(
+    request_buffer: &[u8],
+    _reply_buffer: &mut [u8],
+) -> Result<(), ProcessManagerError> {
+    let request =
+        postcard::from_bytes::<StartRequest>(request_buffer).map_err(ProcessManagerError::from)?;
 
-#[no_mangle]
-pub unsafe extern "C" fn proc_ctrl_capscan_bundle(
-    c_bundle_id: *const cstr_core::c_char,
-) -> ProcessManagerError {
-    match CStr::from_ptr(c_bundle_id).to_str() {
-        Ok(str) => match CANTRIP_PROC.capscan(str) {
-            Ok(_) => ProcessManagerError::Success,
-            Err(e) => e,
-        },
-        Err(_) => ProcessManagerError::BundleIdInvalid,
-    }
+    unsafe { CANTRIP_PROC.start(request.bundle_id) }
+}
+
+fn stop_request(
+    request_buffer: &[u8],
+    _reply_buffer: &mut [u8],
+) -> Result<(), ProcessManagerError> {
+    let request =
+        postcard::from_bytes::<StopRequest>(request_buffer).map_err(ProcessManagerError::from)?;
+
+    unsafe { CANTRIP_PROC.stop(request.bundle_id) }
+}
+
+fn get_running_bundles_request(
+    _request_buffer: &[u8],
+    reply_buffer: &mut [u8],
+) -> Result<(), ProcessManagerError> {
+    let bundle_ids = unsafe { CANTRIP_PROC.get_running_bundles() }?;
+    // Serialize the bundle_id's in the result buffer. If we
+    // overflow the buffer, an error is returned and the
+    // contents are undefined (postcard does not specify).
+    let _ = postcard::to_slice(&GetRunningBundlesResponse { bundle_ids }, reply_buffer)
+        .map_err(ProcessManagerError::from)?;
+    Ok(())
+}
+
+fn capscan_request() -> Result<(), ProcessManagerError> {
+    let _ = Camkes::capscan();
+    Ok(())
+}
+
+fn capscan_bundle_request(
+    request_buffer: &[u8],
+    _reply_buffer: &mut [u8],
+) -> Result<(), ProcessManagerError> {
+    let request = postcard::from_bytes::<CapScanBundleRequest>(request_buffer)
+        .map_err(ProcessManagerError::from)?;
+
+    unsafe { CANTRIP_PROC.capscan(request.bundle_id) }
 }
