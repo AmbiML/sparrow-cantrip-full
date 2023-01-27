@@ -315,8 +315,8 @@ impl SDKRuntime {
 }
 impl SDKManagerInterface for SDKRuntime {
     /// Returns an seL4 Endpoint capability for |app_id| to make SDKRuntime
-    /// requests..Without a registered endpoint all requests will fail.
-    /// first calling cantrip_sdk_manager_get_endpoint().
+    /// requests. All requests will fail without first calling
+    /// cantrip_sdk_manager_get_endpoint().
     fn get_endpoint(&mut self, app_id: &str) -> Result<seL4_CPtr, SDKManagerError> {
         let badge = self.calculate_badge(&SmallId::from_str(app_id));
 

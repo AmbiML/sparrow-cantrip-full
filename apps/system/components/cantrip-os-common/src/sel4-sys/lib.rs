@@ -97,6 +97,14 @@ macro_rules! error_types {
         // architecture-specific values here. It's enough to be able to write a
         // fault handler and identify most thread failures. We'll want more
         // later.
+        //
+        // XXX: seL4_BogusException is a phantom enum that doesn't exist in the
+        // upstream seL4 ABI. They define the top four faults as 0 through 3,
+        // and then skip 4 for unclear reasons. Since the fault number could
+        // technically be this value, we have to account for it somehow, so we
+        // use a fake exception type here so we aren't blindsided by it
+        // elsewhere. When we get to generating this using python, we'll have to
+        // do something to account for it as well.
         #[repr($int_width)]
         #[derive(Debug, Copy, Clone, PartialEq, Eq)]
         pub enum seL4_Fault {
@@ -104,6 +112,10 @@ macro_rules! error_types {
             seL4_CapFault,
             seL4_UnknownSyscall,
             seL4_UserException,
+            seL4_BogusException,
+            #[cfg(feature = "CONFIG_KERNEL_MCS")]
+            seL4_Timeout,
+            seL4_VMFault,
         }
     };
 }
@@ -244,6 +256,13 @@ impl From<usize> for seL4_Error {
     fn from(val: usize) -> seL4_Error {
         // TODO(sleffler): 10 is seL4_NotEnoughMemory
         debug_assert!(val <= 10, "Invalid seL4_Error");
+        unsafe { ::core::mem::transmute(val) }
+    }
+}
+
+impl From<usize> for seL4_Fault {
+    fn from(val: usize) -> seL4_Fault {
+        debug_assert!(val <= 6, "Invalid or unknown seL4_Fault");
         unsafe { ::core::mem::transmute(val) }
     }
 }

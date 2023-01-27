@@ -44,6 +44,7 @@ use core::mem::size_of;
 use core::ptr;
 use cstr_core::CStr;
 use log::error;
+use log::info;
 
 use sdk_interface::SDKAppId;
 use sdk_interface::SDKError;
@@ -56,6 +57,7 @@ use sel4_sys::seL4_CNode_Delete;
 use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_CapRights;
 use sel4_sys::seL4_EndpointObject;
+use sel4_sys::seL4_Fault;
 use sel4_sys::seL4_MessageInfo;
 use sel4_sys::seL4_PageBits;
 use sel4_sys::seL4_Recv;
@@ -171,7 +173,53 @@ pub unsafe extern "C" fn run() -> ! {
         /*sender=*/ &mut sdk_runtime_badge as _,
         /*reply=*/ CANTRIP_SDK_REPLY,
     );
+
     loop {
+        // Check for a fault condition and handle those specially.
+        if info.get_label() < (SDKRuntimeRequest::Ping as usize) {
+            let app_id = sdk_runtime_badge as SDKAppId;
+            let label = info.get_label() as usize;
+            let fault_type = seL4_Fault::try_from(label);
+
+            // XXX Do something with the fault -- notify ProcessManager about it
+            // so we can clean up that whole thread and mess. Should be as
+            // simple as calling stop.
+
+            match fault_type {
+                Ok(seL4_Fault::seL4_NullFault) => { info!("app {} faulted ({:?}): normal exit or termination.", app_id, fault_type); }
+                Ok(seL4_Fault::seL4_CapFault) => { info!("app {} faulted ({:?}): invalid capability usage.", app_id, label); }
+                Ok(seL4_Fault::seL4_UnknownSyscall) => { info!("app {} faulted ({:?}): unknown syscall requested.", app_id, label); }
+                Ok(seL4_Fault::seL4_UserException) => { info!("app {} faulted ({:?}): user exception requested.", app_id, label); }
+
+                Ok(seL4_Fault::seL4_BogusException) => { error!("Impossible! We received a Bogus Exception! My one weakness! How did you know?!"); }
+
+                #[cfg(feature = "CONFIG_KERNEL_MCS")]
+                Ok(seL4_Fault::seL4_Timeout) => { info!("app {} faulted ({:?}): application timed out.", app_id, label); }
+
+                Ok(seL4_Fault::seL4_VMFault) => { info!("app {} faulted ({:?}): virtual-memory fault.", app_id, label); }
+
+                Err(_) => {}
+            }
+
+            // Clean up any request caps
+            delete_path(recv_path).expect("delete");
+            Camkes::debug_assert_slot_empty("run", recv_path);
+
+            // Can't respond to one of these messages, really, since doing so
+            // would unsuspend the faulting thread, leading possibly to another
+            // fault depending on the type. For now, just wait for another
+            // message and start back at the top of the loop.
+
+            // XXX debug seL4 complains about an unexecuted reply cap here.
+            info = seL4_Recv(
+                /*src=*/ CANTRIP_SDK_ENDPOINT,
+                /*sender=*/ &mut sdk_runtime_badge as _,
+                /*reply=*/ CANTRIP_SDK_REPLY,
+            );
+
+            continue;
+        }
+
         Camkes::debug_assert_slot_frame("run", recv_path);
         // seL4_Recv & seL4_ReplyRecv return any badge but do not reset
         // the ipcbuffer state. If the ipcbuffer is turned around for a
@@ -179,6 +227,7 @@ pub unsafe extern "C" fn run() -> ! {
         // outbound capability. To guard against this clear the field here
         // (so it happens for both calls) with clear_request_cap().
         Camkes::clear_request_cap();
+
         // Map the frame with RPC parameters and process the request.
         if copy_region.map(recv_path.1).is_ok() {
             // The request token is passed in the MessageInfo label field.
@@ -246,6 +295,7 @@ pub unsafe extern "C" fn run() -> ! {
             error!("Unable to map RPC parameters; badge {}", sdk_runtime_badge);
             response = Err(SDKError::MapPageFailed);
         }
+
         delete_path(recv_path).expect("delete");
         Camkes::debug_assert_slot_empty("run", recv_path);
 

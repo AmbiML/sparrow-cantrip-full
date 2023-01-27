@@ -55,7 +55,6 @@ use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_CapRights;
 use sel4_sys::seL4_Default_VMAttributes;
 use sel4_sys::seL4_DomainSet_Set;
-use sel4_sys::seL4_EndpointObject;
 use sel4_sys::seL4_Error;
 use sel4_sys::seL4_MinSchedContextBits;
 use sel4_sys::seL4_Result;
@@ -158,8 +157,7 @@ const NOCAP: seL4_CPtr = 0;
 // TODO(sleffler): SDK runtime state should be setup by SDK in case it
 //    needs more than 1 endpoint + 1 small frame
 const SLOT_TCB: usize = 0;
-const SLOT_FAULT_EP: usize = SLOT_TCB + 1;
-const SLOT_SCHED_CONTEXT: usize = SLOT_FAULT_EP + 1;
+const SLOT_SCHED_CONTEXT: usize = SLOT_TCB + 1;
 // NB: reserve slots for a 4-level page mapping; on arch's that
 //   need fewer the middle slots will not be used
 const SLOT_ROOT: usize = SLOT_SCHED_CONTEXT + 1;
@@ -177,8 +175,7 @@ const SLOT_FRAME: usize = SLOT_STACK + STACK_COUNT;
 // Each arch appends the ObjDesc's they need for VSpace construction;
 // one of which must be named INDEX_ROOT (for the VSpace root)
 const INDEX_TCB: usize = 0;
-const INDEX_FAULT_EP: usize = INDEX_TCB + 1;
-const INDEX_SCHED_CONTEXT: usize = INDEX_FAULT_EP + 1;
+const INDEX_SCHED_CONTEXT: usize = INDEX_TCB + 1;
 const INDEX_IPCBUFFER: usize = INDEX_SCHED_CONTEXT + 1;
 const INDEX_SDK_FRAME: usize = INDEX_IPCBUFFER + 1;
 const INDEX_STACK: usize = INDEX_SDK_FRAME + 1;
@@ -212,7 +209,10 @@ pub struct seL4BundleImpl {
     tcb_ipcbuffer_addr: seL4_Word, // Address of IPCBuffer in app's VSpace
     tcb_pc: seL4_Word,             // Initial pc in app's VSpace
     tcb_sp: seL4_Word,             // Initial stack pointer in app's VSpace
+
     sdk_ep_slot: seL4_CPtr,
+    sdk_ep: CSpaceSlot,
+
     sdk_frame_addr: seL4_Word, // Address of SDK frame in app's VSpace
     stack_base: seL4_Word,     // Base address of stack in app's VSpace
     first_vaddr: seL4_Word,
@@ -282,8 +282,6 @@ impl seL4BundleImpl {
         let mut desc: SmallVec<arch::DynamicDescs> = smallvec![
             // Control/main-thread TCB.
             ObjDesc::new(seL4_TCBObject, 1, SLOT_TCB),
-            // Fault redirect to SDK/ProcessManager.
-            ObjDesc::new(seL4_EndpointObject, 1, SLOT_FAULT_EP),
             // SchedContext for main thread
             ObjDesc::new(seL4_SchedContextObject, seL4_MinSchedContextBits, SLOT_SCHED_CONTEXT),
             // IPC buffer frame.
@@ -302,7 +300,7 @@ impl seL4BundleImpl {
         debug_assert!(!desc.spilled());
 
         // Calculate SDK endpoint slot in the final CSpace. This is just
-        // one slot past the last specified capability.
+        // one slot past the last common capability.
         let sdk_ep_slot = desc
             .iter()
             .map(|od| od.cptr + od.retype_count())
@@ -330,9 +328,6 @@ impl seL4BundleImpl {
             Ok(cnode) => cnode,
         };
 
-        // XXX setup fault endpoint (allocate id)
-        // XXX setup temporal fault endpoint (allocate id)
-
         Ok(seL4BundleImpl {
             bundle_frames: bundle_frames.clone(),
             dynamic_objs,
@@ -350,6 +345,7 @@ impl seL4BundleImpl {
             tcb_pc: entry_point.unwrap_or(first_vaddr), // NB: filled in from BundleImage
             tcb_sp: 0,
             sdk_ep_slot,
+            sdk_ep: CSpaceSlot::new(),
             sdk_frame_addr: 0,
             stack_base: 0,
             first_vaddr,
@@ -578,8 +574,6 @@ impl seL4BundleImpl {
         let cap_cspace_root = self.cspace_root.objs[0].cptr;
         let cap_vspace_root = self.dynamic_objs.objs[arch::INDEX_ROOT].cptr;
         let cap_tcb = self.dynamic_objs.objs[INDEX_TCB].cptr;
-        let cap_fault_ep = self.dynamic_objs.objs[INDEX_FAULT_EP].cptr;
-        let cap_tempfault_ep = cap_fault_ep; // XXX
         let cap_sc = self.dynamic_objs.objs[INDEX_SCHED_CONTEXT].cptr;
         let cap_ipcbuffer = self.dynamic_objs.objs[INDEX_IPCBUFFER].cptr;
 
@@ -589,11 +583,19 @@ impl seL4BundleImpl {
         let min_cptr = self.dynamic_objs.cptr_iter().min().unwrap();
         let sdk_frame_slot = self.dynamic_objs.objs[INDEX_SDK_FRAME].cptr - min_cptr;
 
+        // Install a badged SDK endpoint in the toplevel cspace for now. We'll
+        // move it in init_cspace later. We have to do this in the toplevel
+        // cspace because the fault handler is copied implicitly from this
+        // thread's root CSpace into the new thread's TCB when MCS is enabled.
+        cantrip_sdk_manager_get_endpoint(&self.tcb_name, &self.sdk_ep)
+            .or(Err(seL4_Error::seL4_NoError))?; // XXX error
+
         // XXX MCS v non-MCS
         if cap_sc != NOCAP {
             // TODO(sleffler): we only support non-SMP systems: the rootserver
             //   only passes one SchedControl capability.
             assert_eq!(self.affinity, 0);
+
             scheduler::SchedControl_Configure(
                 unsafe { SCHED_CTRL },
                 cap_sc,
@@ -604,10 +606,11 @@ impl seL4BundleImpl {
             )?;
         }
         assert!(self.tcb_ipcbuffer_addr != 0);
+        let fault_ep_slot = self.sdk_ep.slot;
         scheduler::TCB_Configure(
             cap_tcb,
             // NB: sel4_fault_ep is ignored here with MCS
-            cap_fault_ep,
+            fault_ep_slot,
             cap_cspace_root,
             self.cspace_root_data,
             cap_vspace_root,
@@ -621,9 +624,9 @@ impl seL4BundleImpl {
             self.tcb_max_priority,
             self.tcb_priority,
             cap_sc,
-            cap_fault_ep,
+            fault_ep_slot,
         )?;
-        scheduler::TCB_SetTimeoutEndpoint(cap_tcb, cap_tempfault_ep)?;
+        scheduler::TCB_SetTimeoutEndpoint(cap_tcb, fault_ep_slot)?;
 
         smp::TCB_SetAffinity(cap_tcb, self.affinity)?;
 
@@ -669,11 +672,9 @@ impl seL4BundleImpl {
     // Do the final work to construct the application's CSpace.
     fn init_cspace(&mut self) -> seL4_Result {
         trace!("init_cspace");
-        // Install a badged SDK endpoint in the slot reserved for it.
-        let sdk_endpoint = CSpaceSlot::new();
-        cantrip_sdk_manager_get_endpoint(&self.tcb_name, &sdk_endpoint)
-            .or(Err(seL4_Error::seL4_NoError))?; // XXX error
-        sdk_endpoint.move_from(
+
+        // Move the badged SDK endpoint into the new cspace
+        self.sdk_ep.move_from(
             self.cspace_root.objs[0].cptr,
             self.sdk_ep_slot,
             self.cspace_root_depth,
@@ -693,6 +694,7 @@ impl seL4BundleImpl {
             self.dynamic_objs.objs[INDEX_TCB].cptr,
             self.dynamic_objs.depth,
         )?;
+
         // TODO(sleffler): remove the TCB from the CNode
         Ok(())
     }

@@ -166,11 +166,15 @@ pub struct ModelWaitResponse {
 
 /// SDKRequest token sent over the seL4 IPC interface. We need repr(seL4_Word)
 /// but cannot use that so use the implied usize type instead.
+///
+/// Note that this enum starts off at 64. This is to avoid collisions with the
+/// seL4_Fault enumeration used by the kernel, as the SDK runtime is also used
+/// as the application's fault handler.
 #[repr(usize)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq, IntoPrimitive, TryFromPrimitive)]
 pub enum SDKRuntimeRequest {
-    Ping = 0, // Check runtime is alive
-    Log,      // Log message: [msg: &str]
+    Ping = 64, // Check runtime is alive
+    Log,       // Log message: [msg: &str]
 
     ReadKey,   // Read key: [key: &str, &mut [u8]] -> value: &[u8]
     WriteKey,  // Write key: [key: &str, value: &KeyValueData]
