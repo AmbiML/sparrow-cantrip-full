@@ -54,19 +54,11 @@ impl CantripHeap {
     ///
     /// `size` is the size of the heap in bytes.
     ///
-    /// Note that:
-    ///
-    /// - The heap grows "upwards", towards larger addresses. Thus `end_addr` must
-    ///   be larger than `start_addr`
-    ///
-    /// - The size of the heap is `(end_addr as usize) - (start_addr as usize)`. The
-    ///   allocator won't use the byte at `end_addr`.
-    ///
     /// # Safety
     ///
     /// Obey these or Bad Stuff will happen.
     ///
-    /// - This function must be called exactly ONCE (per thread).
+    /// - This function must be called exactly ONCE per seL4 VSpace (CAmkES component).
     /// - `size > 0`
     pub unsafe fn init(&self, start_addr: *mut u8, size: usize) {
         (*self.heap.lock()).init(start_addr, size);
