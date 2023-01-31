@@ -25,7 +25,6 @@ use allocator;
 use core::ops::Deref;
 use log::trace;
 use logger::CantripLogger;
-use sel4_sys;
 use slot_allocator::CANTRIP_CSPACE_SLOTS;
 
 use sel4_sys::seL4_CNode_Delete;

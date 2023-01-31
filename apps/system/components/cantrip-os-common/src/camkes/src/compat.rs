@@ -14,6 +14,8 @@
 
 //! Cantrip OS CAmkES component libc compatibility glue.
 
+#![allow(clippy::missing_safety_doc)]
+
 extern crate alloc;
 use alloc::alloc::{alloc, dealloc, Layout};
 #[cfg(debug_assertions)]
@@ -60,7 +62,10 @@ pub unsafe extern "C" fn malloc(size: usize) -> *mut u8 {
     let malloc_ptr = alloc_ptr.add(offset);
     ptr::write(
         alloc_ptr as *mut DeallocArgs,
-        DeallocArgs { layout: alloc_layout, ptr: alloc_ptr }
+        DeallocArgs {
+            layout: alloc_layout,
+            ptr: alloc_ptr,
+        },
     );
 
     malloc_ptr
@@ -112,8 +117,11 @@ impl core::fmt::Write for DebugPutCharWriter {
 #[cfg(debug_assertions)]
 pub unsafe extern "C" fn printf(str: *const c_char, mut args: ...) -> c_int {
     let mut writer = DebugPutCharWriter {};
-    let bytes_written = printf_compat::format(str, args.as_va_list(),
-        printf_compat::output::fmt_write(&mut writer));
+    let bytes_written = printf_compat::format(
+        str,
+        args.as_va_list(),
+        printf_compat::output::fmt_write(&mut writer),
+    );
 
     bytes_written
 }
@@ -128,9 +136,9 @@ pub unsafe extern "C" fn printf(_str: *const c_char, _args: ...) -> c_int {
 
 #[cfg(debug_assertions)]
 struct CharPtrWriter {
-    ptr : *mut c_char,
-    len : size_t,
-    off : size_t,
+    ptr: *mut c_char,
+    len: size_t,
+    off: size_t,
 }
 
 #[cfg(debug_assertions)]
@@ -149,16 +157,21 @@ impl core::fmt::Write for CharPtrWriter {
 
 #[no_mangle]
 #[cfg(debug_assertions)]
-pub unsafe extern "C" fn vsnprintf(str: *mut c_char, n: size_t, fmt: *const c_char, ap: VaList) -> c_int {
+pub unsafe extern "C" fn vsnprintf(
+    str: *mut c_char,
+    n: size_t,
+    fmt: *const c_char,
+    ap: VaList,
+) -> c_int {
     let mut writer = CharPtrWriter {
         ptr: str,
         len: n,
         off: 0,
     };
-    let bytes_written = printf_compat::format(fmt, ap,
-        printf_compat::output::fmt_write(&mut writer));
+    let bytes_written =
+        printf_compat::format(fmt, ap, printf_compat::output::fmt_write(&mut writer));
     if !str.is_null() && n > 0 {
-        ptr::write(str.add(cmp::min(writer.off, n - 1)), b'\0');  // NULL terminator.
+        ptr::write(str.add(cmp::min(writer.off, n - 1)), b'\0'); // NULL terminator.
     }
 
     // Can be > n if output was truncated.
@@ -167,7 +180,12 @@ pub unsafe extern "C" fn vsnprintf(str: *mut c_char, n: size_t, fmt: *const c_ch
 
 #[no_mangle]
 #[cfg(not(debug_assertions))]
-pub unsafe extern "C" fn vsnprintf(_str: *const c_char, _n: size_t, _fmt: *const c_char, _ap: VaList) -> c_int {
+pub unsafe extern "C" fn vsnprintf(
+    _str: *const c_char,
+    _n: size_t,
+    _fmt: *const c_char,
+    _ap: VaList,
+) -> c_int {
     /* NOP in non debug builds. */
     0
 }
