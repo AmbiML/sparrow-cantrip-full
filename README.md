@@ -32,7 +32,7 @@ The following sections provide more in-depth documentation:
 
 [CantripOS software organization](docs/SourceCrates.md)
 
-[Target architecture dependcies](docs/ArchitectureDependencies.md)
+[Target architecture dependencies](docs/ArchitectureDependencies.md)
 
 [Target platform dependencies](docs/PlatformDependencies.md)
 
