@@ -89,6 +89,20 @@ macro_rules! error_types {
             seL4_BreakOnWrite,
             seL4_BreakOnReadWrite,
         }
+
+        // XXX: Hack until we can get the python script to generate this for us.
+        // This is correct for all architectures, and excludes any
+        // architecture-specific values here. It's enough to be able to write a
+        // fault handler and identify most thread failures. We'll want more
+        // later.
+        #[repr($int_width)]
+        #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+        pub enum seL4_Fault {
+            seL4_NullFault = 0,
+            seL4_CapFault,
+            seL4_UnknownSyscall,
+            seL4_UserException,
+        }
     };
 }
 
