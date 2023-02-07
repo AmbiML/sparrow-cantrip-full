@@ -14,6 +14,7 @@
 
 #![no_std]
 #![allow(non_upper_case_globals)]
+#![allow(stable_features)]
 #![feature(global_asm)]
 #![feature(thread_local)]
 

@@ -15,6 +15,7 @@
 //! Cantrip OS security coordinator support
 
 #![cfg_attr(not(test), no_std)]
+#![allow(stable_features)]
 // NB: "error[E0658]: trait bounds other than `Sized` on const fn parameters are unstable"
 #![feature(const_fn_trait_bound)]
 

@@ -8,6 +8,7 @@
  * according to those terms.
  */
 #![no_std]
+#![allow(stable_features)]
 #![feature(asm)]
 #![feature(thread_local)]
 #![allow(bad_style, unused_parens, unused_assignments)]

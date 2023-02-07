@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #![no_std]
+#![allow(stable_features)]
 #![feature(map_first_last)]
 #![feature(const_btree_new)]
 
