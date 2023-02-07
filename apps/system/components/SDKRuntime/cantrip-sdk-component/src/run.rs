@@ -290,9 +290,8 @@ fn read_key_request(
 ) -> Result<(), SDKError> {
     let request = postcard::from_bytes::<sdk_interface::ReadKeyRequest>(request_slice)
         .map_err(deserialize_failure)?;
-    #[allow(clippy::uninit_assumed_init)]
-    let mut keyval: KeyValueData = unsafe { ::core::mem::MaybeUninit::uninit().assume_init() };
-    let value = unsafe { CANTRIP_SDK.read_key(app_id, request.key, &mut keyval)? };
+    let mut keyval = ::core::mem::MaybeUninit::<KeyValueData>::uninit();
+    let value = unsafe { CANTRIP_SDK.read_key(app_id, request.key, keyval.assume_init_mut())? };
     let _ = postcard::to_slice(&sdk_interface::ReadKeyResponse { value }, reply_slice)
         .map_err(serialize_failure)?;
     Ok(())
