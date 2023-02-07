@@ -141,7 +141,7 @@ impl<'a> CantripOsModel<'a> {
         self.get_orig_cap(self.get_cdl_frame_cap(pd, vaddr).unwrap().obj_id)
     }
 
-    fn get_cdl_frame_cap(&self, pd: CDL_ObjID, vaddr: usize) -> Option<&'a CDL_Cap> {
+    fn get_cdl_frame_cap(&self, pd: CDL_ObjID, vaddr: usize) -> Option<CDL_Cap> {
         // arch::get_cdl_frame_pt
         let pt_cap = self.get_cdl_frame_pt(pd, vaddr)?;
         // Check if the PT cap is actually a large frame cap.

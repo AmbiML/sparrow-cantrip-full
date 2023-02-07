@@ -25,7 +25,7 @@
 #![allow(dead_code)]
 
 use core::mem::size_of;
-use cstr_core;
+use core::ptr;
 use sel4_sys::seL4_CNode_CapData;
 use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_CapRights;
@@ -246,11 +246,7 @@ impl CDL_CapData__bindgen_ty_1__bindgen_ty_1 {
     #[inline]
     pub fn guard_bits(&self) -> seL4_Word { self._bitfield.get(0, 18) as seL4_Word }
     #[inline]
-    pub fn set_guard_bits(&mut self, val: seL4_Word) { self._bitfield.set(0, 18, val as u64) }
-    #[inline]
     pub fn guard_size(&self) -> seL4_Word { self._bitfield.get(18, 14) as seL4_Word }
-    #[inline]
-    pub fn set_guard_size(&mut self, val: seL4_Word) { self._bitfield.set(18, 14, val as u64) }
     fn new_bitfield(
         guard_bits: seL4_Word,
         guard_size: seL4_Word,
@@ -279,19 +275,11 @@ impl CDL_CapData {
     pub fn set_tag(&mut self, val: u32) { self._bitfield.set(0, 2, val as u64) }
     #[inline]
     pub fn guard_bits(&self) -> seL4_Word {
-        unsafe { self.__bindgen_anon.__bindgen_anon.guard_bits() }
-    }
-    #[inline]
-    pub fn set_guard_bits(&mut self, val: seL4_Word) {
-        unsafe { self.__bindgen_anon.__bindgen_anon.set_guard_bits(val) }
+        unsafe { { self.__bindgen_anon.__bindgen_anon }.guard_bits() }
     }
     #[inline]
     pub fn guard_size(&self) -> seL4_Word {
-        unsafe { self.__bindgen_anon.__bindgen_anon.guard_size() }
-    }
-    #[inline]
-    pub fn set_guard_size(&mut self, val: seL4_Word) {
-        unsafe { self.__bindgen_anon.__bindgen_anon.set_guard_size(val) }
+        unsafe { { self.__bindgen_anon.__bindgen_anon }.guard_size() }
     }
     #[inline]
     pub fn badge(&self) -> seL4_Word { unsafe { self.__bindgen_anon.badge } }
@@ -364,21 +352,48 @@ pub struct CDL_CapSlot {
 }
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct CDL_CapMap {
     pub num: seL4_Word,
     pub slot: *const CDL_CapSlot,
 }
-impl<'a> CDL_CapMap {
-    pub fn as_slice(&'a self) -> &'a [CDL_CapSlot] {
-        unsafe { core::slice::from_raw_parts(self.slot, self.num) }
+impl CDL_CapMap {
+    pub fn get_slot(&self, index: usize) -> CDL_CapSlot {
+        unsafe { self.slot.offset(index as isize).read_unaligned() }
     }
-    pub fn get_slot(&self, index: usize) -> CDL_CapSlot { self.as_slice()[index] }
-    pub fn get_cap_at(&self, slot: seL4_Word) -> Option<&CDL_Cap> {
-        self.as_slice()
-            .iter()
-            .find(|s| s.slot == slot)
-            .map(|s| &s.cap)
+    pub fn get_cap_at(&self, slot: seL4_Word) -> Option<CDL_Cap> {
+        self.into_iter().find(|s| s.slot == slot).map(|s| s.cap)
+    }
+}
+
+pub struct CapMapIterator {
+    slot: *const CDL_CapSlot,
+    count: usize,
+    index: usize,
+}
+impl Iterator for CapMapIterator {
+    type Item = CDL_CapSlot;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index < self.count {
+            let cur = self.index;
+            self.index += 1;
+            Some(unsafe { self.slot.offset(cur as isize).read_unaligned() })
+        } else {
+            None
+        }
+    }
+}
+impl IntoIterator for CDL_CapMap {
+    type Item = CDL_CapSlot;
+    type IntoIter = CapMapIterator;
+
+    fn into_iter(self) -> Self::IntoIter {
+        CapMapIterator {
+            slot: self.slot,
+            count: self.num,
+            index: 0,
+        }
     }
 }
 
@@ -614,10 +629,6 @@ impl<'a> CDL_Object {
     #[inline]
     pub fn name(&self) -> &str { "<n/a>" }
 
-    pub fn slots_slice(&'a self) -> &'a [CDL_CapSlot] {
-        #[allow(unaligned_references)]
-        self.slots.as_slice()
-    }
     #[inline]
     pub fn num_slots(&self) -> seL4_Word { self.slots.num }
     // Returns the next available slot past those specified in the spec.
@@ -625,20 +636,16 @@ impl<'a> CDL_Object {
     // numbering due to empty slots.
     #[inline]
     pub fn next_free_slot(&self) -> seL4_Word {
-        self.slots_slice()
-            .iter()
+        self.slots
+            .into_iter()
             .max_by_key(|slot| slot.slot)
             .map_or(0, |slot| slot.slot + 1)
     }
     #[inline]
-    pub fn slot(&self, index: seL4_Word) -> CDL_CapSlot {
-        #[allow(unaligned_references)]
-        self.slots.get_slot(index)
-    }
+    pub fn get_slot(&self, index: seL4_Word) -> CDL_CapSlot { { self.slots }.get_slot(index) }
     #[inline]
-    pub fn get_cap_at(&'a self, slot: seL4_Word) -> Option<&CDL_Cap> {
-        #[allow(unaligned_references)]
-        self.slots.get_cap_at(slot)
+    pub fn get_cap_at(&'a self, slot: seL4_Word) -> Option<CDL_Cap> {
+        { self.slots }.get_cap_at(slot)
     }
     #[inline]
     pub fn r#type(&self) -> CDL_ObjectType { self.type_ }
@@ -651,9 +658,13 @@ impl<'a> CDL_Object {
             _ => None,
         }
     }
-    pub fn frame_fill(&'a self, index: usize) -> Option<&'a CDL_FrameFill_Element_t> {
+    pub fn frame_fill(&'a self, index: usize) -> Option<CDL_FrameFill_Element_t> {
         match self.type_ {
-            CDL_Frame => Some(unsafe { &self.extra.frame_extra.fill[index] }),
+            CDL_Frame => Some(unsafe {
+                ptr::addr_of!(self.extra.frame_extra.fill[0])
+                    .offset(index as isize)
+                    .read_unaligned()
+            }),
             _ => None,
         }
     }

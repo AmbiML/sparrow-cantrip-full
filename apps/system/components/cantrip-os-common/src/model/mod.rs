@@ -1022,7 +1022,7 @@ impl<'a> CantripOsModel<'a> {
 
     // Initialize a TCB
     fn init_tcb(&mut self, cdl_tcb: &CDL_Object, sel4_tcb: seL4_CPtr) -> seL4_Result {
-        let cap_to_cptr = |opt: Option<&CDL_Cap>| -> seL4_CPtr {
+        let cap_to_cptr = |opt: Option<CDL_Cap>| -> seL4_CPtr {
             match opt {
                 Some(obj) => self.get_orig_cap(obj.obj_id),
                 _ => 0,
@@ -1152,7 +1152,7 @@ impl<'a> CantripOsModel<'a> {
             self.get_orig_cap(cnode)
         );
         for slot_index in 0..cdl_cnode.num_slots() {
-            self.init_cnode_slot(mode, cnode, &cdl_cnode.slot(slot_index))?;
+            self.init_cnode_slot(mode, cnode, &cdl_cnode.get_slot(slot_index))?;
         }
         Ok(())
     }

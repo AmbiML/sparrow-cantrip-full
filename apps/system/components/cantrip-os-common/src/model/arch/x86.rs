@@ -154,7 +154,7 @@ impl<'a> CantripOsModel<'a> {
             self.map_page(page_cap, pd_id, page_cap.cap_rights(), page_vaddr);
         }
 
-        for slot in self.spec.get_object(pd_id).slots_slice() {
+        for slot in self.spec.get_object(pd_id).slots {
             map_page_directory_slot(pd_id, &slot);
         }
     }
@@ -176,13 +176,13 @@ impl<'a> CantripOsModel<'a> {
             if page_cap.r#type() == CDL_PTCap {
                 let page = page_cap.obj_id;
                 let page_vaddr = pd_slot.slot << (seL4_PageTableIndexBits + seL4_PageBits);
-                for slot in self.spec.get_object(page).slots_slice() {
+                for slot in self.spec.get_object(page).slots {
                     self.map_page_table_slot(pd, page, page_vaddr, &slot);
                 }
             }
         }
 
-        for slot in self.spec.get_object(pd).slots_slice() {
+        for slot in self.spec.get_object(pd).slots {
             self.map_page_table_slots(pd, &slot);
         }
     }

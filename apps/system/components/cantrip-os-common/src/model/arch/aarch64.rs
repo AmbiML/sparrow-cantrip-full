@@ -146,7 +146,7 @@ impl<'a> CantripOsModel<'a> {
         level_0_base: usize,
         _level_0_obj: CDL_ObjID,
     ) -> seL4_Result {
-        for slot in self.get_object(level_0_obj).slots_slice() {
+        for slot in self.get_object(level_0_obj).slots {
             let base = (level_0_base + slot.slot)
                 << (CDL_PT_LEVEL_1_IndexBits
                     + CDL_PT_LEVEL_2_IndexBits
@@ -165,7 +165,7 @@ impl<'a> CantripOsModel<'a> {
         level_1_base: usize,
         level_1_obj: CDL_ObjID,
     ) -> seL4_Result {
-        for slot in self.get_object(level_1_obj).slots_slice() {
+        for slot in self.get_object(level_1_obj).slots {
             let base = level_1_base
                 + (slot.slot
                     << (CDL_PT_LEVEL_2_IndexBits + CDL_PT_LEVEL_3_IndexBits + seL4_PageBits));
@@ -191,7 +191,7 @@ impl<'a> CantripOsModel<'a> {
         level_2_base: usize,
         level_2_obj: CDL_ObjID,
     ) -> seL4_Result {
-        for slot in self.get_object(level_2_obj).slots_slice() {
+        for slot in self.get_object(level_2_obj).slots {
             let base = level_2_base + (slot.slot << (CDL_PT_LEVEL_3_IndexBits + seL4_PageBits));
             let level_3_cap = &slot.cap;
             if level_3_cap.r#type() == CDL_FrameCap {
@@ -216,7 +216,7 @@ impl<'a> CantripOsModel<'a> {
         level_0_obj: CDL_ObjID,
         level_3_base: usize,
     ) -> seL4_Result {
-        for slot in self.get_object(level_3_obj).slots_slice() {
+        for slot in self.get_object(level_3_obj).slots {
             let frame_cap = &slot.cap;
             self.map_page_frame(
                 frame_cap,
@@ -263,12 +263,12 @@ impl<'a> CantripOsModel<'a> {
         unsafe { seL4_ARM_PageDirectory_Map(sel4_page, sel4_pd, vaddr, vm_attribs) }
     }
 
-    pub fn get_cdl_frame_pt(&self, pd: CDL_ObjID, vaddr: usize) -> Option<&'a CDL_Cap> {
+    pub fn get_cdl_frame_pt(&self, pd: CDL_ObjID, vaddr: usize) -> Option<CDL_Cap> {
         let pd_cap = self.get_cdl_frame_pd(pd, vaddr)?;
         self.get_object(pd_cap.obj_id).get_cap_at(PD_SLOT(vaddr))
     }
 
-    fn get_cdl_frame_pd(&self, root: CDL_ObjID, vaddr: usize) -> Option<&'a CDL_Cap> {
+    fn get_cdl_frame_pd(&self, root: CDL_ObjID, vaddr: usize) -> Option<CDL_Cap> {
         if cfg!(all(
             feature = "CONFIG_ARM_HYPERVISOR_SUPPORT",
             feature = "CONFIG_ARM_PA_SIZE_BITS_40"
@@ -280,7 +280,7 @@ impl<'a> CantripOsModel<'a> {
         }
     }
 
-    fn get_cdl_frame_pud(&self, root: CDL_ObjID, vaddr: usize) -> Option<&'a CDL_Cap> {
+    fn get_cdl_frame_pud(&self, root: CDL_ObjID, vaddr: usize) -> Option<CDL_Cap> {
         self.get_object(root).get_cap_at(PGD_SLOT(vaddr))
     }
 }

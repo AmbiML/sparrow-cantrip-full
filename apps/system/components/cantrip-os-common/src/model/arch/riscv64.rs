@@ -67,7 +67,7 @@ impl<'a> CantripOsModel<'a> {
         self.init_level_1(obj_id, 0, obj_id)
     }
 
-    pub fn get_cdl_frame_pt(&self, pd: CDL_ObjID, vaddr: usize) -> Option<&'a CDL_Cap> {
+    pub fn get_cdl_frame_pt(&self, pd: CDL_ObjID, vaddr: usize) -> Option<CDL_Cap> {
         self.get_cdl_frame_pt_recurse(pd, vaddr, 2)
     }
 
@@ -82,7 +82,7 @@ impl<'a> CantripOsModel<'a> {
         root: CDL_ObjID,
         vaddr: usize,
         level: usize,
-    ) -> Option<&'a CDL_Cap> {
+    ) -> Option<CDL_Cap> {
         let obj_id = if level < CDL_PT_NUM_LEVELS {
             self.get_cdl_frame_pt_recurse(root, vaddr, level + 1)?
                 .obj_id
@@ -99,7 +99,7 @@ impl<'a> CantripOsModel<'a> {
         level_3_base: usize,
         level_3_obj: CDL_ObjID,
     ) -> seL4_Result {
-        for slot in self.get_object(level_3_obj).slots_slice() {
+        for slot in self.get_object(level_3_obj).slots {
             let base = PT_SLOT_VADDR(level_3_base, slot.slot, /*level=*/ 1);
             let frame_cap = &slot.cap;
             self.map_page_frame(frame_cap, level_0_obj, frame_cap.cap_rights().into(), base)?;
@@ -113,7 +113,7 @@ impl<'a> CantripOsModel<'a> {
         level_2_base: usize,
         level_2_obj: CDL_ObjID,
     ) -> seL4_Result {
-        for slot in self.get_object(level_2_obj).slots_slice() {
+        for slot in self.get_object(level_2_obj).slots {
             let base = PT_SLOT_VADDR(level_2_base, slot.slot, /*level=*/ 2);
             let level_3_cap = &slot.cap;
             if level_3_cap.r#type() == CDL_FrameCap {
@@ -138,7 +138,7 @@ impl<'a> CantripOsModel<'a> {
         level_1_base: usize,
         level_1_obj: CDL_ObjID,
     ) -> seL4_Result {
-        for slot in self.get_object(level_1_obj).slots_slice() {
+        for slot in self.get_object(level_1_obj).slots {
             let base = PT_SLOT_VADDR(level_1_base, slot.slot, /*level=*/ 3);
             let level_2_cap = &slot.cap;
             if level_2_cap.r#type() == CDL_FrameCap {
