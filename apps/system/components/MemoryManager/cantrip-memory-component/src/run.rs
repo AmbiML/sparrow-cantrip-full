@@ -20,8 +20,10 @@
 
 use cantrip_memory_interface::MemoryManagerError;
 use cantrip_memory_interface::MemoryManagerInterface;
+use cantrip_memory_interface::MemoryManagerRequest;
 use cantrip_memory_interface::ObjDescBundle;
 use cantrip_memory_interface::RawMemoryStatsData;
+use cantrip_memory_interface::StatsResponse;
 use cantrip_memory_manager::CantripMemoryManager;
 use cantrip_os_common::camkes::Camkes;
 use cantrip_os_common::sel4_sys;
@@ -99,89 +101,95 @@ pub unsafe extern "C" fn memory__init() {
 // MemoryInterface glue stubs.
 
 #[no_mangle]
-pub unsafe extern "C" fn memory_alloc(
-    c_raw_data_len: u32,
-    c_raw_data: *const u8,
+pub unsafe extern "C" fn memory_request(
+    c_request_buffer_len: u32,
+    c_request_buffer: *const u8,
+    c_reply_buffer: *mut RawMemoryStatsData,
 ) -> MemoryManagerError {
+    let request_buffer = slice::from_raw_parts(c_request_buffer, c_request_buffer_len as usize);
+    let request = match postcard::from_bytes::<MemoryManagerRequest>(request_buffer) {
+        Ok(request) => request,
+        Err(error) => return error.into(),
+    };
+
+    match request {
+        MemoryManagerRequest::Alloc(mut bundle) => alloc_request(bundle.to_mut()),
+        MemoryManagerRequest::Free(mut bundle) => free_request(bundle.to_mut()),
+        MemoryManagerRequest::Stats => stats_request(&mut *c_reply_buffer),
+
+        MemoryManagerRequest::Debug => debug_request(),
+        MemoryManagerRequest::Capscan => capscan_request(),
+    }
+    .map_or_else(|e| e, |()| MemoryManagerError::MmeSuccess)
+}
+
+fn alloc_request(bundle: &mut ObjDescBundle) -> Result<(), MemoryManagerError> {
     // NB: make sure noone clobbers the setup done in memory__init;
     // and clear any capability the path points to when dropped, for next request
-    let recv_path = CAMKES.get_owned_current_recv_path();
+    let recv_path = unsafe { CAMKES.get_owned_current_recv_path() };
+    // We must have a CNode for returning allocated objects.
+    Camkes::debug_assert_slot_cnode("alloc_request", &recv_path);
 
-    let raw_slice = slice::from_raw_parts(c_raw_data, c_raw_data_len as usize);
-    match postcard::from_bytes::<ObjDescBundle>(raw_slice) {
-        Ok(mut bundle) => {
-            // We must have a CNode for returning allocated objects.
-            Camkes::debug_assert_slot_cnode("memory_alloc", &recv_path);
+    bundle.cnode = recv_path.1;
+    // NB: bundle.depth should reflect the received cnode
 
-            bundle.cnode = recv_path.1;
-            // NB: bundle.depth should reflect the received cnode
-            CANTRIP_MEMORY.alloc(&bundle).into()
-        }
-        Err(_) => MemoryManagerError::MmeDeserializeFailed,
+    unsafe {
+        CANTRIP_MEMORY.alloc(bundle)?;
     }
+    Ok(())
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn memory_free(
-    c_raw_data_len: u32,
-    c_raw_data: *const u8,
-) -> MemoryManagerError {
+fn free_request(bundle: &mut ObjDescBundle) -> Result<(), MemoryManagerError> {
     // NB: make sure noone clobbers the setup done in memory__init;
     // and clear any capability the path points to when dropped, for next request
-    let recv_path = CAMKES.get_owned_current_recv_path();
+    let recv_path = unsafe { CAMKES.get_owned_current_recv_path() };
+    // We must have a CNode for returning allocated objects.
+    Camkes::debug_assert_slot_cnode("free_request", &recv_path);
 
-    let raw_slice = slice::from_raw_parts(c_raw_data, c_raw_data_len as usize);
-    match postcard::from_bytes::<ObjDescBundle>(raw_slice) {
-        Ok(mut bundle) => {
-            // We must have a CNode for returning allocated objects.
-            Camkes::debug_assert_slot_cnode("memory_free", &recv_path);
-
-            bundle.cnode = recv_path.1;
-            // NB: bundle.depth should reflect the received cnode
-            CANTRIP_MEMORY.free(&bundle).into()
-        }
-        Err(_) => MemoryManagerError::MmeDeserializeFailed,
+    bundle.cnode = recv_path.1;
+    // NB: bundle.depth should reflect the received cnode
+    unsafe {
+        CANTRIP_MEMORY.free(bundle)?;
     }
+    Ok(())
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn memory_stats(
-    c_raw_resp_data: *mut RawMemoryStatsData,
-) -> MemoryManagerError {
-    let recv_path = CAMKES.get_current_recv_path();
+fn stats_request(reply_buffer: &mut RawMemoryStatsData) -> Result<(), MemoryManagerError> {
+    let recv_path = unsafe { CAMKES.get_current_recv_path() };
     // NB: make sure noone clobbers the setup done in memory__init
-    CAMKES.assert_recv_path();
-
-    match CANTRIP_MEMORY.stats() {
-        Ok(stats) => {
-            // Verify no cap was received
-            Camkes::debug_assert_slot_empty("memory_stats", &recv_path);
-
-            match postcard::to_slice(&stats, &mut (*c_raw_resp_data)[..]) {
-                Ok(_) => MemoryManagerError::MmeSuccess,
-                Err(_) => MemoryManagerError::MmeSerializeFailed,
-            }
-        }
-        Err(e) => e.into(),
+    unsafe {
+        CAMKES.assert_recv_path();
     }
+
+    let stats = unsafe { CANTRIP_MEMORY.stats() }?;
+    // Verify no cap was received
+    Camkes::debug_assert_slot_empty("stats_request", &recv_path);
+    let _ = postcard::to_slice(&StatsResponse { value: stats }, reply_buffer)?;
+    Ok(())
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn memory_debug() -> MemoryManagerError {
-    let recv_path = CAMKES.get_current_recv_path();
+fn debug_request() -> Result<(), MemoryManagerError> {
+    let recv_path = unsafe { CAMKES.get_current_recv_path() };
     // NB: make sure noone clobbers the setup done in memory__init
-    CAMKES.assert_recv_path();
-    Camkes::debug_assert_slot_empty("memory_debug", &recv_path);
+    unsafe {
+        CAMKES.assert_recv_path();
+    }
+    Camkes::debug_assert_slot_empty("debug_request", &recv_path);
 
-    CANTRIP_MEMORY.debug().into()
+    unsafe {
+        CANTRIP_MEMORY.debug()?;
+    }
+    Ok(())
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn memory_capscan() {
-    let recv_path = CAMKES.get_current_recv_path();
+fn capscan_request() -> Result<(), MemoryManagerError> {
+    let recv_path = unsafe { CAMKES.get_current_recv_path() };
     // NB: make sure noone clobbers the setup done in memory__init
-    CAMKES.assert_recv_path();
-    Camkes::debug_assert_slot_empty("memory_debug", &recv_path);
+    unsafe {
+        CAMKES.assert_recv_path();
+    }
+    Camkes::debug_assert_slot_empty("capscan_request", &recv_path);
 
     let _ = Camkes::capscan();
+    Ok(())
 }

@@ -17,6 +17,7 @@
 #![cfg_attr(not(test), no_std)]
 
 extern crate alloc;
+use alloc::borrow::Cow;
 use alloc::vec;
 use alloc::vec::Vec;
 use cantrip_os_common::camkes::Camkes;
@@ -159,22 +160,10 @@ impl ObjDescBundle {
     pub fn len(&self) -> usize { self.objs.len() }
 
     // Returns the count of objects specified by the object descriptors.
-    pub fn count(&self) -> usize {
-        self.objs
-            .as_slice()
-            .iter()
-            .map(|od| od.retype_count())
-            .sum()
-    }
+    pub fn count(&self) -> usize { self.objs.iter().map(|od| od.retype_count()).sum() }
 
     // Returns the total bytes specified by the object descriptors.
-    pub fn size_bytes(&self) -> usize {
-        self.objs
-            .as_slice()
-            .iter()
-            .map(|od| od.size_bytes().unwrap())
-            .sum()
-    }
+    pub fn size_bytes(&self) -> usize { self.objs.iter().map(|od| od.size_bytes().unwrap()).sum() }
 
     // Returns the log2 size that holds all the objects. This is typically
     // used to size CNode's based on their intended contents. NB: we return
@@ -371,6 +360,17 @@ impl From<MemoryError> for MemoryManagerError {
         }
     }
 }
+impl From<postcard::Error> for MemoryManagerError {
+    fn from(err: postcard::Error) -> Self {
+        match err {
+            postcard::Error::SerializeBufferFull
+            | postcard::Error::SerializeSeqLengthUnknown
+            | postcard::Error::SerdeSerCustom => MemoryManagerError::MmeSerializeFailed,
+            // NB: bit of a cheat; this lumps in *Implement*
+            _ => MemoryManagerError::MmeDeserializeFailed,
+        }
+    }
+}
 impl From<Result<(), MemoryError>> for MemoryManagerError {
     fn from(result: Result<(), MemoryError>) -> MemoryManagerError {
         result.map_or_else(MemoryManagerError::from, |_v| MemoryManagerError::MmeSuccess)
@@ -386,30 +386,87 @@ impl From<MemoryManagerError> for Result<(), MemoryManagerError> {
     }
 }
 
-// Client wrappers.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StatsResponse {
+    pub value: MemoryManagerStats,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum MemoryManagerRequest<'a> {
+    Alloc(Cow<'a, ObjDescBundle>),
+    Free(Cow<'a, ObjDescBundle>),
+    Stats, // -> RawMemoryStatsData
+    Debug,
+    Capscan,
+}
+
+impl<'a> MemoryManagerRequest<'a> {
+    fn get_container_cap(&self) -> Option<seL4_CPtr> {
+        match self {
+            Self::Alloc(request) | Self::Free(request) => Some(request.cnode),
+            Self::Stats | Self::Debug | Self::Capscan => None,
+        }
+    }
+}
+
+#[inline]
+#[allow(dead_code)]
+pub fn cantrip_memory_request(
+    request: &MemoryManagerRequest,
+    reply_buffer: &mut RawMemoryStatsData,
+) -> Result<(), MemoryManagerError> {
+    extern "C" {
+        pub fn memory_request(
+            c_request_buffer_len: u32,
+            c_request_buffer: *const u8,
+            c_reply_buffer: *mut RawMemoryStatsData,
+        ) -> MemoryManagerError;
+    }
+    trace!(
+        "cantrip_memory_request {:?} cap {:?}",
+        request,
+        request.get_container_cap()
+    );
+    let mut request_buffer = [0u8; RAW_OBJ_DESC_DATA_SIZE];
+    let request_slice = postcard::to_slice(request, &mut request_buffer)?;
+    if let Some(cap) = request.get_container_cap() {
+        let _cleanup = Camkes::set_request_cap(cap);
+        unsafe {
+            memory_request(
+                request_slice.len() as u32,
+                request_slice.as_ptr(),
+                reply_buffer as *mut _,
+            )
+            .into()
+        }
+    } else {
+        // NB: guard against a received badge being treated as an
+        // outbound capability. This is needed because the code CAmkES
+        // generates for memory_request always enables possible xmit
+        // of 1 capability.
+        Camkes::clear_request_cap();
+        unsafe {
+            memory_request(
+                request_slice.len() as u32,
+                request_slice.as_ptr(),
+                reply_buffer as *mut _,
+            )
+            .into()
+        }
+    }
+}
 
 // Allocates the objects specified in |request|. The capabilities are stored
 // in |request|.cnode which is assumed to be a CNode with sufficient capacity
 #[inline]
 pub fn cantrip_object_alloc(request: &ObjDescBundle) -> Result<(), MemoryManagerError> {
-    extern "C" {
-        // NB: this assumes the MemoryManager component is named "memory".
-        fn memory_alloc(c_request_len: u32, c_request_data: *const u8) -> MemoryManagerError;
-    }
     trace!("cantrip_object_alloc {}", request);
-    let raw_data = &mut [0u8; RAW_OBJ_DESC_DATA_SIZE];
-    postcard::to_slice(&request, &mut raw_data[..])
-        .map_err(|_| MemoryManagerError::MmeSerializeFailed)?;
-    unsafe {
-        // Attach our CNode for returning objects; the CAmkES template
-        // forces extraCaps=1 when constructing the MessageInfo struct
-        // used by the seL4_Call inside memory_alloc.
-        // NB: scrubbing the IPC buffer is done on drop of |cleanup|
-        sel4_sys::debug_assert_slot_cnode!(request.cnode);
-        let _cleanup = Camkes::set_request_cap(request.cnode);
+    sel4_sys::debug_assert_slot_cnode!(request.cnode);
 
-        memory_alloc(raw_data.len() as u32, raw_data.as_ptr()).into()
-    }
+    cantrip_memory_request(
+        &MemoryManagerRequest::Alloc(Cow::Borrowed(request)),
+        &mut [0u8; RAW_MEMORY_STATS_DATA_SIZE],
+    )
 }
 
 // Allocates the objects specified in |objs|. The capabilities are moved
@@ -630,24 +687,13 @@ pub fn cantrip_page_table_alloc() -> Result<ObjDescBundle, MemoryManagerError> {
 
 #[inline]
 pub fn cantrip_object_free(request: &ObjDescBundle) -> Result<(), MemoryManagerError> {
-    extern "C" {
-        // NB: this assumes the MemoryManager component is named "memory".
-        fn memory_free(c_data_len: u32, c_data: *const u8) -> MemoryManagerError;
-    }
     trace!("cantrip_object_free {}", request);
-    let raw_data = &mut [0u8; RAW_OBJ_DESC_DATA_SIZE];
-    postcard::to_slice(request, &mut raw_data[..])
-        .map_err(|_| MemoryManagerError::MmeSerializeFailed)?;
-    unsafe {
-        // Attach our CNode for returning objects; the CAmkES template
-        // forces extraCaps=1 when constructing the MessageInfo struct
-        // used in the seL4_Call.
-        // NB: scrubbing the IPC buffer is done on drop of |cleanup|
-        sel4_sys::debug_assert_slot_cnode!(request.cnode);
-        let _cleanup = Camkes::set_request_cap(request.cnode);
+    sel4_sys::debug_assert_slot_cnode!(request.cnode);
 
-        memory_free(raw_data.len() as u32, raw_data.as_ptr()).into()
-    }
+    cantrip_memory_request(
+        &MemoryManagerRequest::Free(Cow::Borrowed(request)),
+        &mut [0u8; RAW_MEMORY_STATS_DATA_SIZE],
+    )
 }
 
 // Free |request| and then the container that holds them. The container
@@ -684,37 +730,18 @@ pub fn cantrip_object_free_toplevel(objs: &ObjDescBundle) -> Result<(), MemoryMa
 
 #[inline]
 pub fn cantrip_memory_stats() -> Result<MemoryManagerStats, MemoryManagerError> {
-    extern "C" {
-        // NB: this assumes the MemoryManager component is named "memory".
-        fn memory_stats(c_data: *mut RawMemoryStatsData) -> MemoryManagerError;
-    }
-    let raw_data = &mut [0u8; RAW_MEMORY_STATS_DATA_SIZE];
-    match unsafe { memory_stats(raw_data as *mut _) } {
-        MemoryManagerError::MmeSuccess => {
-            let stats = postcard::from_bytes::<MemoryManagerStats>(raw_data)
-                .map_err(|_| MemoryManagerError::MmeDeserializeFailed)?;
-            Ok(stats)
-        }
-        status => Err(status),
-    }
+    let reply = &mut [0u8; RAW_MEMORY_STATS_DATA_SIZE];
+    cantrip_memory_request(&MemoryManagerRequest::Stats, reply)?;
+    let stats = postcard::from_bytes::<StatsResponse>(reply)?;
+    Ok(stats.value)
 }
 
 #[inline]
 pub fn cantrip_memory_debug() -> Result<(), MemoryManagerError> {
-    extern "C" {
-        // NB: this assumes the MemoryManager component is named "memory".
-        fn memory_debug();
-    }
-    unsafe { memory_debug() };
-    Ok(())
+    cantrip_memory_request(&MemoryManagerRequest::Debug, &mut [0u8; RAW_MEMORY_STATS_DATA_SIZE])
 }
 
 #[inline]
 pub fn cantrip_memory_capscan() -> Result<(), MemoryManagerError> {
-    extern "C" {
-        // NB: this assumes the MemoryManager component is named "memory".
-        fn memory_capscan();
-    }
-    unsafe { memory_capscan() };
-    Ok(())
+    cantrip_memory_request(&MemoryManagerRequest::Capscan, &mut [0u8; RAW_MEMORY_STATS_DATA_SIZE])
 }
