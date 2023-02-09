@@ -251,16 +251,6 @@ impl ImageManager {
         })
     }
 
-    /// Returns the tcm_top address for image |id|. If the image is not
-    /// found None is return.
-    pub fn get_top_addr(&self, id: &ImageId) -> Option<usize> {
-        self.images
-            .iter()
-            .filter_map(|x| x.as_ref())
-            .find(|image| &image.id == id)
-            .map(|image| image.data_top_addr)
-    }
-
     /// Returns true if the image |id| is currently loaded in the TCM.
     pub fn is_loaded(&mut self, id: &ImageId) -> bool { self.get_image_index(id).is_some() }
 

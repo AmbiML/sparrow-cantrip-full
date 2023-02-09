@@ -29,7 +29,7 @@ use cantrip_proc_interface::BundleImage;
 use cantrip_security_interface::*;
 use cantrip_timer_interface::*;
 use cantrip_vec_core as MlCore;
-use log::{error, info, trace, warn};
+use log::{error, info, warn};
 
 use sel4_sys::seL4_Word;
 
@@ -159,43 +159,6 @@ impl MLCoordinator {
         }
     }
 
-    fn reload_static_data(&self, model: &LoadableModel) -> Result<(), MlCoordError> {
-        let mut container_slot = CSpaceSlot::new();
-        let model_frames =
-            cantrip_security_load_model(&model.id.bundle_id, &model.id.model_id, &container_slot)
-                .map_err(|_| MlCoordError::LoadModelFailed)?;
-        container_slot.release(); // NB: take ownership
-
-        let mut image = BundleImage::new(&model_frames);
-
-        // Find top address for loading the data segment.
-        let mut temp_top = self.image_manager.get_top_addr(&model.id).unwrap();
-        trace!("reload {} temp_top {:#x}", &model.id, temp_top);
-
-        while let Some(section) = image.next_section() {
-            if section.vaddr == TEXT_VADDR {
-                temp_top += model.in_memory_sizes.text;
-            } else if section.vaddr == CONST_DATA_VADDR {
-                temp_top += model.in_memory_sizes.constant_data;
-            } else if section.vaddr == MODEL_OUTPUT_VADDR {
-                temp_top += model.in_memory_sizes.model_output;
-            } else if section.vaddr == STATIC_DATA_VADDR {
-                MlCore::write_image_part(
-                    &mut image,
-                    temp_top,
-                    model.on_flash_sizes.static_data,
-                    model.in_memory_sizes.static_data,
-                )
-                .ok_or(MlCoordError::LoadModelFailed)?;
-                break;
-            }
-        }
-        drop(image);
-        let _ = cantrip_object_free_in_cnode(&model_frames);
-
-        Ok(())
-    }
-
     // If there is a next model in the queue, load it onto the vector core and
     // start running. If there's already a running model, don't do anything.
     fn schedule_next_model(&mut self) -> Result<(), MlCoordError> {
@@ -206,8 +169,7 @@ impl MLCoordinator {
         let next_idx = self.execution_queue.remove(0);
         let model = self.models[next_idx].as_ref().expect("Model get fail");
 
-        let image_is_loaded = self.image_manager.is_loaded(&model.id);
-        if !image_is_loaded {
+        if !self.image_manager.is_loaded(&model.id) {
             // Loads |model_id| associated with |bundle_id| from the
             // SecurityCoordinator. The data are returned as unmapped
             // page frames in a CNode container left in |container_slot|.
@@ -230,7 +192,6 @@ impl MLCoordinator {
                         model.in_memory_sizes.data_top_size(),
                         model.in_memory_sizes.temporary_data,
                     );
-                    trace!("first load {} temp_top {:#x}", &model.id, temp_top);
 
                     while let Some(section) = image.next_section() {
                         // TODO(jesionowski): Ensure these are in order.
@@ -291,11 +252,6 @@ impl MLCoordinator {
         // TODO(jesionowski): When hardware clear is enabled, we should
         // kick it off after the run instead.
         self.image_manager.clear_temp_data();
-
-        if image_is_loaded {
-            // TODO(b/258304148): reload .data section to workaround corruption
-            self.reload_static_data(model)?;
-        }
 
         self.image_manager.set_wmmu(&model.id);
 
