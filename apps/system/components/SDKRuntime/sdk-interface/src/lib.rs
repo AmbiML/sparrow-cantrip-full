@@ -319,14 +319,12 @@ fn sdk_request<'a, S: Serialize, D: Deserialize<'a>>(
 
 /// Rust client-side wrapper for the ping method.
 #[inline]
-#[allow(dead_code)]
 pub fn sdk_ping() -> Result<(), SDKRuntimeError> {
     sdk_request::<PingRequest, ()>(SDKRuntimeRequest::Ping, &PingRequest {})
 }
 
 /// Rust client-side wrapper for the log method.
 #[inline]
-#[allow(dead_code)]
 pub fn sdk_log(msg: &str) -> Result<(), SDKRuntimeError> {
     sdk_request::<LogRequest, ()>(
         SDKRuntimeRequest::Log,
@@ -339,7 +337,6 @@ pub fn sdk_log(msg: &str) -> Result<(), SDKRuntimeError> {
 /// Rust client-side wrapper for the read key method.
 // TODO(sleffler): _mut variant?
 #[inline]
-#[allow(dead_code)]
 pub fn sdk_read_key<'a>(key: &str, keyval: &'a mut [u8]) -> Result<&'a [u8], SDKRuntimeError> {
     let response = sdk_request::<ReadKeyRequest, ReadKeyResponse>(
         SDKRuntimeRequest::ReadKey,
@@ -351,21 +348,18 @@ pub fn sdk_read_key<'a>(key: &str, keyval: &'a mut [u8]) -> Result<&'a [u8], SDK
 
 /// Rust client-side wrapper for the write key method.
 #[inline]
-#[allow(dead_code)]
 pub fn sdk_write_key(key: &str, value: &[u8]) -> Result<(), SDKRuntimeError> {
     sdk_request::<WriteKeyRequest, ()>(SDKRuntimeRequest::WriteKey, &WriteKeyRequest { key, value })
 }
 
 /// Rust client-side wrapper for the delete key method.
 #[inline]
-#[allow(dead_code)]
 pub fn sdk_delete_key(key: &str) -> Result<(), SDKRuntimeError> {
     sdk_request::<DeleteKeyRequest, ()>(SDKRuntimeRequest::DeleteKey, &DeleteKeyRequest { key })
 }
 
 /// Rust client-side wrapper for the timer_oneshot method.
 #[inline]
-#[allow(dead_code)]
 pub fn sdk_timer_oneshot(id: TimerId, duration_ms: TimerDuration) -> Result<(), SDKRuntimeError> {
     sdk_request::<TimerStartRequest, ()>(
         SDKRuntimeRequest::OneshotTimer,
@@ -375,7 +369,6 @@ pub fn sdk_timer_oneshot(id: TimerId, duration_ms: TimerDuration) -> Result<(), 
 
 /// Rust client-side wrapper for the timer_periodic method.
 #[inline]
-#[allow(dead_code)]
 pub fn sdk_timer_periodic(id: TimerId, duration_ms: TimerDuration) -> Result<(), SDKRuntimeError> {
     sdk_request::<TimerStartRequest, ()>(
         SDKRuntimeRequest::PeriodicTimer,
@@ -385,7 +378,6 @@ pub fn sdk_timer_periodic(id: TimerId, duration_ms: TimerDuration) -> Result<(),
 
 /// Rust client-side wrapper for the timer_cancel method.
 #[inline]
-#[allow(dead_code)]
 pub fn sdk_timer_cancel(id: TimerId) -> Result<(), SDKRuntimeError> {
     sdk_request::<TimerCancelRequest, ()>(
         SDKRuntimeRequest::CancelTimer,
@@ -395,7 +387,6 @@ pub fn sdk_timer_cancel(id: TimerId) -> Result<(), SDKRuntimeError> {
 
 /// Rust client-side wrapper for the timer_wait method.
 #[inline]
-#[allow(dead_code)]
 pub fn sdk_timer_wait() -> Result<TimerMask, SDKRuntimeError> {
     let response = sdk_request::<TimerWaitRequest, TimerWaitResponse>(
         SDKRuntimeRequest::WaitForTimers,
@@ -406,7 +397,6 @@ pub fn sdk_timer_wait() -> Result<TimerMask, SDKRuntimeError> {
 
 /// Rust client-side wrapper for the timer_poll method.
 #[inline]
-#[allow(dead_code)]
 pub fn sdk_timer_poll() -> Result<TimerMask, SDKRuntimeError> {
     let response = sdk_request::<TimerWaitRequest, TimerWaitResponse>(
         SDKRuntimeRequest::PollForTimers,
@@ -417,7 +407,6 @@ pub fn sdk_timer_poll() -> Result<TimerMask, SDKRuntimeError> {
 
 /// Rust client-side wrapper for the model_oneshot method.
 #[inline]
-#[allow(dead_code)]
 pub fn sdk_model_oneshot(model_id: &str) -> Result<ModelId, SDKRuntimeError> {
     let response = sdk_request::<ModelOneshotRequest, ModelStartResponse>(
         SDKRuntimeRequest::OneshotModel,
@@ -428,7 +417,6 @@ pub fn sdk_model_oneshot(model_id: &str) -> Result<ModelId, SDKRuntimeError> {
 
 /// Rust client-side wrapper for the model_periodic method.
 #[inline]
-#[allow(dead_code)]
 pub fn sdk_model_periodic(
     model_id: &str,
     duration_ms: TimerDuration,
@@ -445,7 +433,6 @@ pub fn sdk_model_periodic(
 
 /// Rust client-side wrapper for the model_cancel method.
 #[inline]
-#[allow(dead_code)]
 pub fn sdk_model_cancel(id: ModelId) -> Result<(), SDKRuntimeError> {
     sdk_request::<ModelCancelRequest, ()>(
         SDKRuntimeRequest::CancelModel,
@@ -455,7 +442,6 @@ pub fn sdk_model_cancel(id: ModelId) -> Result<(), SDKRuntimeError> {
 
 /// Rust client-side wrapper for the modelk_wait method.
 #[inline]
-#[allow(dead_code)]
 pub fn sdk_model_wait() -> Result<ModelMask, SDKRuntimeError> {
     let response = sdk_request::<ModelWaitRequest, ModelWaitResponse>(
         SDKRuntimeRequest::WaitForModel,
@@ -466,7 +452,6 @@ pub fn sdk_model_wait() -> Result<ModelMask, SDKRuntimeError> {
 
 /// Rust client-side wrapper for the model_poll method.
 #[inline]
-#[allow(dead_code)]
 pub fn sdk_model_poll() -> Result<ModelMask, SDKRuntimeError> {
     let response = sdk_request::<ModelWaitRequest, ModelWaitResponse>(
         SDKRuntimeRequest::PollForModels,

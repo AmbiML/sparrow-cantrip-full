@@ -55,7 +55,6 @@ pub trait SDKManagerInterface {
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn cantrip_sdk_manager_get_endpoint(
     app_id: &str,
     container_slot: &CSpaceSlot,
@@ -77,7 +76,6 @@ pub fn cantrip_sdk_manager_get_endpoint(
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn cantrip_sdk_manager_release_endpoint(app_id: &str) -> Result<(), SDKManagerError> {
     extern "C" {
         pub fn sdk_manager_release_endpoint(
@@ -89,7 +87,6 @@ pub fn cantrip_sdk_manager_release_endpoint(app_id: &str) -> Result<(), SDKManag
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn cantrip_sdk_manager_capscan() -> Result<(), SDKManagerError> {
     extern "C" {
         pub fn sdk_manager_capscan();

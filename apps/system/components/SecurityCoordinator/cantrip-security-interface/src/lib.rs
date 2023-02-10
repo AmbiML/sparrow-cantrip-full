@@ -320,7 +320,6 @@ pub trait SecurityCoordinatorInterface {
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn cantrip_security_request<T: Serialize + SecurityCapability + core::fmt::Debug>(
     request: SecurityRequest,
     request_args: &T,
@@ -372,7 +371,6 @@ pub fn cantrip_security_request<T: Serialize + SecurityCapability + core::fmt::D
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn cantrip_security_echo(request: &str) -> Result<String, SecurityRequestError> {
     let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
     cantrip_security_request(
@@ -386,7 +384,6 @@ pub fn cantrip_security_echo(request: &str) -> Result<String, SecurityRequestErr
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn cantrip_security_install(
     pkg_contents: &ObjDescBundle,
 ) -> Result<String, SecurityRequestError> {
@@ -406,7 +403,6 @@ pub fn cantrip_security_install(
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn cantrip_security_install_application(
     app_id: &str,
     pkg_contents: &ObjDescBundle,
@@ -427,7 +423,6 @@ pub fn cantrip_security_install_application(
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn cantrip_security_install_model(
     app_id: &str,
     model_id: &str,
@@ -450,7 +445,6 @@ pub fn cantrip_security_install_model(
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn cantrip_security_uninstall(bundle_id: &str) -> Result<(), SecurityRequestError> {
     cantrip_security_request(
         SecurityRequest::SrUninstall,
@@ -460,7 +454,6 @@ pub fn cantrip_security_uninstall(bundle_id: &str) -> Result<(), SecurityRequest
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn cantrip_security_size_buffer(bundle_id: &str) -> Result<usize, SecurityRequestError> {
     let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
     cantrip_security_request(
@@ -474,7 +467,6 @@ pub fn cantrip_security_size_buffer(bundle_id: &str) -> Result<usize, SecurityRe
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn cantrip_security_get_manifest(bundle_id: &str) -> Result<String, SecurityRequestError> {
     let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
     cantrip_security_request(
@@ -488,7 +480,6 @@ pub fn cantrip_security_get_manifest(bundle_id: &str) -> Result<String, Security
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn cantrip_security_load_application(
     bundle_id: &str,
     container_slot: &CSpaceSlot,
@@ -520,7 +511,6 @@ pub fn cantrip_security_load_application(
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn cantrip_security_load_model(
     bundle_id: &str,
     model_id: &str,
@@ -556,7 +546,6 @@ pub fn cantrip_security_load_model(
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn cantrip_security_read_key(
     bundle_id: &str,
     key: &str,
@@ -575,7 +564,6 @@ pub fn cantrip_security_read_key(
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn cantrip_security_write_key(
     bundle_id: &str,
     key: &str,
@@ -593,7 +581,6 @@ pub fn cantrip_security_write_key(
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn cantrip_security_delete_key(bundle_id: &str, key: &str) -> Result<(), SecurityRequestError> {
     cantrip_security_request(
         SecurityRequest::SrDeleteKey,
@@ -603,7 +590,6 @@ pub fn cantrip_security_delete_key(bundle_id: &str, key: &str) -> Result<(), Sec
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn cantrip_security_test_mailbox() -> Result<(), SecurityRequestError> {
     cantrip_security_request(
         SecurityRequest::SrTestMailbox,
@@ -613,7 +599,6 @@ pub fn cantrip_security_test_mailbox() -> Result<(), SecurityRequestError> {
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn cantrip_security_capscan() -> Result<(), SecurityRequestError> {
     cantrip_security_request(
         SecurityRequest::SrCapScan,

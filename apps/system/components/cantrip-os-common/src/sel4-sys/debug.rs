@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![allow(dead_code)]
-
 // Support for debugging capability handling. These only do something
 // in a DEBUG build where cap_identify should work. Beware of the
 // hardwired cap type codes; the 3 macros defined should be portable

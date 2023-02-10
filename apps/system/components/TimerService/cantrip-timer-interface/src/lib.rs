@@ -13,7 +13,6 @@
 // limitations under the License.
 
 #![no_std]
-#![allow(dead_code)]
 
 use cantrip_os_common::sel4_sys;
 use core::time::Duration;

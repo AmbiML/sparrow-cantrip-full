@@ -15,7 +15,6 @@
 //! Cantrip OS memory management support
 
 #![cfg_attr(not(test), no_std)]
-#![allow(dead_code)]
 
 extern crate alloc;
 use alloc::vec;

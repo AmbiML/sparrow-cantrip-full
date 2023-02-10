@@ -226,7 +226,6 @@ pub enum PackageManagementRequest {
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn cantrip_pkg_mgmt_request<T: Serialize + Capability + core::fmt::Debug>(
     request: PackageManagementRequest,
     request_args: &T,
@@ -288,7 +287,6 @@ pub enum ProcessControlRequest {
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn cantrip_proc_ctrl_request<T: Serialize + Capability + core::fmt::Debug>(
     request: ProcessControlRequest,
     request_args: &T,
@@ -384,7 +382,6 @@ impl From<ProcessManagerError> for Result<(), ProcessManagerError> {
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn cantrip_proc_ctrl_get_running_bundles() -> Result<BundleIdArray, ProcessManagerError> {
     let reply = &mut [0u8; RAW_BUNDLE_ID_DATA_SIZE];
     cantrip_proc_ctrl_request(
@@ -396,7 +393,6 @@ pub fn cantrip_proc_ctrl_get_running_bundles() -> Result<BundleIdArray, ProcessM
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn cantrip_pkg_mgmt_install(
     pkg_contents: &ObjDescBundle,
 ) -> Result<String, ProcessManagerError> {
@@ -416,7 +412,6 @@ pub fn cantrip_pkg_mgmt_install(
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn cantrip_pkg_mgmt_install_app(
     app_id: &str,
     pkg_contents: &ObjDescBundle,
@@ -437,7 +432,6 @@ pub fn cantrip_pkg_mgmt_install_app(
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn cantrip_pkg_mgmt_uninstall(bundle_id: &str) -> Result<(), ProcessManagerError> {
     cantrip_pkg_mgmt_request(
         PackageManagementRequest::PmrUninstall,
@@ -447,7 +441,6 @@ pub fn cantrip_pkg_mgmt_uninstall(bundle_id: &str) -> Result<(), ProcessManagerE
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn cantrip_proc_ctrl_start(bundle_id: &str) -> Result<(), ProcessManagerError> {
     cantrip_proc_ctrl_request(
         ProcessControlRequest::PcrStart,
@@ -457,7 +450,6 @@ pub fn cantrip_proc_ctrl_start(bundle_id: &str) -> Result<(), ProcessManagerErro
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn cantrip_proc_ctrl_stop(bundle_id: &str) -> Result<(), ProcessManagerError> {
     cantrip_proc_ctrl_request(
         ProcessControlRequest::PcrStop,
@@ -467,7 +459,6 @@ pub fn cantrip_proc_ctrl_stop(bundle_id: &str) -> Result<(), ProcessManagerError
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn cantrip_proc_ctrl_capscan() -> Result<(), ProcessManagerError> {
     cantrip_proc_ctrl_request(
         ProcessControlRequest::PcrCapScan,
@@ -477,7 +468,6 @@ pub fn cantrip_proc_ctrl_capscan() -> Result<(), ProcessManagerError> {
 }
 
 #[inline]
-#[allow(dead_code)]
 pub fn cantrip_proc_ctrl_capscan_bundle(bundle_id: &str) -> Result<(), ProcessManagerError> {
     cantrip_proc_ctrl_request(
         ProcessControlRequest::PcrCapScanBundle,
