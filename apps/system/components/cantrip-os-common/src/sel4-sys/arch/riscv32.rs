@@ -232,205 +232,73 @@ macro_rules! opt_assign {
     };
 }
 
-#[inline(always)]
-pub unsafe fn seL4_Send(dest: seL4_CPtr, msgInfo: seL4_MessageInfo) {
-    asm!("ecall",
-        in("a7") swinum!(SyscallId::Send),
-        in("a0") dest,
-        in("a1") msgInfo.words[0],
-        in("a2") seL4_GetMR(0),
-        in("a3") seL4_GetMR(1),
-        in("a4") seL4_GetMR(2),
-        in("a5") seL4_GetMR(3),
-    );
+// Syscall asm idioms. MCS-dependent asm wrappers are defined in
+// the _mcs.rs & _no_mcs.rs files included below.
+// NB: these correspond to riscv_sys_* in libsel4's syscalls.h files
+
+// Fills all message registers. Discards everything returned by the kerrnel.
+// Used for 1-way sends like seL4_Send.
+macro_rules! asm_send {
+    ($syscall:expr, $dest:expr, $info:expr, $mr0:expr, $mr1:expr, $mr2:expr, $mr3:expr) => {
+        asm!("ecall",
+            in("a7") swinum!($syscall),
+            inout("a0") $dest => _,
+            inout("a1") $info => _,
+            inout("a2") $mr0 => _,
+            inout("a3") $mr1 => _,
+            inout("a4") $mr2 => _,
+            inout("a5") $mr3 => _,
+        )
+    };
+    ($syscall:expr, $dest:expr, $info:expr => $info_recv:expr, $mr0:expr, $mr1:expr, $mr2:expr, $mr3:expr) => {
+        asm!("ecall",
+            in("a7") swinum!($syscall),
+            inout("a0") $dest => _,
+            inout("a1") $info => $info_recv,
+            inout("a2") $mr0 => _,
+            inout("a3") $mr1 => _,
+            inout("a4") $mr2 => _,
+            inout("a5") $mr3 => _,
+        )
+    };
 }
 
-#[inline(always)]
-pub unsafe fn seL4_SendWithMRs(
-    dest: seL4_CPtr,
-    msgInfo: seL4_MessageInfo,
-    mr0: *mut seL4_Word,
-    mr1: *mut seL4_Word,
-    mr2: *mut seL4_Word,
-    mr3: *mut seL4_Word,
-) {
-    let mut msg0 = ::core::mem::MaybeUninit::uninit().assume_init();
-    let mut msg1 = ::core::mem::MaybeUninit::uninit().assume_init();
-    let mut msg2 = ::core::mem::MaybeUninit::uninit().assume_init();
-    let mut msg3 = ::core::mem::MaybeUninit::uninit().assume_init();
-
-    if !mr0.is_null() && msgInfo.get_length() > 0 {
-        msg0 = *mr0;
-    }
-    if !mr1.is_null() && msgInfo.get_length() > 1 {
-        msg1 = *mr1;
-    }
-    if !mr2.is_null() && msgInfo.get_length() > 2 {
-        msg2 = *mr2;
-    }
-    if !mr3.is_null() && msgInfo.get_length() > 3 {
-        msg3 = *mr3;
-    }
-
-    asm!("ecall",
-        in("a7") swinum!(SyscallId::Send),
-        in("a0") dest,
-        in("a1") msgInfo.words[0],
-        in("a2") msg0,
-        in("a3") msg1,
-        in("a4") msg2,
-        in("a5") msg3,
-    );
+// Fills no message registers. Discards everything returned by the kernel.
+// Used for 1-way sends that contain no data, like seL4_Notify.
+macro_rules! asm_send_no_mrs {
+    ($syscall:expr, $dest:expr, $info:expr) => {
+        asm!("ecall",
+            in("a7") swinum!($syscall),
+            inout("a0") $dest => _,
+            inout("a1") $info => _,
+        )
+    };
 }
 
-#[inline(always)]
-pub unsafe fn seL4_NBSend(dest: seL4_CPtr, msgInfo: seL4_MessageInfo) {
-    asm!("ecall",
-        in("a7") swinum!(SyscallId::NBSend),
-        in("a0") dest,
-        in("a1") msgInfo.words[0],
-        in("a2") seL4_GetMR(0),
-        in("a3") seL4_GetMR(1),
-        in("a4") seL4_GetMR(2),
-        in("a5") seL4_GetMR(3),
-    );
+// Fills only the syscall number. Indicates nothing in memory
+// is clobbered. Used for calls like seL4_Yield.
+macro_rules! asm_no_args {
+    ($syscall:expr) => {
+        asm!("ecall",
+            in("a7") swinum!($syscall),
+            options(nomem, nostack),
+        )
+    };
 }
 
-#[inline(always)]
-pub unsafe fn seL4_NBSendWithMRs(
-    dest: seL4_CPtr,
-    msgInfo: seL4_MessageInfo,
-    mr0: *mut seL4_Word,
-    mr1: *mut seL4_Word,
-    mr2: *mut seL4_Word,
-    mr3: *mut seL4_Word,
-) {
-    let mut msg0 = ::core::mem::MaybeUninit::uninit().assume_init();
-    let mut msg1 = ::core::mem::MaybeUninit::uninit().assume_init();
-    let mut msg2 = ::core::mem::MaybeUninit::uninit().assume_init();
-    let mut msg3 = ::core::mem::MaybeUninit::uninit().assume_init();
-
-    if !mr0.is_null() && msgInfo.get_length() > 0 {
-        msg0 = *mr0;
-    }
-    if !mr1.is_null() && msgInfo.get_length() > 1 {
-        msg1 = *mr1;
-    }
-    if !mr2.is_null() && msgInfo.get_length() > 2 {
-        msg2 = *mr2;
-    }
-    if !mr3.is_null() && msgInfo.get_length() > 3 {
-        msg3 = *mr3;
-    }
-
-    asm!("ecall",
-        in("a7") swinum!(SyscallId::NBSend),
-        in("a0") dest,
-        in("a1") msgInfo.words[0],
-        in("a2") msg0,
-        in("a3") msg1,
-        in("a4") msg2,
-        in("a5") msg3,
-    );
-}
-
-#[inline(always)]
-pub unsafe fn seL4_Signal(dest: seL4_CPtr) {
-    let info = seL4_MessageInfo::new(0, 0, 0, 0).words[0];
-    asm!("ecall",
-        in("a7") swinum!(SyscallId::Send),
-        in("a0") dest,
-        in("a1") info,
-    );
-}
-
-#[inline(always)]
-pub unsafe fn seL4_Call(dest: seL4_CPtr, msgInfo: seL4_MessageInfo) -> seL4_MessageInfo {
-    let mut info: seL4_Word;
-    let mut msg0 = seL4_GetMR(0);
-    let mut msg1 = seL4_GetMR(1);
-    let mut msg2 = seL4_GetMR(2);
-    let mut msg3 = seL4_GetMR(3);
-
-    asm!("ecall",
-        in("a7") swinum!(SyscallId::Call),
-        in("a0") dest,
-        inout("a1") msgInfo.words[0] => info,
-        inout("a2") msg0,
-        inout("a3") msg1,
-        inout("a4") msg2,
-        inout("a5") msg3,
-    );
-
-    seL4_SetMR(0, msg0);
-    seL4_SetMR(1, msg1);
-    seL4_SetMR(2, msg2);
-    seL4_SetMR(3, msg3);
-
-    seL4_MessageInfo { words: [info] }
-}
-
-#[inline(always)]
-pub unsafe fn seL4_CallWithMRs(
-    dest: seL4_CPtr,
-    msgInfo: seL4_MessageInfo,
-    mr0: *mut seL4_Word,
-    mr1: *mut seL4_Word,
-    mr2: *mut seL4_Word,
-    mr3: *mut seL4_Word,
-) -> seL4_MessageInfo {
-    let mut info: seL4_Word;
-    let mut msg0 = ::core::mem::MaybeUninit::uninit().assume_init();
-    let mut msg1 = ::core::mem::MaybeUninit::uninit().assume_init();
-    let mut msg2 = ::core::mem::MaybeUninit::uninit().assume_init();
-    let mut msg3 = ::core::mem::MaybeUninit::uninit().assume_init();
-
-    if !mr0.is_null() && msgInfo.get_length() > 0 {
-        msg0 = *mr0;
-    }
-    if !mr1.is_null() && msgInfo.get_length() > 1 {
-        msg1 = *mr1;
-    }
-    if !mr2.is_null() && msgInfo.get_length() > 2 {
-        msg2 = *mr2;
-    }
-    if !mr3.is_null() && msgInfo.get_length() > 3 {
-        msg3 = *mr3;
-    }
-
-    asm!("ecall",
-        in("a7") swinum!(SyscallId::Call),
-        in("a0") dest,
-        inout("a1") msgInfo.words[0] => info,
-        inout("a2") msg0,
-        inout("a3") msg1,
-        inout("a4") msg2,
-        inout("a5") msg3,
-    );
-
-    opt_assign!(mr0, msg0);
-    opt_assign!(mr1, msg1);
-    opt_assign!(mr2, msg2);
-    opt_assign!(mr3, msg3);
-
-    seL4_MessageInfo { words: [info] }
-}
-
-#[inline(always)]
-pub unsafe fn seL4_Yield() {
-    asm!("ecall",
-        in("a7") swinum!(SyscallId::Yield),
-        options(nomem, nostack),
-    );
-}
+include!("syscall_common.rs");
 
 cfg_if! {
     if #[cfg(feature = "CONFIG_KERNEL_MCS")] {
         include!("riscv32_mcs.rs");
+        include!("syscall_mcs.rs");
     } else {
         include!("riscv32_no_mcs.rs");
+        include!("syscall_no_mcs.rs");
     }
 }
+
+// TODO(sleffler): move to syscall_common.rs
 
 cfg_if! {
     if #[cfg(feature = "CONFIG_PRINTING")] {
@@ -466,18 +334,12 @@ cfg_if! {
     if #[cfg(feature = "CONFIG_DEBUG_BUILD")] {
         #[inline(always)]
         pub unsafe fn seL4_DebugHalt() {
-            asm!("ecall",
-                in("a7") swinum!(SyscallId::DebugHalt),
-                options(nomem, nostack),
-            );
+            asm_no_args!(SyscallId::DebugHalt);
         }
 
         #[inline(always)]
         pub unsafe fn seL4_DebugSnapshot() {
-            asm!("ecall",
-                in("a7") swinum!(SyscallId::DebugSnapshot),
-                options(nomem, nostack),
-            );
+            asm_no_args!(SyscallId::DebugSnapshot);
         }
 
         #[inline(always)]
@@ -521,18 +383,12 @@ cfg_if! {
     if #[cfg(feature = "CONFIG_ENABLE_BENCHMARKS")] {
         #[inline(always)]
         pub unsafe fn seL4_BenchmarkResetLog() {
-            asm!("ecall",
-                in("a7") swinum!(SyscallId::BenchmarkResetLog),
-                options(nomem, nostack),
-            );
+            asm_no_args!(SyscallId::BenchmarkResetLog);
         }
 
         #[inline(always)]
         pub unsafe fn seL4_BenchmarkFinalizeLog() {
-            asm!("ecall",
-                in("a7") swinum!(SyscallId::BenchmarkFinalizeLog),
-                options(nomem, nostack),
-            );
+            asm_no_args!(SyscallId::BenchmarkFinalizeLog);
         }
 
         // TODO(sleffler): seL4_BenchmarkSetLogBuffer

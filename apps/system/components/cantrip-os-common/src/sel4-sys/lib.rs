@@ -16,6 +16,7 @@
 #![allow(clippy::uninit_assumed_init)]
 #![allow(clippy::too_many_arguments)]
 
+use core::arch::asm;
 use core::mem::size_of;
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};

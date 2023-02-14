@@ -44,16 +44,6 @@ extern "C" {
 // TODO(sleffler): do we need to parameterize VM_Attributes & CapRights?
 // TODO(sleffler): Mutex-wrapped & maybe RefCell-wrapped versions?
 
-// Fn from the criterion crate that convinces the optimizer
-// a value is used in order to defeat premature optimization.
-fn black_box<T>(dummy: T) -> T {
-    unsafe {
-        let ret = core::ptr::read_volatile(&dummy);
-        core::mem::forget(dummy);
-        ret
-    }
-}
-
 pub struct CopyRegion {
     region: *mut seL4_Word,
     size: usize,
@@ -107,7 +97,6 @@ impl CopyRegion {
     // Maps the |frame| in the SELF_VSPACE_ROOT for r/w.
     // XXX need rights + attribs?
     pub fn map(&mut self, frame: seL4_CPtr) -> seL4_Result {
-        black_box(frame); // NB: compiler WAR for frame clobber
         unsafe {
             seL4_Page_Map(
                 frame,
