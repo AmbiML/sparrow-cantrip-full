@@ -16,11 +16,9 @@
 #![allow(non_upper_case_globals)]
 #![allow(stable_features)]
 #![feature(global_asm)]
-#![feature(thread_local)]
 
 use cantrip_os_common::allocator;
 use cantrip_os_common::logger::CantripLogger;
-use cantrip_os_common::sel4_sys::seL4_IPCBuffer;
 use core::arch::global_asm;
 use sdk_interface::sdk_log;
 use static_assertions::*;
@@ -52,10 +50,6 @@ global_asm!(include_str!("arch/riscv32/crt0.S"));
 
 #[cfg(target_arch = "riscv64")]
 global_asm!(include_str!("arch/riscv64/crt0.S"));
-
-#[no_mangle]
-#[thread_local]
-static mut __sel4_ipc_buffer: *mut seL4_IPCBuffer = 0 as _;
 
 // Connect the logger so panic msgs are displayed.
 #[no_mangle]

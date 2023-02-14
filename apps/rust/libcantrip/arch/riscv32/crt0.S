@@ -14,6 +14,11 @@
  * limitations under the License.
  */
 
+/*
+ * ProcessManager loads a0-a3 with _sel4_ipc_buffer and the information
+ * needed to communicate with the SDKRuntime. Save those to the well-known
+ * memory locations referenced by the SDK RPC.
+ */
     .section .text._start
     .align 2
     .globl _start
@@ -23,38 +28,32 @@ _start:
     .option norelax
 
     la gp, __global_pointer$
-    la x4, _tls
+    la x4, _tls                 // setup static TLS
 
-    /* Setup __sel4_ipc_buffer */
     lui t1, 0
     add t1, t1, tp
-    sw a0, 0(t1)
+    sw a0, 0(t1)                // setup __sel4_ipc_buffer at _tls+0
 
-    /* Setup SDKRuntime RPC framework */
-
-    /* seL4_CPtr to SDKRuntime Endpoint */
     la t1, CANTRIP_SDK_ENDPOINT
-    sw a1, 0(t1)
+    sw a1, 0(t1)                // seL4_CPtr of SDKRuntime Endpoint
 
-    /* seL4_CPtr to CANTRIP_SDK_PARAMS Frame object */
     la t1, CANTRIP_SDK_FRAME
-    sw a2, 0(t1)
+    sw a2, 0(t1)                // seL4_CPtr of CANTRIP_SDK_PARAMS Frame object
 
-    /* virtual address of CANTRIP_SDK_PARAMS */
     la t1, CANTRIP_SDK_PARAMS
-    sw a3, 0(t1)
+    sw a3, 0(t1)                // virtual address of CANTRIP_SDK_PARAMS
 
     .option pop
 
     j main
-1:  j 1b
+1:  j 1b                        // NB: should not return
 
     .section .bss
     .align 12
     .globl _tls
     .type _tls, tls_object
 _tls:
-    .ds.b 4096
+    .ds.b 4                     // NB: space only for __sel4_ipc_buffer
 
     .align 2
     .global CANTRIP_SDK_ENDPOINT
@@ -70,3 +69,10 @@ CANTRIP_SDK_FRAME:
     .global CANTRIP_SDK_PARAMS
 CANTRIP_SDK_PARAMS:
     .ds.b 4
+
+    .section .tbss
+    .align 2
+    .globl __sel4_ipc_buffer
+    .type __sel4_ipc_buffer, tls_object
+__sel4_ipc_buffer:
+    .zero 4

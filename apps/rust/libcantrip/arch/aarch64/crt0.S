@@ -41,15 +41,14 @@ _start:
     mov fp, #0
     mov lr, #0
     bl main
-    /* NB: should not return */
-1:  b 1b
+1:  b 1b                    // NB: should not return
 
     .section .bss
     .align 12
     .globl _tls
     .type _tls, tls_object
 _tls:
-    .ds.b 4096
+    .ds.b 8                 // NB: space only for __sel4_ipc_buffer
 
     .align 3
     .global CANTRIP_SDK_ENDPOINT
@@ -65,3 +64,10 @@ CANTRIP_SDK_FRAME:
     .global CANTRIP_SDK_PARAMS
 CANTRIP_SDK_PARAMS:
     .ds.b 8
+
+    .section .tbss
+    .align 3
+    .globl __sel4_ipc_buffer
+    .type __sel4_ipc_buffer, tls_object
+__sel4_ipc_buffer:
+    .zero 8
