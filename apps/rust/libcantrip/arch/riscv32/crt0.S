@@ -28,32 +28,32 @@ _start:
     .option norelax
 
     la gp, __global_pointer$
-    la x4, _tls                 // setup static TLS
+    la x4, _tls                 /* setup static TLS */
 
     lui t1, 0
     add t1, t1, tp
-    sw a0, 0(t1)                // setup __sel4_ipc_buffer at _tls+0
+    sw a0, 0(t1)                /* setup __sel4_ipc_buffer at _tls+0 */
 
     la t1, CANTRIP_SDK_ENDPOINT
-    sw a1, 0(t1)                // seL4_CPtr of SDKRuntime Endpoint
+    sw a1, 0(t1)                /* seL4_CPtr of SDKRuntime Endpoint */
 
     la t1, CANTRIP_SDK_FRAME
-    sw a2, 0(t1)                // seL4_CPtr of CANTRIP_SDK_PARAMS Frame object
+    sw a2, 0(t1)                /* seL4_CPtr of CANTRIP_SDK_PARAMS Frame object */
 
     la t1, CANTRIP_SDK_PARAMS
-    sw a3, 0(t1)                // virtual address of CANTRIP_SDK_PARAMS
+    sw a3, 0(t1)                /* virtual address of CANTRIP_SDK_PARAMS */
 
     .option pop
 
     j main
-1:  j 1b                        // NB: should not return
+1:  j 1b                        /* NB: should not return */
 
     .section .bss
     .align 12
     .globl _tls
     .type _tls, tls_object
 _tls:
-    .ds.b 4                     // NB: space only for __sel4_ipc_buffer
+    .ds.b 4                     /* NB: space only for __sel4_ipc_buffer */
 
     .align 2
     .global CANTRIP_SDK_ENDPOINT
