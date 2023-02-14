@@ -183,7 +183,7 @@ pub fn eval<T: io::BufRead>(
                 |func| func(&mut args, input, output, builtin_cpio),
             );
             if let Err(e) = result {
-                let _ = writeln!(output, "{}", e);
+                let _ = writeln!(output, "{}: {}", e, cmd);
             };
         }
         None => {
