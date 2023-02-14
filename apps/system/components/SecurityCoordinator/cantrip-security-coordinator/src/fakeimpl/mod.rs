@@ -15,9 +15,10 @@
 //! Cantrip OS security coordinator fake support
 
 extern crate alloc;
+use crate::upload::Upload;
 use alloc::fmt;
 use alloc::string::{String, ToString};
-use cantrip_memory_interface::cantrip_frame_alloc_in_cnode;
+use cantrip_memory_interface::cantrip_cnode_alloc;
 use cantrip_memory_interface::cantrip_object_free_in_cnode;
 use cantrip_memory_interface::ObjDescBundle;
 use cantrip_os_common::copyregion::CopyRegion;
@@ -106,40 +107,35 @@ impl FakeSecurityCoordinator {
 pub type CantripSecurityCoordinatorInterface = FakeSecurityCoordinator;
 
 // Returns a deep copy (including seL4 objects) of |src|. The container
-// CNode is in the toplevel (allocated from the slot allocator).
+// CNode is in the toplevel (allocated with the slot allocator).
 fn deep_copy(src: &ObjDescBundle) -> Result<ObjDescBundle, seL4_Error> {
-    let dest = cantrip_frame_alloc_in_cnode(src.size_bytes())
-        .map_err(|_| seL4_Error::seL4_NotEnoughMemory)?; // TODO(sleffler) From mapping
-    assert_eq!(src.count(), dest.count());
+    // Dest is an upload object that allocates a page at-a-time so
+    // the MemoryManager doesn't have to handle a huge memory request.
+    let mut dest = Upload::new(unsafe { ptr::addr_of_mut!(DEEP_COPY_DEST[0]) }, PAGE_SIZE);
+
     // Src top-level slot & copy region
     let src_slot = CSpaceSlot::new();
     let mut src_region = CopyRegion::new(unsafe { ptr::addr_of_mut!(DEEP_COPY_SRC[0]) }, PAGE_SIZE);
-    // Dest top-level slot & copy region
-    let dest_slot = CSpaceSlot::new();
-    let mut dest_region =
-        CopyRegion::new(unsafe { ptr::addr_of_mut!(DEEP_COPY_DEST[0]) }, PAGE_SIZE);
-    for (src_cptr, dest_cptr) in src.cptr_iter().zip(dest.cptr_iter()) {
-        // Map src & dest frames and copy data.
+
+    for src_cptr in src.cptr_iter() {
+        // Map src frame and copy data (allocating memory as needed)..
         src_slot
             .dup_to(src.cnode, src_cptr, src.depth)
             .and_then(|_| src_region.map(src_slot.slot))?;
-        dest_slot
-            .dup_to(dest.cnode, dest_cptr, dest.depth)
-            .and_then(|_| dest_region.map(dest_slot.slot))?;
+        dest.write(src_region.as_ref())
+            .map_err(|_| seL4_Error::seL4_NotEnoughMemory)?; // TODO(sleffler) From mapping
 
-        unsafe {
-            ptr::copy_nonoverlapping(
-                src_region.as_ref().as_ptr(),
-                dest_region.as_mut().as_mut_ptr(),
-                PAGE_SIZE,
-            );
-        }
-
-        // Unmap & clear top-level slot required for mapping.
+        // Unmap & clear top-level src slot required for mapping.
         src_region.unmap().and_then(|_| src_slot.delete())?;
-        dest_region.unmap().and_then(|_| dest_slot.delete())?;
     }
-    Ok(dest)
+    dest.finish();
+
+    // Collect the frames in a top-level CNode.
+    let cnode_depth = dest.frames().count_log2();
+    let cnode = cantrip_cnode_alloc(cnode_depth).map_err(|_| seL4_Error::seL4_NotEnoughMemory)?; // TODO(sleffler) From mapping
+    dest.frames_mut()
+        .move_objects_from_toplevel(cnode.objs[0].cptr, cnode_depth as u8)?;
+    Ok(dest.frames().clone())
 }
 
 impl SecurityCoordinatorInterface for FakeSecurityCoordinator {

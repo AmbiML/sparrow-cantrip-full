@@ -35,6 +35,8 @@ compile_error!("features \"fake\" and \"sel4\" are mutually exclusive");
 mod platform;
 pub use platform::CantripSecurityCoordinatorInterface;
 
+mod upload;
+
 #[cfg(not(test))]
 pub static mut CANTRIP_SECURITY: CantripSecurityCoordinator = CantripSecurityCoordinator::empty();
 

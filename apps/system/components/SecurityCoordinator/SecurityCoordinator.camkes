@@ -29,8 +29,11 @@ component SecurityCoordinator {
   // Enable CantripOS CAmkES support.
   attribute int cantripos = true;
 
-  // Add free slots for processing requests.
-  attribute int cnode_headroom = 32;
+  // Add free slots for processing Install & Load* requests.
+  // NB: this must be enough to serve the largest
+  // application or model managed by the Fake (on Sparrow
+  // 1024x 4K pages is sufficient given a 4MiB memory).
+  attribute int cnode_headroom = 1024;
 
   // For fakeimpl deep_copy (re-used by test_mailbox).
   has copyregion DEEP_COPY_SRC;
