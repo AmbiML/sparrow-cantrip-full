@@ -23,6 +23,7 @@ pub extern crate capdl;
 pub extern crate copyregion;
 #[cfg(feature = "camkes_support")]
 pub extern crate cspace_slot;
+#[cfg(feature = "logger_support")]
 pub extern crate logger;
 #[cfg(feature = "capdl_support")]
 pub extern crate model;
