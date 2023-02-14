@@ -49,21 +49,25 @@ use slot_allocator::CANTRIP_CSPACE_SLOTS;
 
 mod rz;
 
-#[cfg(feature = "FRINGE_CMDS")]
+#[cfg(all(feature = "CONFIG_DEBUG_BUILD", feature = "FRINGE_CMDS"))]
 mod fringe_cmds;
-#[cfg(feature = "TEST_GLOBAL_ALLOCATOR")]
+#[cfg(all(feature = "CONFIG_DEBUG_BUILD", feature = "TEST_GLOBAL_ALLOCATOR"))]
 mod test_global_allocator;
-#[cfg(feature = "TEST_MEMORY_MANAGER")]
+#[cfg(all(feature = "CONFIG_DEBUG_BUILD", feature = "TEST_MEMORY_MANAGER"))]
 mod test_memory_manager;
-#[cfg(all(feature = "ml_support", feature = "TEST_ML_COORDINATOR"))]
+#[cfg(all(
+    feature = "ml_support",
+    feature = "CONFIG_DEBUG_BUILD",
+    feature = "TEST_ML_COORDINATOR"
+))]
 mod test_ml_coordinator;
-#[cfg(feature = "TEST_PANIC")]
+#[cfg(all(feature = "CONFIG_DEBUG_BUILD", feature = "TEST_PANIC"))]
 mod test_panic;
-#[cfg(feature = "TEST_SECURITY_COORDINATOR")]
+#[cfg(all(feature = "CONFIG_DEBUG_BUILD", feature = "TEST_SECURITY_COORDINATOR"))]
 mod test_security_coordinator;
-#[cfg(feature = "TEST_TIMER_SERVICE")]
+#[cfg(all(feature = "CONFIG_DEBUG_BUILD", feature = "TEST_TIMER_SERVICE"))]
 mod test_timer_service;
-#[cfg(feature = "TEST_UART")]
+#[cfg(all(feature = "CONFIG_DEBUG_BUILD", feature = "TEST_UART"))]
 mod test_uart;
 
 extern "C" {
@@ -141,21 +145,25 @@ fn get_cmds() -> HashMap<&'static str, CmdFn> {
     ]);
     #[cfg(feature = "ml_support")]
     cmds.extend([("state_mlcoord", state_mlcoord_command as CmdFn)]);
-    #[cfg(feature = "FRINGE_CMDS")]
+    #[cfg(all(feature = "CONFIG_DEBUG_BUILD", feature = "FRINGE_CMDS"))]
     fringe_cmds::add_cmds(&mut cmds);
-    #[cfg(feature = "TEST_GLOBAL_ALLOCATOR")]
+    #[cfg(all(feature = "CONFIG_DEBUG_BUILD", feature = "TEST_GLOBAL_ALLOCATOR"))]
     test_global_allocator::add_cmds(&mut cmds);
-    #[cfg(feature = "TEST_MEMORY_MANAGER")]
+    #[cfg(all(feature = "CONFIG_DEBUG_BUILD", feature = "TEST_MEMORY_MANAGER"))]
     test_memory_manager::add_cmds(&mut cmds);
-    #[cfg(all(feature = "ml_support", feature = "TEST_ML_COORDINATOR"))]
+    #[cfg(all(
+        feature = "ml_support",
+        feature = "CONFIG_DEBUG_BUILD",
+        feature = "TEST_ML_COORDINATOR"
+    ))]
     test_ml_coordinator::add_cmds(&mut cmds);
-    #[cfg(feature = "TEST_PANIC")]
+    #[cfg(all(feature = "CONFIG_DEBUG_BUILD", feature = "TEST_PANIC"))]
     test_panic::add_cmds(&mut cmds);
-    #[cfg(feature = "TEST_SECURITY_COORDINATOR")]
+    #[cfg(all(feature = "CONFIG_DEBUG_BUILD", feature = "TEST_SECURITY_COORDINATOR"))]
     test_security_coordinator::add_cmds(&mut cmds);
-    #[cfg(feature = "TEST_TIMER_SERVICE")]
+    #[cfg(all(feature = "CONFIG_DEBUG_BUILD", feature = "TEST_TIMER_SERVICE"))]
     test_timer_service::add_cmds(&mut cmds);
-    #[cfg(feature = "TEST_UART")]
+    #[cfg(all(feature = "CONFIG_DEBUG_BUILD", feature = "TEST_UART"))]
     test_uart::add_cmds(&mut cmds);
 
     cmds
