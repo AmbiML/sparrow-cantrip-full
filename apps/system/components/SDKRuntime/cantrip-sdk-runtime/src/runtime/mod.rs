@@ -656,11 +656,12 @@ fn map_timer_err(err: TimerServiceError) -> SDKError {
 #[cfg(feature = "ml_support")]
 fn map_ml_err(err: MlCoordError) -> SDKError {
     match err {
-        MlCoordError::InvalidModelId => SDKError::NoSuchModel,
-        MlCoordError::InvalidTimer => SDKError::InvalidTimer,
-        MlCoordError::LoadModelFailed => SDKError::LoadModelFailed,
-        MlCoordError::NoModelSlotsLeft => SDKError::OutOfResources,
-        MlCoordError::NoSuchModel => SDKError::NoSuchModel,
-        _ => SDKError::NoSuchModel, // NB: should never happen
+        MlCoordError::MceNoSuchModel | MlCoordError::MceInvalidImage => SDKError::NoSuchModel,
+        MlCoordError::MceInvalidTimer => SDKError::InvalidTimer,
+        MlCoordError::MceLoadModelFailed => SDKError::LoadModelFailed,
+        MlCoordError::MceNoModelSlotsLeft => SDKError::OutOfResources,
+        MlCoordError::MceSerializeFailed => SDKError::SerializeFailed,
+        MlCoordError::MceDeserializeFailed => SDKError::DeserializeFailed,
+        MlCoordError::MceOk => unreachable!(),
     }
 }

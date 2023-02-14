@@ -14,7 +14,8 @@
 
 #![no_std]
 use cantrip_os_common::sel4_sys;
-use cstr_core::CString;
+use log::trace;
+use serde::{Deserialize, Serialize};
 
 use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_NBWait;
@@ -27,19 +28,19 @@ pub type MlJobMask = u32;
 #[repr(C)]
 #[derive(Debug, Eq, PartialEq)]
 pub enum MlCoordError {
-    MlCoordOk,
-    InvalidModelId,
-    InvalidBundleId,
-    InvalidImage,
-    InvalidTimer,
-    LoadModelFailed,
-    NoModelSlotsLeft,
-    NoSuchModel,
+    MceOk = 0,
+    MceInvalidImage,
+    MceInvalidTimer,
+    MceLoadModelFailed,
+    MceNoModelSlotsLeft,
+    MceNoSuchModel,
+    MceSerializeFailed,
+    MceDeserializeFailed,
 }
 
 impl From<MlCoordError> for Result<(), MlCoordError> {
     fn from(err: MlCoordError) -> Result<(), MlCoordError> {
-        if err == MlCoordError::MlCoordOk {
+        if err == MlCoordError::MceOk {
             Ok(())
         } else {
             Err(err)
@@ -47,19 +48,74 @@ impl From<MlCoordError> for Result<(), MlCoordError> {
     }
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum MlCoordRequest<'a> {
+    // Returns a bit vector, where a 1 in bit N indicates job N has finished.
+    // Outstanding completed jobs are reset to 0 during this call.
+    CompletedJobs, // -> MlJobMask
+
+    Oneshot {
+        bundle_id: &'a str,
+        model_id: &'a str,
+    },
+    Periodic {
+        bundle_id: &'a str,
+        model_id: &'a str,
+        rate_in_ms: u32,
+    },
+    Cancel {
+        bundle_id: &'a str,
+        model_id: &'a str,
+    },
+
+    DebugState,
+    Capscan,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CompleteJobsResponse {
+    pub job_mask: MlJobMask,
+}
+
+// Size of the data buffer used to pass a serialized MlCoordRequest between Rust <> C.
+// The data structure size is bounded by the camkes ipc buffer (120 bytes!)
+// and also by it being allocated on the stack of the rpc glue code.
+const MLCOORD_REQUEST_DATA_SIZE: usize = 100;
+// Size of the serialized response.
+const MLCOORD_RESPONSE_DATA_SIZE: usize = core::mem::size_of::<CompleteJobsResponse>();
+pub type MlCoordResponseData = [u8; MLCOORD_RESPONSE_DATA_SIZE];
+
 #[inline]
-pub fn cantrip_mlcoord_oneshot(bundle_id: &str, model_id: &str) -> Result<(), MlCoordError> {
+#[allow(dead_code)]
+pub fn cantrip_mlcoord_request(
+    request: &MlCoordRequest,
+    reply_buffer: &mut MlCoordResponseData,
+) -> Result<(), MlCoordError> {
     extern "C" {
-        // NB: this assumes the MlCoordinator component is named "mlcoord".
-        fn mlcoord_oneshot(
-            c_bundle_id: *const cstr_core::c_char,
-            c_model_id: *const cstr_core::c_char,
+        pub fn mlcoord_request(
+            c_request_buffer_len: u32,
+            c_request_buffer: *const u8,
+            c_reply_buffer: *mut MlCoordResponseData,
         ) -> MlCoordError;
     }
-    let bundle_id_cstr = CString::new(bundle_id).map_err(|_| MlCoordError::InvalidBundleId)?;
-    let model_id_cstr = CString::new(model_id).map_err(|_| MlCoordError::InvalidModelId)?;
+    trace!("cantrip_mlcoord_request {:?}", &request);
+    let mut request_buffer = [0u8; MLCOORD_REQUEST_DATA_SIZE];
+    let request_slice = postcard::to_slice(request, &mut request_buffer)
+        .or(Err(MlCoordError::MceSerializeFailed))?;
+    unsafe {
+        mlcoord_request(request_slice.len() as u32, request_slice.as_ptr(), reply_buffer).into()
+    }
+}
 
-    unsafe { mlcoord_oneshot(bundle_id_cstr.as_ptr(), model_id_cstr.as_ptr()) }.into()
+#[inline]
+pub fn cantrip_mlcoord_oneshot(bundle_id: &str, model_id: &str) -> Result<(), MlCoordError> {
+    cantrip_mlcoord_request(
+        &MlCoordRequest::Oneshot {
+            bundle_id,
+            model_id,
+        },
+        &mut [0u8; MLCOORD_RESPONSE_DATA_SIZE],
+    )
 }
 
 #[inline]
@@ -68,31 +124,25 @@ pub fn cantrip_mlcoord_periodic(
     model_id: &str,
     rate_in_ms: u32,
 ) -> Result<(), MlCoordError> {
-    extern "C" {
-        fn mlcoord_periodic(
-            c_bundle_id: *const cstr_core::c_char,
-            c_model_id: *const cstr_core::c_char,
-            rate_in_ms: u32,
-        ) -> MlCoordError;
-    }
-    let bundle_id_cstr = CString::new(bundle_id).map_err(|_| MlCoordError::InvalidBundleId)?;
-    let model_id_cstr = CString::new(model_id).map_err(|_| MlCoordError::InvalidModelId)?;
-
-    unsafe { mlcoord_periodic(bundle_id_cstr.as_ptr(), model_id_cstr.as_ptr(), rate_in_ms) }.into()
+    cantrip_mlcoord_request(
+        &MlCoordRequest::Periodic {
+            bundle_id,
+            model_id,
+            rate_in_ms,
+        },
+        &mut [0u8; MLCOORD_RESPONSE_DATA_SIZE],
+    )
 }
 
 #[inline]
 pub fn cantrip_mlcoord_cancel(bundle_id: &str, model_id: &str) -> Result<(), MlCoordError> {
-    extern "C" {
-        fn mlcoord_cancel(
-            c_bundle_id: *const cstr_core::c_char,
-            c_model_id: *const cstr_core::c_char,
-        ) -> MlCoordError;
-    }
-    let bundle_id_cstr = CString::new(bundle_id).map_err(|_| MlCoordError::InvalidBundleId)?;
-    let model_id_cstr = CString::new(model_id).map_err(|_| MlCoordError::InvalidModelId)?;
-
-    unsafe { mlcoord_cancel(bundle_id_cstr.as_ptr(), model_id_cstr.as_ptr()) }.into()
+    cantrip_mlcoord_request(
+        &MlCoordRequest::Cancel {
+            bundle_id,
+            model_id,
+        },
+        &mut [0u8; MLCOORD_RESPONSE_DATA_SIZE],
+    )
 }
 
 /// Returns the cptr for the notification object used to signal events.
@@ -108,10 +158,11 @@ pub fn cantrip_mlcoord_notification() -> seL4_CPtr {
 /// and cantrip_mlcoord_periodic that have expired.
 #[inline]
 pub fn cantrip_mlcoord_completed_jobs() -> Result<MlJobMask, MlCoordError> {
-    extern "C" {
-        fn mlcoord_completed_jobs() -> u32;
-    }
-    Ok(unsafe { mlcoord_completed_jobs() } as MlJobMask)
+    let mut reply_buffer = [0u8; MLCOORD_RESPONSE_DATA_SIZE];
+    cantrip_mlcoord_request(&MlCoordRequest::CompletedJobs, &mut reply_buffer)?;
+    let reply = postcard::from_bytes::<CompleteJobsResponse>(&reply_buffer)
+        .or(Err(MlCoordError::MceDeserializeFailed))?;
+    Ok(reply.job_mask)
 }
 
 /// Waits for the next pending job for the client. If a job completes
@@ -136,17 +187,15 @@ pub fn cantrip_mlcoord_poll() -> Result<MlJobMask, MlCoordError> {
 
 #[inline]
 pub fn cantrip_mlcoord_debug_state() {
-    extern "C" {
-        fn mlcoord_debug_state();
-    }
-    unsafe { mlcoord_debug_state() };
+    let _ = cantrip_mlcoord_request(
+        &MlCoordRequest::DebugState,
+        &mut [0u8; MLCOORD_RESPONSE_DATA_SIZE],
+    );
 }
 
 #[inline]
 pub fn cantrip_mlcoord_capscan() -> Result<(), MlCoordError> {
-    extern "C" {
-        fn mlcoord_capscan();
-    }
-    unsafe { mlcoord_capscan() };
+    let _ =
+        cantrip_mlcoord_request(&MlCoordRequest::Capscan, &mut [0u8; MLCOORD_RESPONSE_DATA_SIZE]);
     Ok(())
 }

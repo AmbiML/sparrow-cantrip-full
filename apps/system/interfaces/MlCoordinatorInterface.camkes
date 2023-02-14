@@ -1,14 +1,5 @@
 procedure MlCoordinatorInterface {
   include <MlCoordBindings.h>;
 
-  // Returns a bit vector, where a 1 in bit N indicates job N has finished.
-  // Outstanding completed jobs are reset to 0 during this call.
-  uint32_t completed_jobs();
-
-  MlCoordError oneshot(in string bundle_id, in string model_id);
-  MlCoordError periodic(in string bundle_id, in string model_id, in uint32_t rate_in_ms);
-  MlCoordError cancel(in string bundle_id, in string model_id);
-
-  void debug_state();
-  void capscan();
+  MlCoordError request(in char request[], out uint32_t reply);
 };

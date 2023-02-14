@@ -17,14 +17,17 @@
 
 extern crate alloc;
 
-use alloc::string::String;
+use alloc::string::ToString;
 use cantrip_ml_coordinator::MLCoordinator;
 use cantrip_ml_coordinator::ModelIdx;
+use cantrip_ml_interface::CompleteJobsResponse;
 use cantrip_ml_interface::MlCoordError;
+use cantrip_ml_interface::MlCoordRequest;
+use cantrip_ml_interface::MlCoordResponseData;
 use cantrip_ml_shared::ImageId;
 use cantrip_os_common::camkes::Camkes;
 use cantrip_timer_interface::*;
-use cstr_core::CStr;
+use core::slice;
 use log::error;
 use spin::Mutex;
 
@@ -60,76 +63,6 @@ pub unsafe extern "C" fn run() {
     }
 }
 
-unsafe fn validate_ids(
-    c_bundle_id: *const cstr_core::c_char,
-    c_model_id: *const cstr_core::c_char,
-) -> Result<ImageId, MlCoordError> {
-    let bundle_id = CStr::from_ptr(c_bundle_id)
-        .to_str()
-        .map_err(|_| MlCoordError::InvalidBundleId)?;
-    let model_id = CStr::from_ptr(c_model_id)
-        .to_str()
-        .map_err(|_| MlCoordError::InvalidModelId)?;
-    Ok(ImageId {
-        bundle_id: String::from(bundle_id),
-        model_id: String::from(model_id),
-    })
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn mlcoord_oneshot(
-    c_bundle_id: *const cstr_core::c_char,
-    c_model_id: *const cstr_core::c_char,
-) -> MlCoordError {
-    let id = match validate_ids(c_bundle_id, c_model_id) {
-        Ok(id) => id,
-        Err(e) => return e,
-    };
-
-    if let Err(e) = ML_COORD.lock().oneshot(id) {
-        return e;
-    }
-
-    MlCoordError::MlCoordOk
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn mlcoord_periodic(
-    c_bundle_id: *const cstr_core::c_char,
-    c_model_id: *const cstr_core::c_char,
-    rate_in_ms: u32,
-) -> MlCoordError {
-    let id = match validate_ids(c_bundle_id, c_model_id) {
-        Ok(id) => id,
-        Err(e) => return e,
-    };
-    if let Err(e) = ML_COORD.lock().periodic(id, rate_in_ms) {
-        return e;
-    }
-
-    MlCoordError::MlCoordOk
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn mlcoord_cancel(
-    c_bundle_id: *const cstr_core::c_char,
-    c_model_id: *const cstr_core::c_char,
-) -> MlCoordError {
-    let id = match validate_ids(c_bundle_id, c_model_id) {
-        Ok(id) => id,
-        Err(e) => return e,
-    };
-
-    if let Err(e) = ML_COORD.lock().cancel(&id) {
-        return e;
-    }
-
-    MlCoordError::MlCoordOk
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn mlcoord_completed_jobs() -> u32 { ML_COORD.lock().completed_jobs() }
-
 #[no_mangle]
 pub unsafe extern "C" fn host_req_handle() { ML_COORD.lock().handle_host_req_interrupt(); }
 
@@ -145,7 +78,82 @@ pub unsafe extern "C" fn instruction_fault_handle() {
 pub unsafe extern "C" fn data_fault_handle() { ML_COORD.lock().handle_data_fault_interrupt(); }
 
 #[no_mangle]
-pub unsafe extern "C" fn mlcoord_debug_state() { ML_COORD.lock().debug_state(); }
+pub unsafe extern "C" fn mlcoord_request(
+    c_reques_buffer_len: u32,
+    c_request_buffer: *const u8,
+    c_reply: *mut MlCoordResponseData,
+) -> MlCoordError {
+    let request_buffer = slice::from_raw_parts(c_request_buffer, c_reques_buffer_len as usize);
+    let request = match postcard::from_bytes::<MlCoordRequest>(request_buffer) {
+        Ok(request) => request,
+        Err(_) => return MlCoordError::MceDeserializeFailed,
+    };
 
-#[no_mangle]
-pub unsafe extern "C" fn mlcoord_capscan() { let _ = Camkes::capscan(); }
+    match request {
+        MlCoordRequest::CompletedJobs => completed_jobs_request(&mut *c_reply),
+        MlCoordRequest::Oneshot {
+            bundle_id,
+            model_id,
+        } => oneshot_request(bundle_id, model_id),
+        MlCoordRequest::Periodic {
+            bundle_id,
+            model_id,
+            rate_in_ms,
+        } => periodic_request(bundle_id, model_id, rate_in_ms),
+        MlCoordRequest::Cancel {
+            bundle_id,
+            model_id,
+        } => cancel_request(bundle_id, model_id),
+        MlCoordRequest::DebugState => {
+            debug_state_request();
+            Ok(())
+        }
+        MlCoordRequest::Capscan => {
+            capscan_request();
+            Ok(())
+        }
+    }
+    .map_or_else(|e| e, |_v| MlCoordError::MceOk)
+}
+
+fn completed_jobs_request(reply_buffer: &mut MlCoordResponseData) -> Result<(), MlCoordError> {
+    let job_mask = unsafe { ML_COORD.lock().completed_jobs() };
+    let _ = postcard::to_slice(&CompleteJobsResponse { job_mask }, reply_buffer)
+        .or(Err(MlCoordError::MceSerializeFailed))?;
+    Ok(())
+}
+
+fn oneshot_request(bundle_id: &str, model_id: &str) -> Result<(), MlCoordError> {
+    let image_id = ImageId {
+        bundle_id: bundle_id.to_string(),
+        model_id: model_id.to_string(),
+    };
+    unsafe { ML_COORD.lock().oneshot(image_id) }?;
+    Ok(())
+}
+
+fn periodic_request(bundle_id: &str, model_id: &str, rate_in_ms: u32) -> Result<(), MlCoordError> {
+    let image_id = ImageId {
+        bundle_id: bundle_id.to_string(),
+        model_id: model_id.to_string(),
+    };
+    unsafe { ML_COORD.lock().periodic(image_id, rate_in_ms) }?;
+    Ok(())
+}
+
+fn cancel_request(bundle_id: &str, model_id: &str) -> Result<(), MlCoordError> {
+    let image_id = ImageId {
+        bundle_id: bundle_id.to_string(),
+        model_id: model_id.to_string(),
+    };
+    unsafe { ML_COORD.lock().cancel(&image_id) }?;
+    Ok(())
+}
+
+fn debug_state_request() {
+    unsafe {
+        ML_COORD.lock().debug_state();
+    }
+}
+
+fn capscan_request() { let _ = Camkes::capscan(); }

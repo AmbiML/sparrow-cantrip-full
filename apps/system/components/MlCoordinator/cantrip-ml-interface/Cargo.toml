@@ -18,5 +18,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-cstr_core = { version = "0.2.3", default-features = false }
 cantrip-os-common = { path = "../../cantrip-os-common" }
+log = { version = "0.4", features = ["release_max_level_info"] }
+postcard = { version = "0.7", features = ["alloc"], default-features = false }
+serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
