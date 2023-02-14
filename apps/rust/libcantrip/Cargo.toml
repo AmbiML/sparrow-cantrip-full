@@ -21,7 +21,7 @@ edition = "2021"
 path = "lib.rs"
 
 [dependencies]
-cstr_core = { version = "0.2.3", default-features = false }
+core2 = { version = "0.3", default-features = false }
 cantrip-os-common = { path = "../../system/components/cantrip-os-common", default-features = false }
 log = "0.4"
 sdk-interface = { path = "../../system/components/SDKRuntime/sdk-interface" }

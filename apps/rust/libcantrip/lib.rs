@@ -18,10 +18,11 @@
 #![feature(global_asm)]
 
 use cantrip_os_common::allocator;
-use cantrip_os_common::logger::CantripLogger;
 use core::arch::global_asm;
-use sdk_interface::sdk_log;
 use static_assertions::*;
+
+mod logger;
+use logger::SDKLogger;
 
 // NB: this mimics the logic in build.rs
 assert_cfg!(any(
@@ -51,17 +52,11 @@ global_asm!(include_str!("arch/riscv32/crt0.S"));
 #[cfg(target_arch = "riscv64")]
 global_asm!(include_str!("arch/riscv64/crt0.S"));
 
-// Connect the logger so panic msgs are displayed.
-#[no_mangle]
-pub fn logger_log(_level: u8, msg: *const cstr_core::c_char) {
-    let _ = sdk_log(unsafe { cstr_core::CStr::from_ptr(msg).to_str().unwrap() });
-}
-
 pub fn sdk_init(heap: &'static mut [u8]) {
     unsafe {
         allocator::ALLOCATOR.init(heap.as_mut_ptr(), heap.len());
     }
-    static CANTRIP_LOGGER: CantripLogger = CantripLogger;
-    log::set_logger(&CANTRIP_LOGGER).unwrap();
+    static SDK_LOGGER: SDKLogger = SDKLogger;
+    log::set_logger(&SDK_LOGGER).unwrap();
     log::set_max_level(log::LevelFilter::Trace);
 }
