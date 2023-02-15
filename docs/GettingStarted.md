@@ -30,9 +30,11 @@ to the init request as older versions of repo only check for a `master` branch.]
 Note the above assumes you have the follow prerequisites installed on your system
 and **in your shell's search path**:
 1. Gcc (or clang) for the target architecture
-2. Rust; at the moment this must be nightly-2021-11-05 (or be prepared to edit at least
-   build/setup.sh). Beware that we override the default TLS model to match what CAmkES
-   uses and this override is not supported by stable versions of Rust.
+2. Rust; any nightly build >=nightly-2021-11-05 should work. A default version is set
+   in the build/setup.sh script; if that is not what you are using either edit the shell
+   script or export `CANTRIP_RUST_VERSION` in each shell where you work.
+   Beware that we use various nightly-only features that are not supported by stable
+   versions of Rust (e.g. to override the default TLS model).
 3. The python tempita module.
 4. Whichever simulator seL4 expects for your target architecture; e.g. for aarch64 this
    is qemu-system-aarch64.
@@ -60,6 +62,7 @@ Garbage collecting: 100% (23/23), done in 0.218s
 Checking out: 100% (23/23), done in 0.874s
 repo sync has finished successfully.
 $ export PLATFORM=rpi3
+$ export CANTRIP_RUST_VERSION=nightly
 $ source build/setup.sh
 ========================================
 ROOTDIR=/<your-directory>/sparrow
@@ -77,7 +80,7 @@ cantrip-builtins-debug cantrip-builtins-release cantrip-bundle-debug cantrip-bun
 cantrip-clean cantrip-clean-headers cantrip-clippy cantrip-component-headers
 ...
 
-$ m simulate-debug
+$ m simulate
 ...
 info: component 'rust-std' for target 'aarch64-unknown-none' is up to date
 loading initial cache file <your-directory>/sparrow/cantrip/projects/camkes/settings.cmake
@@ -93,6 +96,7 @@ loading initial cache file <your-directory>/sparrow/cantrip/projects/camkes/sett
 qemu-system-aarch64 -machine raspi3b -nographic -serial null -serial mon:stdio -m size=1024M -s \
 -kernel /<your-directory>/sparrow/out/cantrip/aarch64-unknown-elf/debug/capdl-loader-image \
 --mem-path /<your-directory>/sparrow/out/cantrip/aarch64-unknown-elf/debug/cantrip.mem
+
 ELF-loader started on CPU: ARM Ltd. Cortex-A53 r0p4
   paddr=[8bd000..fed0ff]
 No DTB passed in from boot loader.
@@ -122,17 +126,41 @@ cantrip_os_rootserver::Rootserver executable: 1.07 Mbytes
 ...
 <<seL4(CPU 0) [decodeCNodeInvocation/107 T0xffffff80009a3400 "rootserver" @4268a0]: CNode Copy/Mint/Move/Mutate: Source slot invalid or empty.>>
 ...
-CANTRIP> cantrip_memory_manager::Global memory: 0 allocated 124501760 free, reserved: 2334720 kernel 7340032 user
+CANTRIP> builtins
+autostart.repl 336
+hello.app 1084
+keyval.app 32276
+logtest.app 26948
+panic.app 25688
+timer.app 33060
+CANTRIP> install hello.app
+cantrip_memory_manager::Global memory: 0 allocated 130543360 free, reserved: 2273280 kernel 1359872 user
+Collected 1084 bytes of data, crc32 5b847193
+Application "hello" installed
+CANTRIP> start hello
+Bundle "hello" started.
+CANTRIP> install keyval.app
+
+I am a C app!
+Done, sleeping in WFI loop
+Collected 32276 bytes of data, crc32 bcf05273
+Application "keyval" installed
+CANTRIP> start keyval
+Bundle "keyval" started.
 ...
+CANTRIP> mstats
+48 bytes in-use, 130543312 bytes free, 720512 bytes requested, 1359872 overhead
+2 objs in-use, 196 objs requested
+CANTRIP> EOF
 ```
 
-The `m simulate-debug` command can be run repeatedly. If you need to reset
-your setup just remove the build tree and re-run `m simulate-debug`; e.g.
+The `m simulate` command can be run repeatedly. If you need to reset
+your setup just remove the build tree and re-run `m simulate`; e.g.
 
 ``` shell
 $ cd sparrow
 $ m clean
-$ m simulate-debug
+$ m simulate
 ```
 
 ### Build system: primer.
@@ -141,6 +169,7 @@ The setup procedure required:
 
 ``` shell
 $ export PLATFORM=rpi3
+$ export CANTRIP_RUST_VERSION=nightly  # force use of "nightly" channel
 $ source build/setup.sh
 ```
 
@@ -218,7 +247,7 @@ tab completion with the `set-platform` command.
 
 ### Build system: cleaning build artifacts
 
-Most of the time `m simulate-debug` or `m simulate` is all you need to do work:
+Most of the time `m simulate` or `m simulate-debug` is all you need to do work:
 make dependencies will cause only necessary operations to be done.
 But sometimes it's necessary to remove build artifacts (e.g. because depeencies
 are incorrect or the dependencies are overly conservative resulting in excessive
@@ -238,4 +267,4 @@ $ m clean
 
 which removes all build artifacts for all platforms.
 
-### [Next Section: CantripOS softare organization](SourceCrates.md)
+### [Next Section: CantripOS software organization](SourceCrates.md)

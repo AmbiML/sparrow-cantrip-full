@@ -71,6 +71,10 @@ The second command runs the upstream test mechanism but using the Rust sel4-sys
 crate with wrappers around the Rust implementations for use by C code;
 this is mostly intended to exercise sel4-sys.
 
+Note the sel4test target uses a debug build; this is consistent with
+how upstream works. The sel4test+wrapper target however uses a release build of
+the user mode pieces to reduce the space overhead of the Rust wrappers.
+
 Not all target platforms may support the above make targets.
 
 ### Shell tests
@@ -105,8 +109,9 @@ cantrip_object_alloc_in_cnode ok: ObjDescBundle { cnode: 43, depth: 5, objs: [Ob
 All tests passed!
 ```
 
-Shell commands bloat a system image so are conditionally compiled in.
-Check DebugConsole/cantrip-shell/Cargo.toml for features named "TEST_*".
+Shell commands bloat a system image so are conditionally compiled in
+(in particular release builds do not include any test commands).
+Check `DebugConsole/cantrip-shell/Cargo.toml` for features named "TEST_*".
 These control the set of test commands, some of which are platform-dependent.
 Beware that some builtin tests may generate assertions that will kill the
 console shell; e.g.
@@ -181,6 +186,22 @@ CANTRIP> [fibonacci]::fibonacci::[26]               121393  2600
 [timer]::timer::Timer 1 started
 [fibonacci]::fibonacci::[29]               514229  2900
 
+```
+
+By default, platforms without an interactive shell include an
+`autostart.repl` script in their builtins bundle that runs the available applications.
+Systems that have an interactive command line have a *builtins.repl* file that does
+the same thing and can be run with the "source" command; e.g.
+
+```shell
+CANTRIP> builtins
+builtins.repl 642
+...
+CANTRIP> source builtins.repl
+CANTRIP> install hello.app
+Collected 640 bytes of data, crc32 877a95c1
+Application "hello" installed
+...
 ```
 
 ### Robot tests

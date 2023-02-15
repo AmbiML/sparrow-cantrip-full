@@ -6,7 +6,7 @@ all of Sparrow (software and hardware designs) will be available.]
 
 Most of CantripOS is written in Rust. The Rust crates reside in the
 *apps/system/components* directory of this git repository.
-CantripOS system services are structured as seL4 components.
+CantripOS system services are structured as CAmkES components.
 Target-platform-dependent services are tagged, e.g. [sparrow-only] for
 services that are only supported on apps/system/platforms/sparrow.:
 
@@ -14,13 +14,13 @@ services that are only supported on apps/system/platforms/sparrow.:
 - *MailboxDriver*: a driver for the Mailbox interface used to communicate betwen the security and management cores [sparow-only]
 - *MemoryManager*: the service that supports dynamic memory / object management
 - *MlCoordinator*: a service that manages running ML jobs [requires ML accelerator support that is sparrow-only]
-- *OpenTitanUARTDriver*: a driver for the UART on the management core [sparrow-only]
 - *ProcessManager*: the service that creates & manages execution of applications
 - *SDKRuntime*: the service that handles application runtime requests
 - *SecurityCoordinator*: the service that provides an interface to the security core (using the MailboxDriver)
 - *TimerService*: a service that provides timers to system services & applications [requires hardware timer support]
+- *UARTDriver*: a driver for the UART on the management core [sparrow-only]
 
-The system services used depends on the target platform. At the moment two platforms
+The set of system services depends on the target platform. At the moment two platforms
 are buildable: sparrow and rpi3 (Raspberry Pi BCM2837 running in 64-bit mode).
 The sparrow platform is not currently useful other than for reference as building it
 requires toolchain & simulator support that is not yet released. The rpi3 platform is
