@@ -122,7 +122,7 @@ const_assert_eq!(
 pub type TimerServiceResponseData = [u8; TIMER_RESPONSE_DATA_SIZE];
 
 #[inline]
-pub fn cantrip_timer_request<T: DeserializeOwned>(
+fn cantrip_timer_request<T: DeserializeOwned>(
     request: &TimerServiceRequest,
 ) -> Result<T, TimerServiceError> {
     // NB: this assumes the SecurityCoordinator component is named "security".
