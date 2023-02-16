@@ -68,29 +68,30 @@ component MailboxHardware {
 
 assembly {
     composition {
-        component VectorCoreHw vctop;
         component BuiltinCpioArchive cpio;
 
+        // Device hardware & drivers
+        component MailboxDriver mailbox_driver;
+        component MailboxHardware mailbox_hardware;
+        component OpenTitanTimer timer;
         component OpenTitanUART uart;
         component UARTDriver uart_driver;
-        component OpenTitanTimer timer;
+        component VectorCoreHw vctop;
 
-        component MemoryManager memory_manager;
-        component ProcessManager process_manager;
-        component MlCoordinator ml_coordinator;
+        // System services
         component DebugConsole debug_console;
+        component MemoryManager memory_manager;
+        component MlCoordinator ml_coordinator;
+        component ProcessManager process_manager;
+        component SDKRuntime sdk_runtime;
         component SecurityCoordinator security_coordinator;
         component TimerService timer_service;
-
-        component SDKRuntime sdk_runtime;
 
         // Built-in CPIO archive is visible only to DebugConsole.
         connection seL4HardwareMMIO cpio_archive(from debug_console.cpio_archive,
                                                  to cpio.cpio);
 
-        // MailboxDriver
-        component MailboxHardware mailbox_hardware;
-        component MailboxDriver mailbox_driver;
+        // MailboxHardware & MailboxDriver:
         connection seL4HardwareMMIO mailbox_driver_mmio(
             from mailbox_driver.mailbox_mmio, to mailbox_hardware.mmio);
         connection seL4HardwareInterrupt mailbox_driver_wtirq(
@@ -102,83 +103,18 @@ assembly {
         connection seL4RPCCall security_coordinator_to_mailbox_api(
             from security_coordinator.mailbox_api, to mailbox_driver.api);
 
-        // OpenTitanUARTDriver
-        connection seL4HardwareMMIO uart_mem(from uart_driver.mmio_region,
-                                             to uart.mmio_region);
-        connection seL4HardwareInterrupt uart_tx_watermark(from uart.tx_watermark,
-                                                           to uart_driver.tx_watermark);
-        connection seL4HardwareInterrupt uart_rx_watermark(from uart.rx_watermark,
-                                                           to uart_driver.rx_watermark);
-        connection seL4HardwareInterrupt uart_tx_empty(from uart.tx_empty,
-                                                       to uart_driver.tx_empty);
+        // OpenTitanUARTDriver:
+        connection seL4HardwareMMIO uart_mem(
+            from uart_driver.mmio_region, to uart.mmio_region);
+        connection seL4HardwareInterrupt uart_tx_watermark(
+            from uart.tx_watermark, to uart_driver.tx_watermark);
+        connection seL4HardwareInterrupt uart_rx_watermark(
+            from uart.rx_watermark, to uart_driver.rx_watermark);
+        connection seL4HardwareInterrupt uart_tx_empty(
+            from uart.tx_empty, to uart_driver.tx_empty);
 
-        // VectorCoreDriver
-        connection seL4HardwareMMIO vc_csr(from ml_coordinator.CSR, to vctop.CSR);
-        connection seL4HardwareInterrupt vctop_host_req(from vctop.host_req,
-                                                      to ml_coordinator.host_req);
-        connection seL4HardwareInterrupt vctop_finish(from vctop.finish,
-                                                      to ml_coordinator.finish);
-        connection seL4HardwareInterrupt vctop_instruction_fault(from vctop.instruction_fault,
-                                                      to ml_coordinator.instruction_fault);
-        connection seL4HardwareInterrupt vctop_data_fault(from vctop.data_fault,
-                                                      to ml_coordinator.data_fault);
-        connection seL4HardwareMMIO vc_tcm(from ml_coordinator.TCM,
-                                            to vctop.TCM);
-
-
-        // TimerService
-        connection seL4HardwareMMIO timer_csr(from timer_service.csr,
-                                            to timer.csr);
-        connection seL4HardwareInterrupt timer_interrupt(from timer.timer_interrupt,
-                                                       to timer_service.timer_interrupt);
-        connection seL4RPCCallSignal timer_rpc(from debug_console.timer,
-                                               from ml_coordinator.timer,
-                                               from sdk_runtime.timer,
-                                               to timer_service.timer);
-
-        // Hookup ProcessManager to DebugConsole for shell commands.
-        connection seL4RPCCall shell_process(from debug_console.proc_ctrl,
-                                             to process_manager.proc_ctrl);
-        connection seL4RPCCallSignal shell_ml(from debug_console.mlcoord,
-                                        from sdk_runtime.mlcoord, // XXX split out?
-                                        to ml_coordinator.mlcoord);
-
-        // ProcessMaanager talks to the SDKManager (the privileged part of
-        // the SDKRuntime) to plumb a badged connection between applications
-        // and the SDKRuntime.
-        connection seL4RPCCall multi_sdk_manager(
-            from process_manager.sdk_manager,
-            from debug_console.sdk_manager,  // NB: for capscan support
-            to sdk_runtime.sdk_manager);
-
-        // Note this allocates a 4KB shared memory region for pkg install
-        // to pass an ObjDescArray
-        connection seL4RPCOverMultiSharedData shell_package(
-            from debug_console.pkg_mgmt,
-            to process_manager.pkg_mgmt);
-
-        // Connect the MemoryInterface to each component that needs to allocate
-        // global memory. Note this allocates a 4KB shared memory region to each
-        // component and copies data between components.
-        connection seL4RPCOverMultiSharedData multi_memory(
-            from debug_console.memory,
-            from process_manager.memory,
-            from security_coordinator.memory,
-            from sdk_runtime.memory,
-            from ml_coordinator.memory,
-            to memory_manager.memory);
-
-        // Connect the SecurityCoordinatorInterface to each component that needs
-        // access to the Security Core. Note this allocates a 4KB shared memory
-        // region to each component and copies data between components.
-        connection seL4RPCOverMultiSharedData multi_security(
-            from debug_console.security,   // NB: for debug/test
-            from process_manager.security,
-            from ml_coordinator.security,  // NB: for LoadModel
-            from sdk_runtime.security,     // NB: for key-value store
-            to security_coordinator.security);
-
-        // Connect the DebugConsole to the OpenTitanUARTDriver.
+        // UARTDriver:
+        // The DebugConsole owns access to the device.
         connection seL4SharedData tx_channel(
             from debug_console.tx_dataport, to uart_driver.tx_dataport);
         connection seL4RPCCall write_call(
@@ -188,9 +124,82 @@ assembly {
         connection seL4RPCCall read_call(
             from debug_console.uart_read, to uart_driver.read_inf);
 
-        // Connect the LoggerInterface to each component that needs to log
-        // to the console. Note this allocates a 4KB shared memory region to
-        // each component and copies data between components.
+        // VectorCoreDriver:
+        connection seL4HardwareMMIO vc_csr(
+            from ml_coordinator.CSR, to vctop.CSR);
+        connection seL4HardwareInterrupt vctop_host_req(
+            from vctop.host_req, to ml_coordinator.host_req);
+        connection seL4HardwareInterrupt vctop_finish(
+            from vctop.finish, to ml_coordinator.finish);
+        connection seL4HardwareInterrupt vctop_instruction_fault(
+            from vctop.instruction_fault, to ml_coordinator.instruction_fault);
+        connection seL4HardwareInterrupt vctop_data_fault(
+            from vctop.data_fault, to ml_coordinator.data_fault);
+        connection seL4HardwareMMIO vc_tcm(
+            from ml_coordinator.TCM, to vctop.TCM);
+
+
+        // TimerService:
+        connection seL4HardwareMMIO timer_csr(
+            from timer_service.csr, to timer.csr);
+        connection seL4HardwareInterrupt timer_interrupt(
+            from timer.timer_interrupt, to timer_service.timer_interrupt);
+        connection seL4RPCCallSignal timer_rpc(
+            from debug_console.timer,        // NB: sleep & debug/test
+            from ml_coordinator.timer,       // NB: periodic model support
+            from sdk_runtime.timer,          // NB: app timer support
+            to timer_service.timer);
+
+        // ProcessManager:
+        connection seL4RPCCall shell_process(
+            from debug_console.proc_ctrl,    // NB: start, stop, etc
+            to process_manager.proc_ctrl);
+        // NB: this allocates a 4KB shared region to pass an ObjDescArray
+        connection seL4RPCOverMultiSharedData shell_package(
+            from debug_console.pkg_mgmt,     // NB: install* & uninstall
+            to process_manager.pkg_mgmt);
+
+        // MlCoordinator:
+        connection seL4RPCCallSignal shell_ml(
+            from debug_console.mlcoord,      // NB: debug/test & capscan
+            to ml_coordinator.mlcoord);
+        connection seL4RPCCallSignal sdk_ml(
+            from sdk_runtime.mlcoord,        // NB: launching models
+            to ml_coordinator.mlcoord);
+
+        // SDKRuntime:
+        // ProcessMaanager talks to the SDKManager (the privileged part of
+        // the SDKRuntime) to plumb a badged connection between applications
+        // and the SDKRuntime.
+        connection seL4RPCCall multi_sdk_manager(
+            from process_manager.sdk_manager,// NB: app endopint setup
+            from debug_console.sdk_manager,  // NB: capscan support
+            to sdk_runtime.sdk_manager);
+
+        // MemoryManager:
+        // Connect each component that needs to allocate system objects.
+        // NB: this allocates a 4KB shared memory region for each component.
+        connection seL4RPCOverMultiSharedData multi_memory(
+            from debug_console.memory,       // NB: pkg loading from builtins/zmodem
+            from process_manager.memory,     // NB: app construction
+            from security_coordinator.memory, // NB: app/model loading from SC
+            from sdk_runtime.memory,         // NB: endpoint setup
+            from ml_coordinator.memory,      // NB: model loading
+            to memory_manager.memory);
+
+        // SecurityCoordinator:
+        // Connect each component that needs access to the Security Core.
+        // NB: this allocates a 4KB shared memory region for each component.
+        connection seL4RPCOverMultiSharedData multi_security(
+            from debug_console.security,     // NB: debug/test
+            from process_manager.security,   // NB: pkg mgmt & LoadApplication
+            from ml_coordinator.security,    // NB: LoadModel
+            from sdk_runtime.security,       // NB: key-value store
+            to security_coordinator.security);
+
+        // DebugConsole:
+        // Connect each component that needs the logger.
+        // NB: this allocates a 4KB shared memory region for each component.
         connection seL4RPCOverMultiSharedData multi_logger(
             from process_manager.logger,
             from ml_coordinator.logger,
