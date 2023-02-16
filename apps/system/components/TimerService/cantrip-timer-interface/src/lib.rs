@@ -16,10 +16,15 @@
 
 use cantrip_os_common::sel4_sys;
 use core::time::Duration;
+use log::trace;
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 
 use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_NBWait;
 use sel4_sys::seL4_Wait;
+
+use static_assertions::const_assert_eq;
 
 pub const TIMERS_PER_CLIENT: usize = 32;
 
@@ -61,26 +66,91 @@ pub trait TimerInterface {
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum TimerServiceError {
-    TimerOk = 0,
-    NoSuchTimer,
-    TimerAlreadyExists,
+    TseTimerOk = 0,
+    TseNoSuchTimer,
+    TseTimerAlreadyExists,
+    TseDeserializeFailed,
+    TseSerializeFailed,
 }
 impl From<TimerServiceError> for Result<(), TimerServiceError> {
     fn from(err: TimerServiceError) -> Result<(), TimerServiceError> {
-        if err == TimerServiceError::TimerOk {
+        if err == TimerServiceError::TseTimerOk {
             Ok(())
         } else {
             Err(err)
         }
     }
 }
-impl<T> From<Result<T, TimerServiceError>> for TimerServiceError {
-    fn from(res: Result<T, TimerServiceError>) -> TimerServiceError {
-        if res.is_ok() {
-            TimerServiceError::TimerOk
-        } else {
-            res.err().unwrap()
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum TimerServiceRequest {
+    // Returns a bit vector, where a 1 in bit N indicates timer N has finished.
+    // Outstanding completed timers are reset to 0 during this call.
+    CompletedTimers, // -> uint32_t
+
+    Oneshot {
+        timer_id: TimerId,
+        duration_in_ms: TimerDuration,
+    },
+    Periodic {
+        timer_id: TimerId,
+        duration_in_ms: TimerDuration,
+    },
+    Cancel(TimerId),
+
+    Capscan,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CompletedTimersResponse {
+    pub timer_mask: TimerMask,
+}
+
+// Size of the data buffer used to pass a serialized TimerServiceRequest
+// between Rust <> C. The data structure size is bounded by the camkes ipc
+// buffer (120 bytes!) and also by it being allocated on the stack of the rpc
+// glue code.
+const TIMER_REQUEST_DATA_SIZE: usize = core::mem::size_of::<TimerServiceRequest>();
+// Size of the serialized response.
+// NB: has to be 'pub const' for bindgen to pickup; also can't use size_of to
+// compute it, hence the assert after.
+pub const TIMER_RESPONSE_DATA_SIZE: usize = 4;
+const_assert_eq!(
+    TIMER_RESPONSE_DATA_SIZE,
+    core::mem::size_of::<CompletedTimersResponse>()
+);
+pub type TimerServiceResponseData = [u8; TIMER_RESPONSE_DATA_SIZE];
+
+#[inline]
+pub fn cantrip_timer_request<T: DeserializeOwned>(
+    request: &TimerServiceRequest,
+) -> Result<T, TimerServiceError> {
+    // NB: this assumes the SecurityCoordinator component is named "security".
+    extern "C" {
+        pub fn timer_request(
+            c_request_buffer_len: u32,
+            c_request_buffer: *const u8,
+            c_reply: *mut TimerServiceResponseData,
+        ) -> TimerServiceError;
+    }
+    trace!("cantrip_timer_request {:?}", request);
+    let mut request_buffer = [0u8; TIMER_REQUEST_DATA_SIZE];
+    let request_slice = postcard::to_slice(request, &mut request_buffer)
+        .or(Err(TimerServiceError::TseSerializeFailed))?;
+    let mut reply_buffer = [0u8; TIMER_RESPONSE_DATA_SIZE];
+    match unsafe {
+        timer_request(
+            request_slice.len() as u32,
+            request_slice.as_ptr(),
+            &mut reply_buffer as *mut _,
+        )
+    } {
+        TimerServiceError::TseTimerOk => {
+            let reply = postcard::from_bytes(&reply_buffer)
+                .or(Err(TimerServiceError::TseDeserializeFailed))?;
+            Ok(reply)
         }
+        err => Err(err),
     }
 }
 
@@ -88,10 +158,8 @@ impl<T> From<Result<T, TimerServiceError>> for TimerServiceError {
 /// and cantrip_timer_periodic that have expired.
 #[inline]
 pub fn cantrip_timer_completed_timers() -> Result<TimerMask, TimerServiceError> {
-    extern "C" {
-        fn timer_completed_timers() -> u32;
-    }
-    Ok(unsafe { timer_completed_timers() } as TimerMask)
+    cantrip_timer_request(&TimerServiceRequest::CompletedTimers)
+        .map(|reply: CompletedTimersResponse| reply.timer_mask)
 }
 
 /// Registers a one-shot |timer_id| with |duration_in_ms| to start immediately.
@@ -103,10 +171,10 @@ pub fn cantrip_timer_oneshot(
     timer_id: TimerId,
     duration_in_ms: TimerDuration,
 ) -> Result<(), TimerServiceError> {
-    extern "C" {
-        fn timer_oneshot(timer_id: u32, duration_in_ms: u32) -> TimerServiceError;
-    }
-    unsafe { timer_oneshot(timer_id as u32, duration_in_ms as u32) }.into()
+    cantrip_timer_request(&TimerServiceRequest::Oneshot {
+        timer_id,
+        duration_in_ms,
+    })
 }
 
 /// Registers a periodic |timer_id| with |duration_in_ms| to start immediately.
@@ -121,19 +189,16 @@ pub fn cantrip_timer_periodic(
     timer_id: TimerId,
     duration_in_ms: TimerDuration,
 ) -> Result<(), TimerServiceError> {
-    extern "C" {
-        fn timer_periodic(timer_id: u32, duration_in_ms: u32) -> TimerServiceError;
-    }
-    unsafe { timer_periodic(timer_id as u32, duration_in_ms as u32) }.into()
+    cantrip_timer_request(&TimerServiceRequest::Periodic {
+        timer_id,
+        duration_in_ms,
+    })
 }
 
 /// Stops any pending one-shot or periodic |timer_id|.
 #[inline]
 pub fn cantrip_timer_cancel(timer_id: TimerId) -> Result<(), TimerServiceError> {
-    extern "C" {
-        fn timer_cancel(timer_id: u32) -> TimerServiceError;
-    }
-    unsafe { timer_cancel(timer_id as u32) }.into()
+    cantrip_timer_request(&TimerServiceRequest::Cancel(timer_id))
 }
 
 /// Returns the cptr for the notification object used to signal timer events.
@@ -168,9 +233,5 @@ pub fn cantrip_timer_poll() -> Result<TimerMask, TimerServiceError> {
 /// Runs a capscan operation on the TimerService.
 #[inline]
 pub fn cantrip_timer_capscan() -> Result<(), TimerServiceError> {
-    extern "C" {
-        fn timer_capscan();
-    }
-    unsafe { timer_capscan() }
-    Ok(())
+    cantrip_timer_request(&TimerServiceRequest::Capscan)
 }

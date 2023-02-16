@@ -647,9 +647,11 @@ impl SDKRuntimeInterface for SDKRuntime {
 #[cfg(feature = "timer_support")]
 fn map_timer_err(err: TimerServiceError) -> SDKError {
     match err {
-        TimerServiceError::NoSuchTimer => SDKError::NoSuchTimer,
-        TimerServiceError::TimerAlreadyExists => SDKError::TimerAlreadyExists,
-        _ => SDKError::NoSuchTimer, // XXX should never happen
+        TimerServiceError::TseNoSuchTimer => SDKError::NoSuchTimer,
+        TimerServiceError::TseTimerAlreadyExists => SDKError::TimerAlreadyExists,
+        TimerServiceError::TseDeserializeFailed => SDKError::DeserializeFailed,
+        TimerServiceError::TseSerializeFailed => SDKError::SerializeFailed,
+        TimerServiceError::TseTimerOk => unreachable!(),
     }
 }
 

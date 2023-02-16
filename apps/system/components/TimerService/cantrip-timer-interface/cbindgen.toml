@@ -21,5 +21,6 @@ includes = ["CamkesBindings.h"]
 [export]
 include = [
     "TimerServiceError",
+    "TimerServiceResponseData",
     "TimerId",
 ]

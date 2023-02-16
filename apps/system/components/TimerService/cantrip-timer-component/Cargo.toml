@@ -27,6 +27,7 @@ cantrip-timer-interface = { path = "../cantrip-timer-interface" }
 cantrip-timer-service = { path = "../cantrip-timer-service" }
 log = { version = "0.4", features = ["release_max_level_info"] }
 opentitan-timer = { path = "../opentitan-timer", optional = true }
+postcard = { version = "0.7", features = ["alloc"], default-features = false }
 
 [lib]
 name = "cantrip_timer_component"
