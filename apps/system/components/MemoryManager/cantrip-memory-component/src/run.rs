@@ -21,8 +21,8 @@
 use cantrip_memory_interface::MemoryManagerError;
 use cantrip_memory_interface::MemoryManagerInterface;
 use cantrip_memory_interface::MemoryManagerRequest;
+use cantrip_memory_interface::MemoryResponseData;
 use cantrip_memory_interface::ObjDescBundle;
-use cantrip_memory_interface::RawMemoryStatsData;
 use cantrip_memory_interface::StatsResponse;
 use cantrip_memory_manager::CantripMemoryManager;
 use cantrip_os_common::camkes::Camkes;
@@ -104,12 +104,12 @@ pub unsafe extern "C" fn memory__init() {
 pub unsafe extern "C" fn memory_request(
     c_request_buffer_len: u32,
     c_request_buffer: *const u8,
-    c_reply_buffer: *mut RawMemoryStatsData,
+    c_reply_buffer: *mut MemoryResponseData,
 ) -> MemoryManagerError {
     let request_buffer = slice::from_raw_parts(c_request_buffer, c_request_buffer_len as usize);
     let request = match postcard::from_bytes::<MemoryManagerRequest>(request_buffer) {
         Ok(request) => request,
-        Err(error) => return error.into(),
+        Err(_) => return MemoryManagerError::MmeDeserializeFailed,
     };
 
     match request {
@@ -154,7 +154,7 @@ fn free_request(bundle: &mut ObjDescBundle) -> Result<(), MemoryManagerError> {
     Ok(())
 }
 
-fn stats_request(reply_buffer: &mut RawMemoryStatsData) -> Result<(), MemoryManagerError> {
+fn stats_request(reply_buffer: &mut MemoryResponseData) -> Result<(), MemoryManagerError> {
     let recv_path = unsafe { CAMKES.get_current_recv_path() };
     // NB: make sure noone clobbers the setup done in memory__init
     unsafe {
@@ -164,7 +164,8 @@ fn stats_request(reply_buffer: &mut RawMemoryStatsData) -> Result<(), MemoryMana
     let stats = unsafe { CANTRIP_MEMORY.stats() }?;
     // Verify no cap was received
     Camkes::debug_assert_slot_empty("stats_request", &recv_path);
-    let _ = postcard::to_slice(&StatsResponse { value: stats }, reply_buffer)?;
+    let _ = postcard::to_slice(&StatsResponse { value: stats }, reply_buffer)
+        .or(Err(MemoryManagerError::MmeSerializeFailed))?;
     Ok(())
 }
 

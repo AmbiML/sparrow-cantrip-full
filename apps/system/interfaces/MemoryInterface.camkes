@@ -1,5 +1,5 @@
 procedure MemoryInterface {
   include <MemoryManagerBindings.h>;
 
-  MemoryManagerError request(in char request[], out RawMemoryStatsData data);
+  MemoryManagerError request(in char request[], out MemoryResponseData data);
 };

@@ -25,6 +25,7 @@ use cantrip_os_common::sel4_sys;
 use cantrip_os_common::slot_allocator;
 use core::fmt;
 use log::trace;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use sel4_sys::seL4_CNode_Move;
@@ -39,12 +40,6 @@ use sel4_sys::seL4_SmallPageObject;
 use sel4_sys::seL4_WordBits;
 
 use slot_allocator::CANTRIP_CSPACE_SLOTS;
-
-// NB: @14b per desc this supports ~150 descriptors (depending
-//   on serde overhead), the rpc buffer is actually 4K so we could
-//   raise this
-pub const RAW_OBJ_DESC_DATA_SIZE: usize = 2048;
-pub type RawObjDescData = [u8; RAW_OBJ_DESC_DATA_SIZE];
 
 extern "C" {
     // Each CAmkES-generated CNode has a writable self-reference to itself in
@@ -288,9 +283,6 @@ pub enum MemoryError {
     FreeFailed,
 }
 
-pub const RAW_MEMORY_STATS_DATA_SIZE: usize = 100;
-pub type RawMemoryStatsData = [u8; RAW_MEMORY_STATS_DATA_SIZE];
-
 #[repr(C)]
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct MemoryManagerStats {
@@ -360,17 +352,6 @@ impl From<MemoryError> for MemoryManagerError {
         }
     }
 }
-impl From<postcard::Error> for MemoryManagerError {
-    fn from(err: postcard::Error) -> Self {
-        match err {
-            postcard::Error::SerializeBufferFull
-            | postcard::Error::SerializeSeqLengthUnknown
-            | postcard::Error::SerdeSerCustom => MemoryManagerError::MmeSerializeFailed,
-            // NB: bit of a cheat; this lumps in *Implement*
-            _ => MemoryManagerError::MmeDeserializeFailed,
-        }
-    }
-}
 impl From<Result<(), MemoryError>> for MemoryManagerError {
     fn from(result: Result<(), MemoryError>) -> MemoryManagerError {
         result.map_or_else(MemoryManagerError::from, |_v| MemoryManagerError::MmeSuccess)
@@ -395,7 +376,7 @@ pub struct StatsResponse {
 pub enum MemoryManagerRequest<'a> {
     Alloc(Cow<'a, ObjDescBundle>),
     Free(Cow<'a, ObjDescBundle>),
-    Stats, // -> RawMemoryStatsData
+    Stats, // -> MemoryResponseData
     Debug,
     Capscan,
 }
@@ -409,32 +390,32 @@ impl<'a> MemoryManagerRequest<'a> {
     }
 }
 
+// NB: @14b per desc this supports ~150 descriptors (depending
+//   on serde overhead), the rpc buffer is actually 4K so we could
+//   raise this
+const MEMORY_REQUEST_DATA_SIZE: usize = 2048;
+pub const MEMORY_RESPONSE_DATA_SIZE: usize = 100;
+pub type MemoryResponseData = [u8; MEMORY_RESPONSE_DATA_SIZE];
+
 #[inline]
-#[allow(dead_code)]
-pub fn cantrip_memory_request(
-    request: &MemoryManagerRequest,
-    reply_buffer: &mut RawMemoryStatsData,
+fn cantrip_memory_request_aux(
+    cap: Option<seL4_CPtr>,
+    request_buffer: &[u8],
+    reply_buffer: &mut MemoryResponseData,
 ) -> Result<(), MemoryManagerError> {
     extern "C" {
         pub fn memory_request(
             c_request_buffer_len: u32,
             c_request_buffer: *const u8,
-            c_reply_buffer: *mut RawMemoryStatsData,
+            c_reply_buffer: *mut MemoryResponseData,
         ) -> MemoryManagerError;
     }
-    trace!(
-        "cantrip_memory_request {:?} cap {:?}",
-        request,
-        request.get_container_cap()
-    );
-    let mut request_buffer = [0u8; RAW_OBJ_DESC_DATA_SIZE];
-    let request_slice = postcard::to_slice(request, &mut request_buffer)?;
-    if let Some(cap) = request.get_container_cap() {
+    if let Some(cap) = cap {
         let _cleanup = Camkes::set_request_cap(cap);
         unsafe {
             memory_request(
-                request_slice.len() as u32,
-                request_slice.as_ptr(),
+                request_buffer.len() as u32,
+                request_buffer.as_ptr(),
                 reply_buffer as *mut _,
             )
             .into()
@@ -447,13 +428,30 @@ pub fn cantrip_memory_request(
         Camkes::clear_request_cap();
         unsafe {
             memory_request(
-                request_slice.len() as u32,
-                request_slice.as_ptr(),
+                request_buffer.len() as u32,
+                request_buffer.as_ptr(),
                 reply_buffer as *mut _,
             )
             .into()
         }
     }
+}
+
+#[inline]
+fn cantrip_memory_request<T: DeserializeOwned>(
+    request: &MemoryManagerRequest,
+) -> Result<T, MemoryManagerError> {
+    trace!(
+        "cantrip_memory_request {:?} cap {:?}",
+        request,
+        request.get_container_cap()
+    );
+    let mut request_buffer = [0u8; MEMORY_REQUEST_DATA_SIZE];
+    let request_slice = postcard::to_slice(request, &mut request_buffer)
+        .or(Err(MemoryManagerError::MmeSerializeFailed))?;
+    let mut reply_buffer = [0u8; MEMORY_RESPONSE_DATA_SIZE];
+    cantrip_memory_request_aux(request.get_container_cap(), request_slice, &mut reply_buffer)?;
+    postcard::from_bytes(&reply_buffer).or(Err(MemoryManagerError::MmeDeserializeFailed))
 }
 
 // Allocates the objects specified in |request|. The capabilities are stored
@@ -462,11 +460,7 @@ pub fn cantrip_memory_request(
 pub fn cantrip_object_alloc(request: &ObjDescBundle) -> Result<(), MemoryManagerError> {
     trace!("cantrip_object_alloc {}", request);
     sel4_sys::debug_assert_slot_cnode!(request.cnode);
-
-    cantrip_memory_request(
-        &MemoryManagerRequest::Alloc(Cow::Borrowed(request)),
-        &mut [0u8; RAW_MEMORY_STATS_DATA_SIZE],
-    )
+    cantrip_memory_request(&MemoryManagerRequest::Alloc(Cow::Borrowed(request)))
 }
 
 // Allocates the objects specified in |objs|. The capabilities are moved
@@ -689,11 +683,7 @@ pub fn cantrip_page_table_alloc() -> Result<ObjDescBundle, MemoryManagerError> {
 pub fn cantrip_object_free(request: &ObjDescBundle) -> Result<(), MemoryManagerError> {
     trace!("cantrip_object_free {}", request);
     sel4_sys::debug_assert_slot_cnode!(request.cnode);
-
-    cantrip_memory_request(
-        &MemoryManagerRequest::Free(Cow::Borrowed(request)),
-        &mut [0u8; RAW_MEMORY_STATS_DATA_SIZE],
-    )
+    cantrip_memory_request(&MemoryManagerRequest::Free(Cow::Borrowed(request)))
 }
 
 // Free |request| and then the container that holds them. The container
@@ -730,18 +720,15 @@ pub fn cantrip_object_free_toplevel(objs: &ObjDescBundle) -> Result<(), MemoryMa
 
 #[inline]
 pub fn cantrip_memory_stats() -> Result<MemoryManagerStats, MemoryManagerError> {
-    let reply = &mut [0u8; RAW_MEMORY_STATS_DATA_SIZE];
-    cantrip_memory_request(&MemoryManagerRequest::Stats, reply)?;
-    let stats = postcard::from_bytes::<StatsResponse>(reply)?;
-    Ok(stats.value)
+    cantrip_memory_request(&MemoryManagerRequest::Stats).map(|stats: StatsResponse| stats.value)
 }
 
 #[inline]
 pub fn cantrip_memory_debug() -> Result<(), MemoryManagerError> {
-    cantrip_memory_request(&MemoryManagerRequest::Debug, &mut [0u8; RAW_MEMORY_STATS_DATA_SIZE])
+    cantrip_memory_request(&MemoryManagerRequest::Debug)
 }
 
 #[inline]
 pub fn cantrip_memory_capscan() -> Result<(), MemoryManagerError> {
-    cantrip_memory_request(&MemoryManagerRequest::Capscan, &mut [0u8; RAW_MEMORY_STATS_DATA_SIZE])
+    cantrip_memory_request(&MemoryManagerRequest::Capscan)
 }

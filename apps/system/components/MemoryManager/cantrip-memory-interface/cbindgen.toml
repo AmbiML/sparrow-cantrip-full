@@ -21,7 +21,7 @@ includes = ["CamkesBindings.h"]
 [export]
 include = [
     "RawPageDescData",
-    "RawMemoryStatsData",
     "MemoryManagerStats",
     "MemoryManagerError",
+    "MemoryResponseData",
 ]
