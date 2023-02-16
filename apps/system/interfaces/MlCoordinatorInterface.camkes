@@ -1,5 +1,5 @@
 procedure MlCoordinatorInterface {
   include <MlCoordBindings.h>;
 
-  MlCoordError request(in char request[], out uint32_t reply);
+  MlCoordError request(in char request[], out MlCoordResponseData reply);
 };

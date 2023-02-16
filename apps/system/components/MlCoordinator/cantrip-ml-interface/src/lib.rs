@@ -15,11 +15,14 @@
 #![no_std]
 use cantrip_os_common::sel4_sys;
 use log::trace;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_NBWait;
 use sel4_sys::seL4_Wait;
+
+use static_assertions::const_assert_eq;
 
 pub type MlJobId = u32;
 pub type MlJobMask = u32;
@@ -82,15 +85,17 @@ pub struct CompleteJobsResponse {
 // and also by it being allocated on the stack of the rpc glue code.
 const MLCOORD_REQUEST_DATA_SIZE: usize = 100;
 // Size of the serialized response.
-const MLCOORD_RESPONSE_DATA_SIZE: usize = core::mem::size_of::<CompleteJobsResponse>();
+pub const MLCOORD_RESPONSE_DATA_SIZE: usize = 4;
+const_assert_eq!(
+    MLCOORD_RESPONSE_DATA_SIZE,
+    core::mem::size_of::<CompleteJobsResponse>()
+);
 pub type MlCoordResponseData = [u8; MLCOORD_RESPONSE_DATA_SIZE];
 
 #[inline]
-#[allow(dead_code)]
-pub fn cantrip_mlcoord_request(
+fn cantrip_mlcoord_request<T: DeserializeOwned>(
     request: &MlCoordRequest,
-    reply_buffer: &mut MlCoordResponseData,
-) -> Result<(), MlCoordError> {
+) -> Result<T, MlCoordError> {
     extern "C" {
         pub fn mlcoord_request(
             c_request_buffer_len: u32,
@@ -102,20 +107,27 @@ pub fn cantrip_mlcoord_request(
     let mut request_buffer = [0u8; MLCOORD_REQUEST_DATA_SIZE];
     let request_slice = postcard::to_slice(request, &mut request_buffer)
         .or(Err(MlCoordError::MceSerializeFailed))?;
-    unsafe {
-        mlcoord_request(request_slice.len() as u32, request_slice.as_ptr(), reply_buffer).into()
+    let mut reply_buffer = [0u8; MLCOORD_RESPONSE_DATA_SIZE];
+    match unsafe {
+        mlcoord_request(
+            request_slice.len() as u32,
+            request_slice.as_ptr(),
+            &mut reply_buffer as *mut _,
+        )
+    } {
+        MlCoordError::MceOk => {
+            postcard::from_bytes(&reply_buffer).or(Err(MlCoordError::MceDeserializeFailed))
+        }
+        err => Err(err),
     }
 }
 
 #[inline]
 pub fn cantrip_mlcoord_oneshot(bundle_id: &str, model_id: &str) -> Result<(), MlCoordError> {
-    cantrip_mlcoord_request(
-        &MlCoordRequest::Oneshot {
-            bundle_id,
-            model_id,
-        },
-        &mut [0u8; MLCOORD_RESPONSE_DATA_SIZE],
-    )
+    cantrip_mlcoord_request(&MlCoordRequest::Oneshot {
+        bundle_id,
+        model_id,
+    })
 }
 
 #[inline]
@@ -124,25 +136,19 @@ pub fn cantrip_mlcoord_periodic(
     model_id: &str,
     rate_in_ms: u32,
 ) -> Result<(), MlCoordError> {
-    cantrip_mlcoord_request(
-        &MlCoordRequest::Periodic {
-            bundle_id,
-            model_id,
-            rate_in_ms,
-        },
-        &mut [0u8; MLCOORD_RESPONSE_DATA_SIZE],
-    )
+    cantrip_mlcoord_request(&MlCoordRequest::Periodic {
+        bundle_id,
+        model_id,
+        rate_in_ms,
+    })
 }
 
 #[inline]
 pub fn cantrip_mlcoord_cancel(bundle_id: &str, model_id: &str) -> Result<(), MlCoordError> {
-    cantrip_mlcoord_request(
-        &MlCoordRequest::Cancel {
-            bundle_id,
-            model_id,
-        },
-        &mut [0u8; MLCOORD_RESPONSE_DATA_SIZE],
-    )
+    cantrip_mlcoord_request(&MlCoordRequest::Cancel {
+        bundle_id,
+        model_id,
+    })
 }
 
 /// Returns the cptr for the notification object used to signal events.
@@ -158,11 +164,8 @@ pub fn cantrip_mlcoord_notification() -> seL4_CPtr {
 /// and cantrip_mlcoord_periodic that have expired.
 #[inline]
 pub fn cantrip_mlcoord_completed_jobs() -> Result<MlJobMask, MlCoordError> {
-    let mut reply_buffer = [0u8; MLCOORD_RESPONSE_DATA_SIZE];
-    cantrip_mlcoord_request(&MlCoordRequest::CompletedJobs, &mut reply_buffer)?;
-    let reply = postcard::from_bytes::<CompleteJobsResponse>(&reply_buffer)
-        .or(Err(MlCoordError::MceDeserializeFailed))?;
-    Ok(reply.job_mask)
+    cantrip_mlcoord_request(&MlCoordRequest::CompletedJobs)
+        .map(|reply: CompleteJobsResponse| reply.job_mask)
 }
 
 /// Waits for the next pending job for the client. If a job completes
@@ -187,15 +190,10 @@ pub fn cantrip_mlcoord_poll() -> Result<MlJobMask, MlCoordError> {
 
 #[inline]
 pub fn cantrip_mlcoord_debug_state() {
-    let _ = cantrip_mlcoord_request(
-        &MlCoordRequest::DebugState,
-        &mut [0u8; MLCOORD_RESPONSE_DATA_SIZE],
-    );
+    let _ = cantrip_mlcoord_request::<()>(&MlCoordRequest::DebugState);
 }
 
 #[inline]
 pub fn cantrip_mlcoord_capscan() -> Result<(), MlCoordError> {
-    let _ =
-        cantrip_mlcoord_request(&MlCoordRequest::Capscan, &mut [0u8; MLCOORD_RESPONSE_DATA_SIZE]);
-    Ok(())
+    cantrip_mlcoord_request(&MlCoordRequest::Capscan)
 }

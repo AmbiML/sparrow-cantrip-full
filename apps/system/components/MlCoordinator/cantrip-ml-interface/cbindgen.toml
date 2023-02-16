@@ -21,4 +21,5 @@ includes = ["CamkesBindings.h"]
 [export]
 include = [
     "MlCoordError",
+    "MlCoordResponseData",
 ]
