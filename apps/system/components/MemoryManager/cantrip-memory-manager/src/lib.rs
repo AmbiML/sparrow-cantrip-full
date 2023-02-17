@@ -11,6 +11,7 @@ use core::ops::Range;
 use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_UntypedDesc;
 use spin::Mutex;
+use spin::MutexGuard;
 
 mod memory_manager;
 pub use memory_manager::MemoryManager;
@@ -31,21 +32,33 @@ impl CantripMemoryManager {
         }
     }
 
-    // Finishes the setup started by empty():
-    pub fn init(&self, ut_slots: Range<seL4_CPtr>, untypeds: &[seL4_UntypedDesc]) {
-        *self.manager.lock() = Some(MemoryManager::new(ut_slots, untypeds));
+    pub fn get(&self) -> Guard {
+        Guard {
+            manager: self.manager.lock(),
+        }
     }
 }
-// These just lock accesses and handle the necessary indirection.
-impl MemoryManagerInterface for CantripMemoryManager {
+pub struct Guard<'a> {
+    manager: MutexGuard<'a, Option<MemoryManager>>,
+}
+impl<'a> Guard<'a> {
+    pub fn is_empty(&self) -> bool { self.manager.is_none() }
+
+    // Finishes the setup started by empty():
+    pub fn init(&mut self, ut_slots: Range<seL4_CPtr>, untypeds: &[seL4_UntypedDesc]) {
+        assert!(self.manager.is_none());
+        *self.manager = Some(MemoryManager::new(ut_slots, untypeds));
+    }
+}
+impl<'a> MemoryManagerInterface for Guard<'a> {
     fn alloc(&mut self, objs: &ObjDescBundle) -> Result<(), MemoryError> {
-        self.manager.lock().as_mut().unwrap().alloc(objs)
+        self.manager.as_mut().unwrap().alloc(objs)
     }
     fn free(&mut self, objs: &ObjDescBundle) -> Result<(), MemoryError> {
-        self.manager.lock().as_mut().unwrap().free(objs)
+        self.manager.as_mut().unwrap().free(objs)
     }
     fn stats(&self) -> Result<MemoryManagerStats, MemoryError> {
-        self.manager.lock().as_ref().unwrap().stats()
+        self.manager.as_ref().unwrap().stats()
     }
-    fn debug(&self) -> Result<(), MemoryError> { self.manager.lock().as_ref().unwrap().debug() }
+    fn debug(&self) -> Result<(), MemoryError> { self.manager.as_ref().unwrap().debug() }
 }

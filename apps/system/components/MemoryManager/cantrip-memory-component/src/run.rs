@@ -37,8 +37,28 @@ use sel4_sys::seL4_CPtr;
 
 static mut CAMKES: Camkes = Camkes::new("MemoryManager");
 
-// NB: CANTRIP_MEMORY cannot be used before setup is completed with a call to init()
-static mut CANTRIP_MEMORY: CantripMemoryManager = CantripMemoryManager::empty();
+extern "C" {
+    fn sel4runtime_bootinfo() -> *const seL4_BootInfo;
+}
+
+fn cantrip_memory() -> impl MemoryManagerInterface {
+    static CANTRIP_MEMORY: CantripMemoryManager = CantripMemoryManager::empty();
+    let mut manager = CANTRIP_MEMORY.get();
+    if manager.is_empty() {
+        // The MemoryManager component is labeled to receive BootInfo); use
+        // it to complete initialization of the MemoryManager interface.
+        let bootinfo = unsafe { &*sel4runtime_bootinfo() };
+        manager.init(
+            /*slots=*/
+            Range::<seL4_CPtr> {
+                start: bootinfo.untyped.start,
+                end: bootinfo.untyped.end,
+            },
+            /*untypeds=*/ unsafe { bootinfo.untyped_descs() },
+        );
+    }
+    manager
+}
 
 extern "C" {
     // Each CAmkES-component has a CNode setup at a well-known top-level slot.
@@ -54,21 +74,9 @@ pub unsafe extern "C" fn pre_init() {
     static mut HEAP_MEMORY: [u8; 8 * 1024] = [0; 8 * 1024];
     CAMKES.init_allocator(&mut HEAP_MEMORY);
 
-    extern "C" {
-        fn sel4runtime_bootinfo() -> *const seL4_BootInfo;
-    }
-    // The MemoryManager component is labeled to receive BootInfo); use
-    // it to complete initialization of the MemoryManager interface.
     let bootinfo = &*sel4runtime_bootinfo();
-    CANTRIP_MEMORY.init(
-        /*slots=*/
-        Range::<seL4_CPtr> {
-            start: bootinfo.untyped.start,
-            end: bootinfo.untyped.end,
-        },
-        /*untypeds=*/ bootinfo.untyped_descs(),
-    );
-    if let Ok(stats) = CANTRIP_MEMORY.stats() {
+
+    if let Ok(stats) = cantrip_memory().stats() {
         info!(
             "Global memory: {} allocated {} free, reserved: {} kernel {} user",
             stats.allocated_bytes,
@@ -133,9 +141,7 @@ fn alloc_request(bundle: &mut ObjDescBundle) -> Result<(), MemoryManagerError> {
     bundle.cnode = recv_path.1;
     // NB: bundle.depth should reflect the received cnode
 
-    unsafe {
-        CANTRIP_MEMORY.alloc(bundle)?;
-    }
+    cantrip_memory().alloc(bundle)?;
     Ok(())
 }
 
@@ -148,9 +154,7 @@ fn free_request(bundle: &mut ObjDescBundle) -> Result<(), MemoryManagerError> {
 
     bundle.cnode = recv_path.1;
     // NB: bundle.depth should reflect the received cnode
-    unsafe {
-        CANTRIP_MEMORY.free(bundle)?;
-    }
+    cantrip_memory().free(bundle)?;
     Ok(())
 }
 
@@ -161,7 +165,7 @@ fn stats_request(reply_buffer: &mut MemoryResponseData) -> Result<(), MemoryMana
         CAMKES.assert_recv_path();
     }
 
-    let stats = unsafe { CANTRIP_MEMORY.stats() }?;
+    let stats = cantrip_memory().stats()?;
     // Verify no cap was received
     Camkes::debug_assert_slot_empty("stats_request", &recv_path);
     let _ = postcard::to_slice(&StatsResponse { value: stats }, reply_buffer)
@@ -177,9 +181,7 @@ fn debug_request() -> Result<(), MemoryManagerError> {
     }
     Camkes::debug_assert_slot_empty("debug_request", &recv_path);
 
-    unsafe {
-        CANTRIP_MEMORY.debug()?;
-    }
+    cantrip_memory().debug()?;
     Ok(())
 }
 
