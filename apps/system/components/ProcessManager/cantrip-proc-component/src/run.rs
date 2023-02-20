@@ -18,6 +18,8 @@
 #![no_std]
 #![allow(clippy::missing_safety_doc)]
 
+extern crate alloc;
+use cantrip_memory_interface::ObjDescBundle;
 use cantrip_os_common::camkes::Camkes;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_os_common::sel4_sys;
@@ -60,130 +62,124 @@ pub unsafe extern "C" fn pkg_mgmt__init() {
 
 #[no_mangle]
 pub unsafe extern "C" fn pkg_mgmt_request(
-    c_request: PackageManagementRequest,
     c_request_buffer_len: u32,
     c_request_buffer: *const u8,
     c_reply_buffer: *mut RawBundleIdData,
 ) -> ProcessManagerError {
     let request_buffer = slice::from_raw_parts(c_request_buffer, c_request_buffer_len as usize);
-    let reply_buffer = &mut (*c_reply_buffer)[..];
-    match c_request {
-        PackageManagementRequest::PmrInstall => install_request(request_buffer, reply_buffer),
-        PackageManagementRequest::PmrInstallApp => {
-            install_app_request(request_buffer, reply_buffer)
+    let request = match postcard::from_bytes::<PackageManagementRequest>(request_buffer) {
+        Ok(request) => request,
+        Err(_) => return ProcessManagerError::DeserializeError,
+    };
+
+    match request {
+        PackageManagementRequest::Install(pkg_contents) => {
+            install_request(pkg_contents.into_owned(), &mut *c_reply_buffer)
         }
-        PackageManagementRequest::PmrUninstall => uninstall_request(request_buffer, reply_buffer),
+        PackageManagementRequest::InstallApp {
+            app_id,
+            pkg_contents,
+        } => install_app_request(app_id, pkg_contents.into_owned(), &mut *c_reply_buffer),
+        PackageManagementRequest::Uninstall(bundle_id) => {
+            uninstall_request(bundle_id, &mut *c_reply_buffer)
+        }
     }
-    .map_or_else(|e| e, |_v| ProcessManagerError::Success)
+    .map_or_else(|e| e, |()| ProcessManagerError::Success)
 }
 
 fn install_request(
-    request_buffer: &[u8],
-    reply_buffer: &mut [u8],
+    mut pkg_contents: ObjDescBundle,
+    reply_buffer: &mut RawBundleIdData,
 ) -> Result<(), ProcessManagerError> {
     // NB: make sure noone clobbers the setup done in pkg_mgmt__init,
     // and clear any capability the path points to when dropped
     let recv_path = unsafe { CAMKES.get_owned_current_recv_path() };
     Camkes::debug_assert_slot_cnode("install_request", &recv_path);
 
-    let mut request = postcard::from_bytes::<InstallRequest>(request_buffer)?;
-    request.set_container_cap(recv_path.1);
+    pkg_contents.cnode = recv_path.1;
 
-    let bundle_id = unsafe { CANTRIP_PROC.install(&request.pkg_contents) }?;
-    let _ = postcard::to_slice(
-        &InstallResponse {
-            bundle_id: &bundle_id,
-        },
-        reply_buffer,
-    )?;
+    let bundle_id = unsafe { CANTRIP_PROC.install(&pkg_contents) }?;
+    let _ = postcard::to_slice(&InstallResponse { bundle_id }, reply_buffer)
+        .or(Err(ProcessManagerError::SerializeError))?;
     Ok(())
 }
 
 fn install_app_request(
-    request_buffer: &[u8],
-    _reply_buffer: &mut [u8],
+    app_id: &str,
+    mut pkg_contents: ObjDescBundle,
+    _reply_buffer: &mut RawBundleIdData,
 ) -> Result<(), ProcessManagerError> {
     // NB: make sure noone clobbers the setup done in pkg_mgmt__init,
     // and clear any capability the path points to when dropped
     let recv_path = unsafe { CAMKES.get_owned_current_recv_path() };
     Camkes::debug_assert_slot_cnode("install_app_request", &recv_path);
 
-    let mut request = postcard::from_bytes::<InstallAppRequest>(request_buffer)?;
-    request.set_container_cap(recv_path.1);
+    pkg_contents.cnode = recv_path.1;
 
-    unsafe { CANTRIP_PROC.install_app(request.app_id, &request.pkg_contents) }
+    unsafe { CANTRIP_PROC.install_app(app_id, &pkg_contents) }
 }
 
 fn uninstall_request(
-    request_buffer: &[u8],
-    _reply_buffer: &mut [u8],
+    bundle_id: &str,
+    _reply_buffer: &mut RawBundleIdData,
 ) -> Result<(), ProcessManagerError> {
     // NB: make sure noone clobbers the setup done in pkg_mgmt__init,
     // and clear any capability the path points to when dropped
     let recv_path = unsafe { CAMKES.get_owned_current_recv_path() };
     Camkes::debug_assert_slot_empty("uninstall_request", &recv_path);
 
-    let request = postcard::from_bytes::<UninstallRequest>(request_buffer)?;
-
-    let _ = unsafe { CANTRIP_PROC.uninstall(request.bundle_id) }?;
+    let _ = unsafe { CANTRIP_PROC.uninstall(bundle_id) }?;
     Camkes::debug_assert_slot_empty("uninstall_request", &recv_path);
     Ok(())
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn proc_ctrl_request(
-    c_request: ProcessControlRequest,
     c_request_buffer_len: u32,
     c_request_buffer: *const u8,
     c_reply_buffer: *mut RawBundleIdData,
 ) -> ProcessManagerError {
     let request_buffer = slice::from_raw_parts(c_request_buffer, c_request_buffer_len as usize);
-    let reply_buffer = &mut (*c_reply_buffer)[..];
-    match c_request {
-        ProcessControlRequest::PcrStart => start_request(request_buffer, reply_buffer),
-        ProcessControlRequest::PcrStop => stop_request(request_buffer, reply_buffer),
-        ProcessControlRequest::PcrGetRunningBundles => {
-            get_running_bundles_request(request_buffer, reply_buffer)
+    let request = match postcard::from_bytes::<ProcessControlRequest>(request_buffer) {
+        Ok(request) => request,
+        Err(_) => return ProcessManagerError::DeserializeError,
+    };
+
+    match request {
+        ProcessControlRequest::Start(bundle_id) => start_request(bundle_id, &mut *c_reply_buffer),
+        ProcessControlRequest::Stop(bundle_id) => stop_request(bundle_id, &mut *c_reply_buffer),
+        ProcessControlRequest::GetRunningBundles => {
+            get_running_bundles_request(&mut *c_reply_buffer)
         }
 
-        ProcessControlRequest::PcrCapScan => capscan_request(),
-        ProcessControlRequest::PcrCapScanBundle => {
-            capscan_bundle_request(request_buffer, reply_buffer)
+        ProcessControlRequest::CapScan => capscan_request(),
+        ProcessControlRequest::CapScanBundle(bundle_id) => {
+            capscan_bundle_request(bundle_id, &mut *c_reply_buffer)
         }
     }
-    .map_or_else(|e| e, |_v| ProcessManagerError::Success)
+    .map_or_else(|e| e, |()| ProcessManagerError::Success)
 }
 
 fn start_request(
-    request_buffer: &[u8],
-    _reply_buffer: &mut [u8],
+    bundle_id: &str,
+    _reply_buffer: &mut RawBundleIdData,
 ) -> Result<(), ProcessManagerError> {
-    let request =
-        postcard::from_bytes::<StartRequest>(request_buffer).map_err(ProcessManagerError::from)?;
-
-    unsafe { CANTRIP_PROC.start(request.bundle_id) }
+    unsafe { CANTRIP_PROC.start(bundle_id) }
 }
 
-fn stop_request(
-    request_buffer: &[u8],
-    _reply_buffer: &mut [u8],
-) -> Result<(), ProcessManagerError> {
-    let request =
-        postcard::from_bytes::<StopRequest>(request_buffer).map_err(ProcessManagerError::from)?;
-
-    unsafe { CANTRIP_PROC.stop(request.bundle_id) }
+fn stop_request(bundle_id: &str, _reply_buffer: &mut [u8]) -> Result<(), ProcessManagerError> {
+    unsafe { CANTRIP_PROC.stop(bundle_id) }
 }
 
 fn get_running_bundles_request(
-    _request_buffer: &[u8],
-    reply_buffer: &mut [u8],
+    reply_buffer: &mut RawBundleIdData,
 ) -> Result<(), ProcessManagerError> {
     let bundle_ids = unsafe { CANTRIP_PROC.get_running_bundles() }?;
     // Serialize the bundle_id's in the result buffer. If we
     // overflow the buffer, an error is returned and the
     // contents are undefined (postcard does not specify).
     let _ = postcard::to_slice(&GetRunningBundlesResponse { bundle_ids }, reply_buffer)
-        .map_err(ProcessManagerError::from)?;
+        .or(Err(ProcessManagerError::DeserializeError))?;
     Ok(())
 }
 
@@ -193,11 +189,8 @@ fn capscan_request() -> Result<(), ProcessManagerError> {
 }
 
 fn capscan_bundle_request(
-    request_buffer: &[u8],
+    bundle_id: &str,
     _reply_buffer: &mut [u8],
 ) -> Result<(), ProcessManagerError> {
-    let request = postcard::from_bytes::<CapScanBundleRequest>(request_buffer)
-        .map_err(ProcessManagerError::from)?;
-
-    unsafe { CANTRIP_PROC.capscan(request.bundle_id) }
+    unsafe { CANTRIP_PROC.capscan(bundle_id) }
 }

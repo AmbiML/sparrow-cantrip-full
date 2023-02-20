@@ -1,5 +1,5 @@
 procedure ProcessControlInterface {
   include <ProcessManagerBindings.h>;
 
-  ProcessManagerError request(in int request_id, in char request[], out RawBundleIdData raw_data);
+  ProcessManagerError request(in char request[], out RawBundleIdData reply);
 };

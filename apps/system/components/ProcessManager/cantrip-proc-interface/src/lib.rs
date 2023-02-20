@@ -17,6 +17,7 @@
 #![cfg_attr(not(test), no_std)]
 
 extern crate alloc;
+use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -26,6 +27,7 @@ use cantrip_os_common::sel4_sys::seL4_CPtr;
 use cantrip_security_interface::SecurityRequestError;
 use core::str;
 use log::trace;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 mod bundle_image;
@@ -78,78 +80,6 @@ pub trait BundleImplInterface {
 
 // NB: struct's marked repr(C) are processed by cbindgen to get a .h file
 //   used in camkes C interfaces.
-
-// Interface to any seL4 capability associated with the request.
-pub trait Capability {
-    fn get_container_cap(&self) -> Option<seL4_CPtr> { None }
-    // TODO(sleffler): assert/log where no cap
-    fn set_container_cap(&mut self, _cap: seL4_CPtr) {}
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct InstallRequest {
-    // NB: serde does not support a borrow
-    pub pkg_contents: ObjDescBundle,
-}
-impl Capability for InstallRequest {
-    fn get_container_cap(&self) -> Option<seL4_CPtr> { Some(self.pkg_contents.cnode) }
-    fn set_container_cap(&mut self, cap: seL4_CPtr) { self.pkg_contents.cnode = cap; }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct InstallResponse<'a> {
-    pub bundle_id: &'a str,
-}
-impl<'a> Capability for InstallResponse<'a> {}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct InstallAppRequest<'a> {
-    pub app_id: &'a str,
-    // NB: serde does not support a borrow
-    pub pkg_contents: ObjDescBundle,
-}
-impl<'a> Capability for InstallAppRequest<'a> {
-    fn get_container_cap(&self) -> Option<seL4_CPtr> { Some(self.pkg_contents.cnode) }
-    fn set_container_cap(&mut self, cap: seL4_CPtr) { self.pkg_contents.cnode = cap; }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct UninstallRequest<'a> {
-    pub bundle_id: &'a str,
-}
-impl<'a> Capability for UninstallRequest<'a> {}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct StartRequest<'a> {
-    pub bundle_id: &'a str,
-}
-impl<'a> Capability for StartRequest<'a> {}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct StopRequest<'a> {
-    pub bundle_id: &'a str,
-}
-impl<'a> Capability for StopRequest<'a> {}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct GetRunningBundlesRequest {}
-impl Capability for GetRunningBundlesRequest {}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct GetRunningBundlesResponse {
-    pub bundle_ids: BundleIdArray,
-}
-impl Capability for GetRunningBundlesResponse {}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct CapScanRequest {}
-impl Capability for CapScanRequest {}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct CapScanBundleRequest<'a> {
-    pub bundle_id: &'a str,
-}
-impl<'a> Capability for CapScanBundleRequest<'a> {}
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -217,134 +147,138 @@ pub trait ProcessControlInterface {
     fn capscan(&self, bundle_id: &str) -> Result<(), ProcessManagerError>;
 }
 
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum PackageManagementRequest {
-    PmrInstall = 0, // Install package [pkg_buffer] -> bundle_id
-    PmrInstallApp,  // Install application [app_id, pkg_buffer]
-    PmrUninstall,   // Uninstall package [bundle_id]
+#[derive(Debug, Serialize, Deserialize)]
+pub enum PackageManagementRequest<'a> {
+    Install(Cow<'a, ObjDescBundle>), // Install package (returns bundle_id)
+    InstallApp {
+        // Install application
+        app_id: &'a str,
+        pkg_contents: Cow<'a, ObjDescBundle>,
+    },
+    Uninstall(&'a str), // Uninstall package
+}
+impl<'a> PackageManagementRequest<'a> {
+    fn get_container_cap(&self) -> Option<seL4_CPtr> {
+        match self {
+            PackageManagementRequest::Install(pkg_contents)
+            | PackageManagementRequest::InstallApp {
+                app_id: _,
+                pkg_contents,
+            } => Some(pkg_contents.cnode),
+            PackageManagementRequest::Uninstall(_) => None,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InstallResponse {
+    pub bundle_id: String,
 }
 
 #[inline]
-pub fn cantrip_pkg_mgmt_request<T: Serialize + Capability + core::fmt::Debug>(
-    request: PackageManagementRequest,
-    request_args: &T,
+fn cantrip_pkg_mgmt_request_aux(
+    cap: Option<seL4_CPtr>,
+    request_buffer: &[u8],
     reply_buffer: &mut RawBundleIdData,
 ) -> Result<(), ProcessManagerError> {
     extern "C" {
         pub fn pkg_mgmt_request(
-            c_request: PackageManagementRequest,
             c_request_buffer_len: u32,
             c_request_buffer: *const u8,
             c_reply_buffer: *mut RawBundleIdData,
         ) -> ProcessManagerError;
     }
-    trace!(
-        "cantrip_pkg_mgmt_request {:?} cap {:?}",
-        &request_args,
-        request_args.get_container_cap()
-    );
-    let mut request_buffer = [0u8; REQUEST_DATA_SIZE];
-    let request_slice = postcard::to_slice(request_args, &mut request_buffer[..])
-        .map_err(ProcessManagerError::from)?;
-    match unsafe {
-        if let Some(cap) = request_args.get_container_cap() {
-            let _cleanup = Camkes::set_request_cap(cap);
+    if let Some(cap) = cap {
+        let _cleanup = Camkes::set_request_cap(cap);
+        unsafe {
             pkg_mgmt_request(
-                request,
-                request_slice.len() as u32,
-                request_slice.as_ptr(),
+                request_buffer.len() as u32,
+                request_buffer.as_ptr(),
                 reply_buffer as *mut _,
             )
-        } else {
-            // NB: guard against a received badge being treated as an
-            // outbound capability. This is needed because the code CAmkES
-            // generates for pkg_mgmt_request always enables possible xmit
-            // of 1 capability.
-            Camkes::clear_request_cap();
-            pkg_mgmt_request(
-                request,
-                request_slice.len() as u32,
-                request_slice.as_ptr(),
-                reply_buffer as *mut _,
-            )
+            .into()
         }
-    } {
-        ProcessManagerError::Success => Ok(()),
-        status => Err(status),
+    } else {
+        // NB: guard against a received badge being treated as an
+        // outbound capability. This is needed because the code CAmkES
+        // generates for pkg_mgmt_request always enables possible xmit
+        // of 1 capability.
+        Camkes::clear_request_cap();
+        unsafe {
+            pkg_mgmt_request(
+                request_buffer.len() as u32,
+                request_buffer.as_ptr(),
+                reply_buffer as *mut _,
+            )
+            .into()
+        }
     }
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ProcessControlRequest {
-    PcrStart,             // [bundle_id]
-    PcrStop,              // [bundle_id]
-    PcrGetRunningBundles, // [] -> bundle_id
-
-    PcrCapScan,       // []
-    PcrCapScanBundle, // [bundle_id]
 }
 
 #[inline]
-pub fn cantrip_proc_ctrl_request<T: Serialize + Capability + core::fmt::Debug>(
-    request: ProcessControlRequest,
-    request_args: &T,
-    reply_buffer: &mut RawBundleIdData,
-) -> Result<(), ProcessManagerError> {
+fn cantrip_pkg_mgmt_request<T: DeserializeOwned>(
+    request: &PackageManagementRequest,
+) -> Result<T, ProcessManagerError> {
+    trace!(
+        "cantrip_pkg_mgmt_request {:?} cap {:?}",
+        &request,
+        request.get_container_cap()
+    );
+    let mut request_buffer = [0u8; REQUEST_DATA_SIZE];
+    let request_slice = postcard::to_slice(request, &mut request_buffer)
+        .or(Err(ProcessManagerError::SerializeError))?;
+    let mut reply_buffer = [0u8; RAW_BUNDLE_ID_DATA_SIZE];
+    cantrip_pkg_mgmt_request_aux(request.get_container_cap(), request_slice, &mut reply_buffer)?;
+    postcard::from_bytes(&reply_buffer).or(Err(ProcessManagerError::DeserializeError))
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum ProcessControlRequest<'a> {
+    Start(&'a str),
+    Stop(&'a str),
+    GetRunningBundles, // -> bundle_ids
+
+    CapScan,
+    CapScanBundle(&'a str),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GetRunningBundlesResponse {
+    pub bundle_ids: BundleIdArray,
+}
+
+#[inline]
+fn cantrip_proc_ctrl_request<T: DeserializeOwned>(
+    request: &ProcessControlRequest,
+) -> Result<T, ProcessManagerError> {
     extern "C" {
         pub fn proc_ctrl_request(
-            c_request: ProcessControlRequest,
             c_request_buffer_len: u32,
             c_request_buffer: *const u8,
             c_reply_buffer: *mut RawBundleIdData,
         ) -> ProcessManagerError;
     }
-    trace!(
-        "cantrip_proc_ctrl_request {:?} cap {:?}",
-        &request_args,
-        request_args.get_container_cap()
-    );
+    trace!("cantrip_proc_ctrl_request {:?}", &request,);
     let mut request_buffer = [0u8; REQUEST_DATA_SIZE];
-    let request_slice = postcard::to_slice(request_args, &mut request_buffer[..])
-        .map_err(ProcessManagerError::from)?;
+    let request_slice = postcard::to_slice(request, &mut request_buffer)
+        .or(Err(ProcessManagerError::SerializeError))?;
+    let mut reply_buffer = [0u8; RAW_BUNDLE_ID_DATA_SIZE];
+    // NB: guard against a received badge being treated as an
+    // outbound capability. This is needed because the code CAmkES
+    // generates for pkg_mgmt_request always enables possible xmit
+    // of 1 capability.
+    Camkes::clear_request_cap();
     match unsafe {
-        if let Some(cap) = request_args.get_container_cap() {
-            let _cleanup = Camkes::set_request_cap(cap);
-            proc_ctrl_request(
-                request,
-                request_slice.len() as u32,
-                request_slice.as_ptr(),
-                reply_buffer as *mut _,
-            )
-        } else {
-            // NB: guard against a received badge being treated as an
-            // outbound capability. This is needed because the code CAmkES
-            // generates for pkg_mgmt_request always enables possible xmit
-            // of 1 capability.
-            Camkes::clear_request_cap();
-            proc_ctrl_request(
-                request,
-                request_slice.len() as u32,
-                request_slice.as_ptr(),
-                reply_buffer as *mut _,
-            )
-        }
+        proc_ctrl_request(
+            request_slice.len() as u32,
+            request_slice.as_ptr(),
+            &mut reply_buffer as *mut _,
+        )
     } {
-        ProcessManagerError::Success => Ok(()),
-        status => Err(status),
-    }
-}
-
-impl From<postcard::Error> for ProcessManagerError {
-    fn from(err: postcard::Error) -> ProcessManagerError {
-        match err {
-            postcard::Error::SerializeBufferFull
-            | postcard::Error::SerializeSeqLengthUnknown
-            | postcard::Error::SerdeSerCustom => ProcessManagerError::SerializeError,
-            // NB: bit of a cheat; this lumps in *Implement*
-            _ => ProcessManagerError::DeserializeError,
+        ProcessManagerError::Success => {
+            postcard::from_bytes(&reply_buffer).or(Err(ProcessManagerError::DeserializeError))
         }
+        err => Err(err),
     }
 }
 
@@ -383,13 +317,8 @@ impl From<ProcessManagerError> for Result<(), ProcessManagerError> {
 
 #[inline]
 pub fn cantrip_proc_ctrl_get_running_bundles() -> Result<BundleIdArray, ProcessManagerError> {
-    let reply = &mut [0u8; RAW_BUNDLE_ID_DATA_SIZE];
-    cantrip_proc_ctrl_request(
-        ProcessControlRequest::PcrGetRunningBundles,
-        &GetRunningBundlesRequest {},
-        reply,
-    )?;
-    postcard::from_bytes::<BundleIdArray>(reply).map_err(ProcessManagerError::from)
+    cantrip_proc_ctrl_request(&ProcessControlRequest::GetRunningBundles)
+        .map(|reply: GetRunningBundlesResponse| reply.bundle_ids)
 }
 
 #[inline]
@@ -400,15 +329,8 @@ pub fn cantrip_pkg_mgmt_install(
         "cantrip_pkg_mgmt_install",
         &Camkes::top_level_path(pkg_contents.cnode),
     );
-    let reply = &mut [0u8; RAW_BUNDLE_ID_DATA_SIZE];
-    cantrip_pkg_mgmt_request(
-        PackageManagementRequest::PmrInstall,
-        &InstallRequest {
-            pkg_contents: pkg_contents.clone(),
-        },
-        reply,
-    )?;
-    postcard::from_bytes::<String>(reply).map_err(ProcessManagerError::from)
+    cantrip_pkg_mgmt_request(&PackageManagementRequest::Install(Cow::Borrowed(pkg_contents)))
+        .map(|reply: InstallResponse| reply.bundle_id)
 }
 
 #[inline]
@@ -420,60 +342,35 @@ pub fn cantrip_pkg_mgmt_install_app(
         "cantrip_pkg_mgmt_install_app",
         &Camkes::top_level_path(pkg_contents.cnode),
     );
-    let reply = &mut [0u8; RAW_BUNDLE_ID_DATA_SIZE];
-    cantrip_pkg_mgmt_request(
-        PackageManagementRequest::PmrInstallApp,
-        &InstallAppRequest {
-            app_id,
-            pkg_contents: pkg_contents.clone(),
-        },
-        reply,
-    )
+    cantrip_pkg_mgmt_request(&PackageManagementRequest::InstallApp {
+        app_id,
+        pkg_contents: Cow::Borrowed(pkg_contents),
+    })
 }
 
 #[inline]
 pub fn cantrip_pkg_mgmt_uninstall(bundle_id: &str) -> Result<(), ProcessManagerError> {
-    cantrip_pkg_mgmt_request(
-        PackageManagementRequest::PmrUninstall,
-        &UninstallRequest { bundle_id },
-        &mut [0u8; RAW_BUNDLE_ID_DATA_SIZE],
-    )
+    cantrip_pkg_mgmt_request(&PackageManagementRequest::Uninstall(bundle_id))
 }
 
 #[inline]
 pub fn cantrip_proc_ctrl_start(bundle_id: &str) -> Result<(), ProcessManagerError> {
-    cantrip_proc_ctrl_request(
-        ProcessControlRequest::PcrStart,
-        &StartRequest { bundle_id },
-        &mut [0u8; RAW_BUNDLE_ID_DATA_SIZE],
-    )
+    cantrip_proc_ctrl_request(&ProcessControlRequest::Start(bundle_id))
 }
 
 #[inline]
 pub fn cantrip_proc_ctrl_stop(bundle_id: &str) -> Result<(), ProcessManagerError> {
-    cantrip_proc_ctrl_request(
-        ProcessControlRequest::PcrStop,
-        &StopRequest { bundle_id },
-        &mut [0u8; RAW_BUNDLE_ID_DATA_SIZE],
-    )
+    cantrip_proc_ctrl_request(&ProcessControlRequest::Stop(bundle_id))
 }
 
 #[inline]
 pub fn cantrip_proc_ctrl_capscan() -> Result<(), ProcessManagerError> {
-    cantrip_proc_ctrl_request(
-        ProcessControlRequest::PcrCapScan,
-        &CapScanRequest {},
-        &mut [0u8; RAW_BUNDLE_ID_DATA_SIZE],
-    )
+    cantrip_proc_ctrl_request(&ProcessControlRequest::CapScan)
 }
 
 #[inline]
 pub fn cantrip_proc_ctrl_capscan_bundle(bundle_id: &str) -> Result<(), ProcessManagerError> {
-    cantrip_proc_ctrl_request(
-        ProcessControlRequest::PcrCapScanBundle,
-        &CapScanBundleRequest { bundle_id },
-        &mut [0u8; RAW_BUNDLE_ID_DATA_SIZE],
-    )
+    cantrip_proc_ctrl_request(&ProcessControlRequest::CapScanBundle(bundle_id))
 }
 
 // TODO(sleffler): move out of interface?
