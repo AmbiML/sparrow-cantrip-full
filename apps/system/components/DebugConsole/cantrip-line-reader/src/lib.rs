@@ -14,6 +14,7 @@
 
 #![no_std]
 
+use cfg_if::cfg_if;
 use core::fmt;
 
 use cantrip_io as io;
@@ -57,12 +58,12 @@ const CONTROL_U: u8 = 21u8; // Delete entire command line
 const CONTROL_W: u8 = 23u8; // Delete previous word
 const DELETE: u8 = 127u8; // Doubles for backspace
 
-#[cfg(feature = "CONFIG_DEBUG_BUILD")]
-mod edit;
-#[cfg(not(feature = "CONFIG_DEBUG_BUILD"))]
-mod simple;
-
-#[cfg(feature = "CONFIG_DEBUG_BUILD")]
-pub use edit::LineReader;
-#[cfg(not(feature = "CONFIG_DEBUG_BUILD"))]
-pub use simple::LineReader;
+cfg_if! {
+    if #[cfg(feature = "simple_support")] {
+        mod simple;
+        pub use simple::LineReader;
+    } else {
+        mod edit;
+        pub use edit::LineReader;
+    }
+}
