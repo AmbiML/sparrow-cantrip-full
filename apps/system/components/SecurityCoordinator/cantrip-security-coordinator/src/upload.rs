@@ -60,7 +60,7 @@ impl Upload {
         (self.frames.count() * self.copyregion.size())
             - (self.copyregion.mapped_bytes() - self.next_free)
     }
-    pub fn finish(&mut self) { self.copyregion.unmap().expect("finish"); }
+    pub fn finish(&mut self) { self.unmap_current_frame().expect("finish"); }
     pub fn frames(&self) -> &ObjDescBundle { &self.frames }
     pub fn frames_mut(&mut self) -> &mut ObjDescBundle { &mut self.frames }
 
