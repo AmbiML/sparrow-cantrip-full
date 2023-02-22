@@ -33,6 +33,8 @@ use cpio::CpioNewcReader;
 use cstr_core::CStr;
 use log::LevelFilter;
 
+use cantrip_io as io;
+
 // NB: this controls filtering log messages from all components because
 //   they are setup to send all log messges to the console.
 #[cfg(feature = "LOG_DEBUG")]
@@ -55,14 +57,39 @@ pub unsafe extern "C" fn pre_init() {
     CAMKES.pre_init(INIT_LOG_LEVEL, &mut HEAP_MEMORY);
 }
 
+/// Tx io trait that uses the kernel if console output is
+/// is supported, otherwise discards all writes.
+struct Tx {}
+impl Tx {
+    pub fn new() -> Self { Self {} }
+}
+impl Default for Tx {
+    fn default() -> Self { Self::new() }
+}
+impl io::Write for Tx {
+    #[cfg(not(feature = "CONFIG_PRINTING"))]
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> { Ok(buf.len() as usize) }
+    #[cfg(feature = "CONFIG_PRINTING")]
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        for &b in buf {
+            unsafe {
+                cantrip_os_common::sel4_sys::seL4_DebugPutChar(b);
+            }
+        }
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> { Ok(()) }
+}
+
 // Returns a trait-compatible Tx based on the selected features.
 // NB: must use "return expr;" to avoid confusing the compiler.
-fn get_tx() -> impl cantrip_io::Write {
+fn get_tx() -> impl io::Write {
     #[cfg(feature = "CONFIG_PLAT_SPARROW")]
     return cantrip_uart_client::Tx::new();
 
     #[cfg(not(feature = "CONFIG_PLAT_SPARROW"))]
-    return default_uart_client::Tx::new();
+    return Tx::new();
 }
 
 /// Console logging interface.
@@ -78,8 +105,7 @@ pub unsafe extern "C" fn logger_log(level: u8, msg: *const cstr_core::c_char) {
     };
     if l <= log::max_level() {
         // TODO(sleffler): is the uart driver ok w/ multiple writers?
-        // TODO(sleffler): fallback to seL4_DebugPutChar?
-        let output: &mut dyn cantrip_io::Write = &mut get_tx();
+        let output: &mut dyn io::Write = &mut get_tx();
         let _ = writeln!(output, "{}", CStr::from_ptr(msg).to_str().unwrap());
     }
 }
@@ -106,7 +132,7 @@ fn run_autostart_shell(cpio_archive_ref: &[u8]) {
     if let Some(script) = autostart_script {
         // Rx data comes from the embedded script
         // Tx data goes to either the uart or /dev/null
-        let mut rx = cantrip_io::BufReader::new(default_uart_client::Rx::new(script));
+        let mut rx = cantrip_io::BufReader::new(script);
         cantrip_shell::repl_eof(&mut get_tx(), &mut rx, cpio_archive_ref);
     }
 }
@@ -115,7 +141,7 @@ fn run_autostart_shell(cpio_archive_ref: &[u8]) {
 #[cfg(feature = "CONFIG_PLAT_SPARROW")]
 fn run_sparrow_shell(cpio_archive_ref: &[u8]) -> ! {
     let mut tx = cantrip_uart_client::Tx::new();
-    let mut rx = cantrip_io::BufReader::new(cantrip_uart_client::Rx::new());
+    let mut rx = io::BufReader::new(cantrip_uart_client::Rx::new());
     cantrip_shell::repl(&mut tx, &mut rx, cpio_archive_ref);
 }
 

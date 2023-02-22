@@ -276,7 +276,7 @@ fn source_command(
             }
         }
         if let Some(data) = script_data {
-            let mut script_input = cantrip_io::BufReader::new(default_uart_client::Rx::new(data));
+            let mut script_input = cantrip_io::BufReader::new(data);
             repl_eof(output, &mut script_input, builtin_cpio);
         } else {
             writeln!(output, "{}: not found", script_name)?;

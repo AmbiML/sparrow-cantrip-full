@@ -27,7 +27,8 @@ sel4-config = { path = "../../cantrip-os-common/src/sel4-config" }
 default = [
     "autostart_support",
 ]
-autostart_support = ["default-uart-client"]
+autostart_support = []
+CONFIG_PRINTING = []
 # Target platform support
 CONFIG_PLAT_BCM2837 = []
 # TODO(sleffler): not working when this comes from build.rs
@@ -41,7 +42,6 @@ cpio = { git = "https://github.com/rcore-os/cpio" }
 # Disable default so we don't pull in CString which requires an allocator
 cstr_core = { version = "0.2.3", default-features = false }
 cty = "0.2.1"
-default-uart-client = { path = "../default-uart-client", optional = true }
 cantrip-io = { path = "../cantrip-io" }
 cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-shell = { path = "../cantrip-shell" }

@@ -15,7 +15,6 @@
 [workspace]
 
 members = [
-    "default-uart-client",
     "cantrip-debug-console",
     "cantrip-io",
     "cantrip-line-reader",
