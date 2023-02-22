@@ -333,7 +333,7 @@ impl SDKManagerInterface for SDKRuntime {
             ),
             badge,
         )
-        .map_err(|_| SDKManagerError::SmGetEndpointFailed)?;
+        .or(Err(SDKManagerError::SmGetEndpointFailed))?;
 
         // Create the entry & return the endpoint capability.
         assert!(self
@@ -396,7 +396,7 @@ impl SDKRuntimeInterface for SDKRuntime {
         keyval: &'a mut [u8],
     ) -> Result<&'a [u8], SDKError> {
         let app = self.get_app(app_id)?;
-        cantrip_security_read_key(&app.app_id, key, keyval).map_err(|_| SDKError::ReadKeyFailed)?; // XXX
+        cantrip_security_read_key(&app.app_id, key, keyval).or(Err(SDKError::ReadKeyFailed))?; // XXX
         Ok(keyval)
     }
 
@@ -404,14 +404,14 @@ impl SDKRuntimeInterface for SDKRuntime {
     fn write_key(&self, app_id: SDKAppId, key: &str, value: &KeyValueData) -> Result<(), SDKError> {
         let app = self.get_app(app_id)?;
         cantrip_security_write_key(&app.app_id, key, value)
-            .map_err(|_| SDKError::WriteKeyFailed)?; // XXX
+            .or(Err(SDKError::WriteKeyFailed))?; // XXX
         Ok(())
     }
 
     /// Deletes the specified |key| in the app's private key-value store.
     fn delete_key(&self, app_id: SDKAppId, key: &str) -> Result<(), SDKError> {
         let app = self.get_app(app_id)?;
-        cantrip_security_delete_key(&app.app_id, key).map_err(|_| SDKError::DeleteKeyFailed)?; // XXX
+        cantrip_security_delete_key(&app.app_id, key).or(Err(SDKError::DeleteKeyFailed))?; // XXX
         Ok(())
     }
 

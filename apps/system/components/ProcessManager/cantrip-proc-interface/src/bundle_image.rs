@@ -189,9 +189,9 @@ impl<'a> BundleImage<'a> {
         if let Some(cptr) = self.cur_frame {
             // XXX if unmap fails bounce is cleaned up on drop but we probably want it moved instead
             unsafe { seL4_Page_Unmap(self.bounce.slot) }
-                .map_err(|_| BundleImageError::PageUnmapFailed)?;
+                .or(Err(BundleImageError::PageUnmapFailed))?;
             // XXX temp workaround for optimizer bug
-            //            self.bounce.move_from(self.frames.cnode, cptr, self.frames.depth).map_err(|_| BundleImageError::CapMoveFailed)?;
+            //            self.bounce.move_from(self.frames.cnode, cptr, self.frames.depth).or(Err(BundleImageError::CapMoveFailed))?;
             let src = self.bounce.get_path();
             unsafe {
                 sel4_sys::seL4_CNode_Move(
@@ -203,7 +203,7 @@ impl<'a> BundleImage<'a> {
                     src.2,
                 )
             }
-            .map_err(|_| BundleImageError::CapMoveFailed)?;
+            .or(Err(BundleImageError::CapMoveFailed))?;
         }
         self.last_frame = self.cur_frame;
         self.cur_frame = None;
@@ -235,7 +235,7 @@ impl<'a> BundleImage<'a> {
                 );
                 self.bounce
                     .move_to(self.frames.cnode, od.cptr + index, self.frames.depth)
-                    .map_err(|_| BundleImageError::CapMoveFailed)?;
+                    .or(Err(BundleImageError::CapMoveFailed))?;
 
                 // Map the page into our VSpace
                 // TODO(sleffler): if this fails maybe undo move_to
@@ -258,7 +258,7 @@ impl<'a> BundleImage<'a> {
                         seL4_Default_VMAttributes,
                     )
                 }
-                .map_err(|_| BundleImageError::PageMapFailed)?;
+                .or(Err(BundleImageError::PageMapFailed))?;
                 self.cur_frame = Some(od.cptr + index);
                 self.mapped_bytes = PAGE_SIZE;
                 self.bytes_read = ((self.cur_pos - od_off) % (PAGE_SIZE as u64)) as usize;
@@ -298,7 +298,7 @@ impl<'a> io::Seek for BundleImage<'a> {
         if new_pos != self.cur_pos {
             trace!("SEEK: cur {} new {}", self.cur_pos, new_pos);
             // TODO(sleffler): handle seek within same page
-            self.unmap_current_frame().map_err(|_| io::Error)?;
+            self.unmap_current_frame().or(Err(io::Error))?;
             self.cur_pos = new_pos;
         }
         Ok(self.cur_pos)
@@ -329,7 +329,7 @@ impl<'a> io::Read for BundleImage<'a> {
                 assert!(self.bytes_read <= self.mapped_bytes);
                 if self.bytes_read == self.mapped_bytes {
                     // Current frame is empty; unmap and prepare for next.
-                    self.unmap_current_frame().map_err(|_| io::Error)?;
+                    self.unmap_current_frame().or(Err(io::Error))?;
                 }
             }
             if cursor.is_empty() {
@@ -337,7 +337,7 @@ impl<'a> io::Read for BundleImage<'a> {
             }
 
             // Map the next frame for read.
-            self.map_next_frame().map_err(|_| io::Error)?;
+            self.map_next_frame().or(Err(io::Error))?;
         }
         // TODO(sleffler): self.digest.write(buf); // Update crc32 calculation
         Ok(buf.len())

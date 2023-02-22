@@ -123,7 +123,7 @@ fn deep_copy(src: &ObjDescBundle) -> Result<ObjDescBundle, seL4_Error> {
             .dup_to(src.cnode, src_cptr, src.depth)
             .and_then(|_| src_region.map(src_slot.slot))?;
         dest.write(src_region.as_ref())
-            .map_err(|_| seL4_Error::seL4_NotEnoughMemory)?; // TODO(sleffler) From mapping
+            .or(Err(seL4_Error::seL4_NotEnoughMemory))?; // TODO(sleffler) From mapping
 
         // Unmap & clear top-level src slot required for mapping.
         src_region.unmap().and_then(|_| src_slot.delete())?;
@@ -132,7 +132,7 @@ fn deep_copy(src: &ObjDescBundle) -> Result<ObjDescBundle, seL4_Error> {
 
     // Collect the frames in a top-level CNode.
     let cnode_depth = dest.frames().count_log2();
-    let cnode = cantrip_cnode_alloc(cnode_depth).map_err(|_| seL4_Error::seL4_NotEnoughMemory)?; // TODO(sleffler) From mapping
+    let cnode = cantrip_cnode_alloc(cnode_depth).or(Err(seL4_Error::seL4_NotEnoughMemory))?; // TODO(sleffler) From mapping
     dest.frames_mut()
         .move_objects_from_toplevel(cnode.objs[0].cptr, cnode_depth as u8)?;
     Ok(dest.frames().clone())
@@ -198,8 +198,7 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinator {
         // Clone everything (struct + associated seL4 objects) so the
         // return is as though it was newly instantiated from flash.
         // XXX just return the package for now
-        deep_copy(&bundle_data.pkg_contents)
-            .map_err(|_| SecurityRequestError::SreLoadApplicationFailed)
+        deep_copy(&bundle_data.pkg_contents).or(Err(SecurityRequestError::SreLoadApplicationFailed))
     }
     fn load_model(
         &self,
@@ -210,7 +209,7 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinator {
         let model_data = self.get_bundle(model_id)?;
         // Clone everything (struct + associated seL4 objects) so the
         // return is as though it was newly instantiated from flash.
-        deep_copy(&model_data.pkg_contents).map_err(|_| SecurityRequestError::SreLoadModelFailed)
+        deep_copy(&model_data.pkg_contents).or(Err(SecurityRequestError::SreLoadModelFailed))
     }
     fn read_key(&self, bundle_id: &str, key: &str) -> Result<&KeyValueData, SecurityRequestError> {
         let bundle = self.get_bundle(bundle_id)?;

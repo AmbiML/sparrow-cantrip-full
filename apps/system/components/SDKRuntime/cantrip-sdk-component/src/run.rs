@@ -279,7 +279,7 @@ fn log_request(
 ) -> Result<(), SDKError> {
     let request = postcard::from_bytes::<sdk_interface::LogRequest>(request_slice)
         .map_err(deserialize_failure)?;
-    let msg = core::str::from_utf8(request.msg).map_err(|_| SDKError::InvalidString)?;
+    let msg = core::str::from_utf8(request.msg).or(Err(SDKError::InvalidString))?;
     unsafe { CANTRIP_SDK.log(app_id, msg) }
 }
 

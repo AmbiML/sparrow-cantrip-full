@@ -30,7 +30,7 @@ impl<'a> Rx<'a> {
 }
 impl<'a> io::Read for Rx<'a> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.data.read(buf).map_err(|_| io::Error)
+        self.data.read(buf).or(Err(io::Error))
     }
 }
 

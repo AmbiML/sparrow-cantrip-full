@@ -290,7 +290,7 @@ fn sdk_request<'a, S: Serialize, D: Deserialize<'a>>(
 
     // Encode request arguments.
     let _ = postcard::to_slice(request_args, request_slice)
-        .map_err(|_| SDKRuntimeError::SDKSerializeFailed)?;
+        .or(Err(SDKRuntimeError::SDKSerializeFailed))?;
 
     // Attach params & call the SDKRuntime; then wait (block) for a reply.
     unsafe {
@@ -307,14 +307,14 @@ fn sdk_request<'a, S: Serialize, D: Deserialize<'a>>(
         seL4_SetCap(0, 0);
 
         let status = SDKRuntimeError::try_from(info.get_label())
-            .map_err(|_| SDKRuntimeError::SDKUnknownResponse)?;
+            .or(Err(SDKRuntimeError::SDKUnknownResponse))?;
         if status != SDKRuntimeError::SDKSuccess {
             return Err(status);
         }
     }
 
     // Decode response data.
-    postcard::from_bytes::<D>(reply_slice).map_err(|_| SDKRuntimeError::SDKDeserializeFailed)
+    postcard::from_bytes::<D>(reply_slice).or(Err(SDKRuntimeError::SDKDeserializeFailed))
 }
 
 /// Rust client-side wrapper for the ping method.

@@ -71,7 +71,7 @@ pub fn cantrip_sdk_manager_get_endpoint(
     extern "C" {
         pub fn sdk_manager_get_endpoint(c_bundle_id: *const cstr_core::c_char) -> SDKManagerError;
     }
-    let cstr = CString::new(app_id).map_err(|_| SDKManagerError::SmSerializeFailed)?;
+    let cstr = CString::new(app_id).or(Err(SDKManagerError::SmSerializeFailed))?;
     unsafe { sdk_manager_get_endpoint(cstr.as_ptr()) }.into()
 }
 
@@ -82,7 +82,7 @@ pub fn cantrip_sdk_manager_release_endpoint(app_id: &str) -> Result<(), SDKManag
             c_bundle_id: *const cstr_core::c_char,
         ) -> SDKManagerError;
     }
-    let cstr = CString::new(app_id).map_err(|_| SDKManagerError::SmSerializeFailed)?;
+    let cstr = CString::new(app_id).or(Err(SDKManagerError::SmSerializeFailed))?;
     unsafe { sdk_manager_release_endpoint(cstr.as_ptr()) }.into()
 }
 

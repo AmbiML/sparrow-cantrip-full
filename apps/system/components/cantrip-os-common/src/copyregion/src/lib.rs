@@ -38,7 +38,7 @@ extern "C" {
 // let start = if index > 0 { 0 } else { vaddr - data_range.start };
 // let end = cmp::min(data_range.end - vaddr, copy_region.size());
 // image.read_exact(&mut copy_region.as_mut()[start..end])
-//      .map_err(|_| seL4_Error::seL4_NoError)?; // XXX
+//      .or(Err(seL4_Error::seL4_NoError))?; // XXX
 // copy_region.unmap()?;
 
 // TODO(sleffler): do we need to parameterize VM_Attributes & CapRights?

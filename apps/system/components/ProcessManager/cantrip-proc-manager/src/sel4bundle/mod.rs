@@ -312,7 +312,7 @@ impl seL4BundleImpl {
         // not assume SLOT_* are meaningful; use INDEX_* to fetch a cptr
         // from dynamic_objs.
         let dynamic_objs = cantrip_object_alloc_in_toplevel(desc.into_vec())
-            .map_err(|_| ProcessManagerError::StartFailed)?;
+            .or(Err(ProcessManagerError::StartFailed))?;
 
         // Allocate the top-level CNode that will hold |dynamic_objs|.
         let cspace_root_depth = dynamic_objs.count_log2();
@@ -460,7 +460,7 @@ impl seL4BundleImpl {
                     let end = cmp::min(data_range.end - vaddr, copy_region.size());
                     image
                         .read_exact(&mut copy_region.as_mut()[start..end])
-                        .map_err(|_| seL4_Error::seL4_NoError)?; // XXX
+                        .or(Err(seL4_Error::seL4_NoError))?; // XXX
                 }
                 copy_region.unmap()?;
 
@@ -658,7 +658,7 @@ impl seL4BundleImpl {
         // Install a badged SDK endpoint in the slot reserved for it.
         let sdk_endpoint = CSpaceSlot::new();
         cantrip_sdk_manager_get_endpoint(&self.tcb_name, &sdk_endpoint)
-            .map_err(|_| seL4_Error::seL4_NoError)?; // XXX error
+            .or(Err(seL4_Error::seL4_NoError))?; // XXX error
         sdk_endpoint.move_from(
             self.cspace_root.objs[0].cptr,
             self.sdk_ep_slot,
@@ -713,21 +713,20 @@ impl BundleImplInterface for seL4BundleImpl {
     fn stop(&mut self) -> Result<(), ProcessManagerError> {
         self.suspend()?;
         cantrip_sdk_manager_release_endpoint(&self.tcb_name)
-            .map_err(|_| ProcessManagerError::StopFailed)?;
+            .or(Err(ProcessManagerError::StopFailed))?;
         cantrip_object_free_in_cnode(&self.bundle_frames)
-            .map_err(|_| ProcessManagerError::StopFailed)?;
+            .or(Err(ProcessManagerError::StopFailed))?;
         cantrip_object_free_in_cnode(&self.dynamic_objs)
-            .map_err(|_| ProcessManagerError::StopFailed)?;
+            .or(Err(ProcessManagerError::StopFailed))?;
         self.cap_tcb = CSpaceSlot::new(); // NB: force drop
                                           // XXX delete any other local caps
         Ok(())
     }
     fn resume(&self) -> Result<(), ProcessManagerError> {
-        unsafe { seL4_TCB_Resume(self.cap_tcb.slot) }.map_err(|_| ProcessManagerError::ResumeFailed)
+        unsafe { seL4_TCB_Resume(self.cap_tcb.slot) }.or(Err(ProcessManagerError::ResumeFailed))
     }
     fn suspend(&self) -> Result<(), ProcessManagerError> {
-        unsafe { seL4_TCB_Suspend(self.cap_tcb.slot) }
-            .map_err(|_| ProcessManagerError::SuspendFailed)
+        unsafe { seL4_TCB_Suspend(self.cap_tcb.slot) }.or(Err(ProcessManagerError::SuspendFailed))
     }
     fn capscan(&self) -> Result<(), ProcessManagerError> {
         #[cfg(feature = "CONFIG_PRINTING")]

@@ -89,7 +89,7 @@ impl SecurityCoordinatorInterface for SeL4SecurityCoordinator {
 
         // Allocate a 4k page to serve as our message buffer.
         let frame_bundle =
-            cantrip_frame_alloc(PAGE_SIZE).map_err(|_| SecurityRequestError::SreTestFailed)?;
+            cantrip_frame_alloc(PAGE_SIZE).or(Err(SecurityRequestError::SreTestFailed))?;
         trace!("test_mailbox: Frame {:?}", frame_bundle);
 
         unsafe {
@@ -98,7 +98,7 @@ impl SecurityCoordinatorInterface for SeL4SecurityCoordinator {
             let mut msg_region = CopyRegion::new(ptr::addr_of_mut!(DEEP_COPY_SRC[0]), PAGE_SIZE);
             msg_region
                 .map(frame_bundle.objs[0].cptr)
-                .map_err(|_| SecurityRequestError::SreTestFailed)?;
+                .or(Err(SecurityRequestError::SreTestFailed))?;
 
             let message_ptr = msg_region.as_word_mut();
 
@@ -137,11 +137,11 @@ impl SecurityCoordinatorInterface for SeL4SecurityCoordinator {
 
             msg_region
                 .unmap()
-                .map_err(|_| SecurityRequestError::SreTestFailed)?;
+                .or(Err(SecurityRequestError::SreTestFailed))?;
 
             // Done, free the message buffer.
             cantrip_object_free_toplevel(&frame_bundle)
-                .map_err(|_| SecurityRequestError::SreTestFailed)?;
+                .or(Err(SecurityRequestError::SreTestFailed))?;
 
             if dword_a != 0x12345678 || dword_b != 0x87654321 {
                 return Err(SecurityRequestError::SreTestFailed);

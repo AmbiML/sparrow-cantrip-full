@@ -247,7 +247,7 @@ fn sleep_command(
     use cantrip_timer_interface::*;
     match cantrip_timer_oneshot(0, time_ms) {
         Ok(_) => {
-            cantrip_timer_wait().map_err(|_| CommandError::IO)?;
+            cantrip_timer_wait().or(Err(CommandError::IO))?;
             Ok(())
         }
         _ => Err(CommandError::BadArgs),
@@ -598,11 +598,11 @@ fn install_command(
     // CNode (as expected by cantrip_pgk_mgmt_install).
     // TODO(sleffler): useful idiom, add to MemoryManager
     let cnode_depth = pkg_contents.get().count_log2();
-    let cnode = cantrip_cnode_alloc(cnode_depth).map_err(|_| CommandError::Memory)?;
+    let cnode = cantrip_cnode_alloc(cnode_depth).or(Err(CommandError::Memory))?;
     pkg_contents
         .get_mut()
         .move_objects_from_toplevel(cnode.objs[0].cptr, cnode_depth as u8)
-        .map_err(|_| CommandError::Memory)?;
+        .or(Err(CommandError::Memory))?;
     match pkg_contents.install() {
         Ok(id) => {
             writeln!(output, "{} \"{}\" installed", pkg_contents, id)?;

@@ -341,7 +341,7 @@ pub fn cantrip_security_request<T: Serialize + SecurityCapability + core::fmt::D
     );
     let mut request_buffer = [0u8; SECURITY_REQUEST_DATA_SIZE];
     let _ = postcard::to_slice(request_args, &mut request_buffer[..])
-        .map_err(|_| SecurityRequestError::SreSerializeFailed)?;
+        .or(Err(SecurityRequestError::SreSerializeFailed))?;
     match unsafe {
         if let Some(cap) = request_args.get_container_cap() {
             let _cleanup = Camkes::set_request_cap(cap);
@@ -399,7 +399,7 @@ pub fn cantrip_security_install(
         },
         reply,
     )?;
-    postcard::from_bytes::<String>(reply).map_err(|_| SecurityRequestError::SreDeserializeFailed)
+    postcard::from_bytes::<String>(reply).or(Err(SecurityRequestError::SreDeserializeFailed))
 }
 
 #[inline]
@@ -462,7 +462,7 @@ pub fn cantrip_security_size_buffer(bundle_id: &str) -> Result<usize, SecurityRe
         reply,
     )?;
     let response = postcard::from_bytes::<SizeBufferResponse>(reply)
-        .map_err(|_| SecurityRequestError::SreDeserializeFailed)?;
+        .or(Err(SecurityRequestError::SreDeserializeFailed))?;
     Ok(response.buffer_size)
 }
 
@@ -475,7 +475,7 @@ pub fn cantrip_security_get_manifest(bundle_id: &str) -> Result<String, Security
         reply,
     )?;
     let response = postcard::from_bytes::<GetManifestResponse>(reply)
-        .map_err(|_| SecurityRequestError::SreDeserializeFailed)?;
+        .or(Err(SecurityRequestError::SreDeserializeFailed))?;
     Ok(response.manifest.to_string())
 }
 
@@ -558,7 +558,7 @@ pub fn cantrip_security_read_key(
         reply,
     )?;
     let response = postcard::from_bytes::<ReadKeyResponse>(reply)
-        .map_err(|_| SecurityRequestError::SreDeserializeFailed)?;
+        .or(Err(SecurityRequestError::SreDeserializeFailed))?;
     keyval.copy_from_slice(response.value);
     Ok(())
 }

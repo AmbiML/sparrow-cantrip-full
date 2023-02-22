@@ -94,7 +94,7 @@ fn install_request(
     let mut container_slot = CSpaceSlot::new();
     container_slot
         .move_to(recv_path.0, recv_path.1, recv_path.2 as u8)
-        .map_err(|_| SecurityRequestError::SreCapMoveFailed)?; // XXX expect?
+        .or(Err(SecurityRequestError::SreCapMoveFailed))?; // XXX expect?
     request.set_container_cap(container_slot.release());
 
     let bundle_id = unsafe { CANTRIP_SECURITY.install(&request.pkg_contents) }?;
@@ -122,7 +122,7 @@ fn install_app_request(
     let mut container_slot = CSpaceSlot::new();
     container_slot
         .move_to(recv_path.0, recv_path.1, recv_path.2 as u8)
-        .map_err(|_| SecurityRequestError::SreCapMoveFailed)?; // XXX expect?
+        .or(Err(SecurityRequestError::SreCapMoveFailed))?; // XXX expect?
     request.set_container_cap(container_slot.release());
 
     unsafe { CANTRIP_SECURITY.install_app(request.app_id, &request.pkg_contents) }
@@ -142,7 +142,7 @@ fn install_model_request(
     let mut container_slot = CSpaceSlot::new();
     container_slot
         .move_to(recv_path.0, recv_path.1, recv_path.2 as u8)
-        .map_err(|_| SecurityRequestError::SreCapMoveFailed)?; // XXX expect?
+        .or(Err(SecurityRequestError::SreCapMoveFailed))?; // XXX expect?
     request.set_container_cap(container_slot.release());
 
     unsafe {

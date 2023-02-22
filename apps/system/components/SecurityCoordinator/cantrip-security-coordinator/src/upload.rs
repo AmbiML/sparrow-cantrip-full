@@ -67,9 +67,7 @@ impl Upload {
     // Unmap the current page and reset state.
     fn unmap_current_frame(&mut self) -> Result<(), UploadError> {
         if self.frames.objs.last().is_some() {
-            self.copyregion
-                .unmap()
-                .map_err(|_| UploadError::PageUnmap)?;
+            self.copyregion.unmap().or(Err(UploadError::PageUnmap))?;
         }
         // Try to combine this frame w/ the previous so large input
         // data streams don't generate many singleton ObjDesc's.
@@ -81,8 +79,7 @@ impl Upload {
 
     // Expand storage and map the new frame into our VSpace.
     fn expand_and_map(&mut self) -> Result<(), UploadError> {
-        let new_page =
-            cantrip_frame_alloc(self.copyregion.size()).map_err(|_| UploadError::Malloc)?;
+        let new_page = cantrip_frame_alloc(self.copyregion.size()).or(Err(UploadError::Malloc))?;
         // Verify the new frame is in the same CNode as previous.
         assert_eq!(new_page.cnode, self.frames.cnode);
         assert_eq!(new_page.depth, self.frames.depth);
@@ -91,7 +88,7 @@ impl Upload {
         let frame = &self.frames.objs.last().unwrap();
         self.copyregion
             .map(frame.cptr)
-            .map_err(|_| UploadError::PageMap)?;
+            .or(Err(UploadError::PageMap))?;
         self.next_free = 0;
         Ok(())
     }
