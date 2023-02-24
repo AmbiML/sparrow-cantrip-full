@@ -292,8 +292,9 @@ impl MemoryManagerInterface for MemoryManager {
             let info = untyped_describe(ut.cptr);
             let size = l2tob(info.sizeBits);
             info!(
-                "[{}] allocated {} free {}",
+                "[{:2}] bits {:2} allocated {:8} free {}",
                 ut.cptr,
+                info.sizeBits,
                 size - info.remainingBytes,
                 info.remainingBytes,
             );
