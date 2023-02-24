@@ -17,7 +17,6 @@
 #![cfg_attr(not(test), no_std)]
 
 extern crate alloc;
-use alloc::boxed::Box;
 use alloc::string::String;
 use cantrip_memory_interface::ObjDescBundle;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
@@ -34,6 +33,7 @@ use cantrip_security_interface::cantrip_security_load_application;
 use cantrip_security_interface::cantrip_security_uninstall;
 use log::trace;
 use spin::Mutex;
+use spin::MutexGuard;
 
 mod sel4bundle;
 use sel4bundle::seL4BundleImpl;
@@ -47,30 +47,41 @@ pub use proc_manager::ProcessManager;
 // and ProcessManager is incapable of supplying a const fn due it's use of
 // hashbrown::HashMap.
 pub struct CantripProcManager {
-    manager: Mutex<Option<ProcessManager>>,
+    manager: Mutex<Option<ProcessManager<CantripManagerInterface>>>,
 }
 impl CantripProcManager {
     // Constructs a partially-initialized instance; to complete call init().
     // This is needed because we need a const fn for static setup and with
     // that constraint we cannot reference self.interface.
-    pub const fn empty() -> CantripProcManager {
-        CantripProcManager {
+    pub const fn empty() -> Self {
+        Self {
             manager: Mutex::new(None),
         }
     }
 
-    // Finishes the setup started by empty():
-    pub fn init(&self) {
-        *self.manager.lock() = Some(ProcessManager::new(CantripManagerInterface));
+    pub fn get(&self) -> Guard {
+        Guard {
+            manager: self.manager.lock(),
+        }
     }
-
+}
+pub struct Guard<'a> {
+    manager: MutexGuard<'a, Option<ProcessManager<CantripManagerInterface>>>,
+}
+impl Guard<'_> {
+    pub fn is_empty(&self) -> bool { self.manager.is_none() }
+    // Finishes the setup started by empty():
+    pub fn init(&mut self) {
+        assert!(self.manager.is_none());
+        *self.manager = Some(ProcessManager::new(CantripManagerInterface));
+    }
     // Returns the bundle capacity.
-    pub fn capacity(&self) -> usize { self.manager.lock().as_ref().unwrap().capacity() }
+    pub fn capacity(&self) -> usize { self.manager.as_ref().unwrap().capacity() }
 }
 // These just lock accesses and handle the necessary indirection.
-impl PackageManagementInterface for CantripProcManager {
+impl PackageManagementInterface for Guard<'_> {
     fn install(&mut self, pkg_contents: &ObjDescBundle) -> Result<String, ProcessManagerError> {
-        self.manager.lock().as_mut().unwrap().install(pkg_contents)
+        self.manager.as_mut().unwrap().install(pkg_contents)
     }
     fn install_app(
         &mut self,
@@ -78,32 +89,33 @@ impl PackageManagementInterface for CantripProcManager {
         pkg_contents: &ObjDescBundle,
     ) -> Result<(), ProcessManagerError> {
         self.manager
-            .lock()
             .as_mut()
             .unwrap()
             .install_app(app_id, pkg_contents)
     }
     fn uninstall(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError> {
-        self.manager.lock().as_mut().unwrap().uninstall(bundle_id)
+        self.manager.as_mut().unwrap().uninstall(bundle_id)
     }
 }
-impl ProcessControlInterface for CantripProcManager {
+impl ProcessControlInterface for Guard<'_> {
     fn start(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError> {
-        self.manager.lock().as_mut().unwrap().start(bundle_id)
+        self.manager.as_mut().unwrap().start(bundle_id)
     }
     fn stop(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError> {
-        self.manager.lock().as_mut().unwrap().stop(bundle_id)
+        self.manager.as_mut().unwrap().stop(bundle_id)
     }
     fn get_running_bundles(&self) -> Result<BundleIdArray, ProcessManagerError> {
-        self.manager.lock().as_ref().unwrap().get_running_bundles()
+        self.manager.as_ref().unwrap().get_running_bundles()
     }
     fn capscan(&self, bundle_id: &str) -> Result<(), ProcessManagerError> {
-        self.manager.lock().as_ref().unwrap().capscan(bundle_id)
+        self.manager.as_ref().unwrap().capscan(bundle_id)
     }
 }
 
 struct CantripManagerInterface;
 impl ProcessManagerInterface for CantripManagerInterface {
+    type BundleImpl = seL4BundleImpl;
+
     fn install(&mut self, pkg_contents: &ObjDescBundle) -> Result<String, ProcessManagerError> {
         trace!("ProcessManagerInterface::install pkg_contents {}", pkg_contents);
 
@@ -137,10 +149,7 @@ impl ProcessManagerInterface for CantripManagerInterface {
         // This is handled by the SecurityCoordinator.
         Ok(cantrip_security_uninstall(bundle_id)?)
     }
-    fn start(
-        &mut self,
-        bundle: &Bundle,
-    ) -> Result<Box<dyn BundleImplInterface>, ProcessManagerError> {
+    fn start(&mut self, bundle: &Bundle) -> Result<Self::BundleImpl, ProcessManagerError> {
         trace!("ProcessManagerInterface::start {:?}", bundle);
 
         // Design doc says:
@@ -174,12 +183,9 @@ impl ProcessManagerInterface for CantripManagerInterface {
 
         sel4_bundle.start()?;
 
-        Ok(Box::new(sel4_bundle) as _)
+        Ok(sel4_bundle)
     }
-    fn stop(
-        &mut self,
-        bundle_impl: &mut dyn BundleImplInterface,
-    ) -> Result<(), ProcessManagerError> {
+    fn stop(&mut self, bundle_impl: &mut Self::BundleImpl) -> Result<(), ProcessManagerError> {
         trace!("ProcessManagerInterface::stop");
 
         // 0. Assume thread is running (caller verifies)
@@ -191,7 +197,7 @@ impl ProcessManagerInterface for CantripManagerInterface {
         // TODO(sleffler): fill-in 1+2
         bundle_impl.stop()
     }
-    fn capscan(&self, bundle_impl: &dyn BundleImplInterface) -> Result<(), ProcessManagerError> {
+    fn capscan(&self, bundle_impl: &Self::BundleImpl) -> Result<(), ProcessManagerError> {
         trace!("ProcessManagerInterface::capscan");
 
         bundle_impl.capscan()

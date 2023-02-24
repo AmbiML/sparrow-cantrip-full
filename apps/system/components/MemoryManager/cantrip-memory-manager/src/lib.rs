@@ -41,7 +41,7 @@ impl CantripMemoryManager {
 pub struct Guard<'a> {
     manager: MutexGuard<'a, Option<MemoryManager>>,
 }
-impl<'a> Guard<'a> {
+impl Guard<'_> {
     pub fn is_empty(&self) -> bool { self.manager.is_none() }
 
     // Finishes the setup started by empty():
@@ -50,7 +50,7 @@ impl<'a> Guard<'a> {
         *self.manager = Some(MemoryManager::new(ut_slots, untypeds));
     }
 }
-impl<'a> MemoryManagerInterface for Guard<'a> {
+impl MemoryManagerInterface for Guard<'_> {
     fn alloc(&mut self, objs: &ObjDescBundle) -> Result<(), MemoryError> {
         self.manager.as_mut().unwrap().alloc(objs)
     }

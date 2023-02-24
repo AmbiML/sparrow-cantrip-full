@@ -18,7 +18,6 @@
 
 extern crate alloc;
 use alloc::borrow::Cow;
-use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
 use cantrip_memory_interface::ObjDescBundle;
@@ -109,6 +108,8 @@ pub enum ProcessManagerError {
 // Interface to underlying facilities (StorageManager, seL4); also
 // used to inject fakes for unit tests.
 pub trait ProcessManagerInterface {
+    type BundleImpl: BundleImplInterface;
+
     fn install(&mut self, pkg_contents: &ObjDescBundle) -> Result<String, ProcessManagerError>;
     fn install_app(
         &mut self,
@@ -116,15 +117,9 @@ pub trait ProcessManagerInterface {
         pkg_contents: &ObjDescBundle,
     ) -> Result<(), ProcessManagerError>;
     fn uninstall(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError>;
-    fn start(
-        &mut self,
-        bundle: &Bundle,
-    ) -> Result<Box<dyn BundleImplInterface>, ProcessManagerError>;
-    fn stop(
-        &mut self,
-        bundle_impl: &mut dyn BundleImplInterface,
-    ) -> Result<(), ProcessManagerError>;
-    fn capscan(&self, bundle_impl: &dyn BundleImplInterface) -> Result<(), ProcessManagerError>;
+    fn start(&mut self, bundle: &Bundle) -> Result<Self::BundleImpl, ProcessManagerError>;
+    fn stop(&mut self, bundle_impl: &mut Self::BundleImpl) -> Result<(), ProcessManagerError>;
+    fn capscan(&self, bundle_impl: &Self::BundleImpl) -> Result<(), ProcessManagerError>;
 }
 
 // NB: bundle_id comes across the C interface as *const cstr_core::c_char

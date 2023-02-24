@@ -403,8 +403,7 @@ impl SDKRuntimeInterface for SDKRuntime {
     /// Writes |value| for the specified |key| in the app's private key-value store.
     fn write_key(&self, app_id: SDKAppId, key: &str, value: &KeyValueData) -> Result<(), SDKError> {
         let app = self.get_app(app_id)?;
-        cantrip_security_write_key(&app.app_id, key, value)
-            .or(Err(SDKError::WriteKeyFailed))?; // XXX
+        cantrip_security_write_key(&app.app_id, key, value).or(Err(SDKError::WriteKeyFailed))?; // XXX
         Ok(())
     }
 

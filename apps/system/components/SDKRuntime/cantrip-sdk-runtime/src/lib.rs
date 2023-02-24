@@ -29,6 +29,7 @@ use sdk_interface::TimerDuration;
 use sdk_interface::TimerId;
 use sdk_interface::TimerMask;
 use spin::Mutex;
+use spin::MutexGuard;
 
 use sel4_sys::seL4_CPtr;
 
@@ -48,32 +49,41 @@ impl CantripSDKRuntime {
             runtime: Mutex::new(None),
         }
     }
+
+    pub fn get(&self) -> Guard {
+        Guard {
+            runtime: self.runtime.lock(),
+        }
+    }
+}
+pub struct Guard<'a> {
+    runtime: MutexGuard<'a, Option<SDKRuntime>>,
+}
+impl Guard<'_> {
+    pub fn is_empty(&self) -> bool { self.runtime.is_none() }
     // Finishes the setup started by empty():
-    pub fn init(&self, endpoint: &seL4_CPath) {
-        *self.runtime.lock() = Some(SDKRuntime::new(endpoint));
+    pub fn init(&mut self, endpoint: &seL4_CPath) {
+        assert!(self.runtime.is_none());
+        *self.runtime = Some(SDKRuntime::new(endpoint));
     }
     // Returns the bundle capacity.
-    pub fn capacity(&self) -> usize { self.runtime.lock().as_ref().unwrap().capacity() }
+    pub fn capacity(&self) -> usize { self.runtime.as_ref().unwrap().capacity() }
 }
 // These just lock accesses and handle the necessary indirection.
-impl SDKManagerInterface for CantripSDKRuntime {
+impl SDKManagerInterface for Guard<'_> {
     fn get_endpoint(&mut self, app_id: &str) -> Result<seL4_CPtr, SDKManagerError> {
-        self.runtime.lock().as_mut().unwrap().get_endpoint(app_id)
+        self.runtime.as_mut().unwrap().get_endpoint(app_id)
     }
     fn release_endpoint(&mut self, app_id: &str) -> Result<(), SDKManagerError> {
-        self.runtime
-            .lock()
-            .as_mut()
-            .unwrap()
-            .release_endpoint(app_id)
+        self.runtime.as_mut().unwrap().release_endpoint(app_id)
     }
 }
-impl SDKRuntimeInterface for CantripSDKRuntime {
+impl SDKRuntimeInterface for Guard<'_> {
     fn ping(&self, app_id: SDKAppId) -> Result<(), SDKError> {
-        self.runtime.lock().as_ref().unwrap().ping(app_id)
+        self.runtime.as_ref().unwrap().ping(app_id)
     }
     fn log(&self, app_id: SDKAppId, msg: &str) -> Result<(), SDKError> {
-        self.runtime.lock().as_ref().unwrap().log(app_id, msg)
+        self.runtime.as_ref().unwrap().log(app_id, msg)
     }
 
     // Key-value store interfaces.
@@ -83,25 +93,13 @@ impl SDKRuntimeInterface for CantripSDKRuntime {
         key: &str,
         keyval: &'a mut [u8],
     ) -> Result<&'a [u8], SDKError> {
-        self.runtime
-            .lock()
-            .as_ref()
-            .unwrap()
-            .read_key(app_id, key, keyval)
+        self.runtime.as_ref().unwrap().read_key(app_id, key, keyval)
     }
     fn write_key(&self, app_id: SDKAppId, key: &str, value: &KeyValueData) -> Result<(), SDKError> {
-        self.runtime
-            .lock()
-            .as_ref()
-            .unwrap()
-            .write_key(app_id, key, value)
+        self.runtime.as_ref().unwrap().write_key(app_id, key, value)
     }
     fn delete_key(&self, app_id: SDKAppId, key: &str) -> Result<(), SDKError> {
-        self.runtime
-            .lock()
-            .as_ref()
-            .unwrap()
-            .delete_key(app_id, key)
+        self.runtime.as_ref().unwrap().delete_key(app_id, key)
     }
 
     // Timer interfaces.
@@ -112,7 +110,6 @@ impl SDKRuntimeInterface for CantripSDKRuntime {
         duration_ms: TimerDuration,
     ) -> Result<(), SDKError> {
         self.runtime
-            .lock()
             .as_mut()
             .unwrap()
             .timer_oneshot(app_id, id, duration_ms)
@@ -124,29 +121,23 @@ impl SDKRuntimeInterface for CantripSDKRuntime {
         duration_ms: TimerDuration,
     ) -> Result<(), SDKError> {
         self.runtime
-            .lock()
             .as_mut()
             .unwrap()
             .timer_periodic(app_id, id, duration_ms)
     }
     fn timer_cancel(&mut self, app_id: SDKAppId, id: TimerId) -> Result<(), SDKError> {
-        self.runtime
-            .lock()
-            .as_mut()
-            .unwrap()
-            .timer_cancel(app_id, id)
+        self.runtime.as_mut().unwrap().timer_cancel(app_id, id)
     }
     fn timer_wait(&mut self, app_id: SDKAppId) -> Result<TimerMask, SDKError> {
-        self.runtime.lock().as_mut().unwrap().timer_wait(app_id)
+        self.runtime.as_mut().unwrap().timer_wait(app_id)
     }
     fn timer_poll(&mut self, app_id: SDKAppId) -> Result<TimerMask, SDKError> {
-        self.runtime.lock().as_mut().unwrap().timer_poll(app_id)
+        self.runtime.as_mut().unwrap().timer_poll(app_id)
     }
 
     // Model interfaces.
     fn model_oneshot(&mut self, app_id: SDKAppId, model_id: &str) -> Result<ModelId, SDKError> {
         self.runtime
-            .lock()
             .as_mut()
             .unwrap()
             .model_oneshot(app_id, model_id)
@@ -158,22 +149,17 @@ impl SDKRuntimeInterface for CantripSDKRuntime {
         duration_ms: TimerDuration,
     ) -> Result<ModelId, SDKError> {
         self.runtime
-            .lock()
             .as_mut()
             .unwrap()
             .model_periodic(app_id, model_id, duration_ms)
     }
     fn model_cancel(&mut self, app_id: SDKAppId, id: ModelId) -> Result<(), SDKError> {
-        self.runtime
-            .lock()
-            .as_mut()
-            .unwrap()
-            .model_cancel(app_id, id)
+        self.runtime.as_mut().unwrap().model_cancel(app_id, id)
     }
     fn model_wait(&mut self, app_id: SDKAppId) -> Result<ModelMask, SDKError> {
-        self.runtime.lock().as_mut().unwrap().model_wait(app_id)
+        self.runtime.as_mut().unwrap().model_wait(app_id)
     }
     fn model_poll(&mut self, app_id: SDKAppId) -> Result<ModelMask, SDKError> {
-        self.runtime.lock().as_mut().unwrap().model_poll(app_id)
+        self.runtime.as_mut().unwrap().model_poll(app_id)
     }
 }

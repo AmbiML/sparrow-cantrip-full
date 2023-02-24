@@ -21,7 +21,8 @@
 use cantrip_os_common::camkes::Camkes;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_os_common::sel4_sys;
-use cantrip_security_coordinator::CANTRIP_SECURITY;
+use cantrip_security_coordinator::CantripSecurityCoordinator;
+use cantrip_security_coordinator::CantripSecurityCoordinatorInterface;
 use cantrip_security_interface::*;
 use core::slice;
 use log::trace;
@@ -33,6 +34,19 @@ use sel4_sys::seL4_CPtr;
 static mut CAMKES: Camkes = Camkes::new("SecurityCoordinator");
 static mut SECURITY_RECV_SLOT: seL4_CPtr = 0;
 
+// cantrip_security() is unsafe to use by multiple threads. As we assume the
+// caller/user is single-threaded, the function is not marked unsafe.
+fn cantrip_security() -> &'static mut impl SecurityCoordinatorInterface {
+    static mut CANTRIP_SECURITY: CantripSecurityCoordinator<CantripSecurityCoordinatorInterface> =
+        CantripSecurityCoordinator::empty();
+    unsafe {
+        if CANTRIP_SECURITY.is_empty() {
+            CANTRIP_SECURITY.init(CantripSecurityCoordinatorInterface::new());
+        }
+        CANTRIP_SECURITY.get()
+    }
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn pre_init() {
     const HEAP_SIZE: usize = 12 * 1024;
@@ -41,7 +55,7 @@ pub unsafe extern "C" fn pre_init() {
     CAMKES.pre_init(log::LevelFilter::Trace, &mut HEAP_MEMORY);
 
     // Complete CANTRIP_SECURITY setup after Global allocator is setup.
-    CANTRIP_SECURITY.init();
+    cantrip_security();
 
     SECURITY_RECV_SLOT = CSpaceSlot::new().release();
 }
@@ -100,7 +114,7 @@ fn install_request(
         .or(Err(SecurityRequestError::SreCapMoveFailed))?; // XXX expect?
     request.set_container_cap(container_slot.release());
 
-    let bundle_id = unsafe { CANTRIP_SECURITY.install(&request.pkg_contents) }?;
+    let bundle_id = cantrip_security().install(&request.pkg_contents)?;
     let _ = postcard::to_slice(
         &InstallResponse {
             bundle_id: &bundle_id,
@@ -129,7 +143,7 @@ fn install_app_request(
         .or(Err(SecurityRequestError::SreCapMoveFailed))?; // XXX expect?
     request.set_container_cap(container_slot.release());
 
-    unsafe { CANTRIP_SECURITY.install_app(request.app_id, &request.pkg_contents) }
+    cantrip_security().install_app(request.app_id, &request.pkg_contents)
 }
 
 fn install_model_request(
@@ -150,9 +164,7 @@ fn install_model_request(
         .or(Err(SecurityRequestError::SreCapMoveFailed))?; // XXX expect?
     request.set_container_cap(container_slot.release());
 
-    unsafe {
-        CANTRIP_SECURITY.install_model(request.app_id, request.model_id, &request.pkg_contents)
-    }
+    cantrip_security().install_model(request.app_id, request.model_id, &request.pkg_contents)
 }
 
 fn uninstall_request(
@@ -164,7 +176,7 @@ fn uninstall_request(
         postcard::from_bytes::<UninstallRequest>(request_buffer).map_err(deserialize_failure)?;
 
     trace!("UNINSTALL {}", request.bundle_id);
-    unsafe { CANTRIP_SECURITY.uninstall(request.bundle_id) }
+    cantrip_security().uninstall(request.bundle_id)
 }
 
 fn get_packages_request(
@@ -172,7 +184,7 @@ fn get_packages_request(
     reply_buffer: &mut [u8],
 ) -> Result<(), SecurityRequestError> {
     let _cleanup = Camkes::cleanup_request_cap();
-    let bundle_ids = unsafe { CANTRIP_SECURITY.get_packages() }?;
+    let bundle_ids = cantrip_security().get_packages()?;
 
     trace!("GET PACKAGES -> {:?}", &bundle_ids);
     // Serialize the bundle_id's in the result buffer. If we
@@ -192,7 +204,7 @@ fn size_buffer_request(
         postcard::from_bytes::<SizeBufferRequest>(request_buffer).map_err(deserialize_failure)?;
 
     trace!("SIZE BUFFER bundle_id {}", request.bundle_id);
-    let buffer_size = unsafe { CANTRIP_SECURITY.size_buffer(request.bundle_id) }?;
+    let buffer_size = cantrip_security().size_buffer(request.bundle_id)?;
     let _ = postcard::to_slice(&SizeBufferResponse { buffer_size }, reply_buffer)
         .map_err(serialize_failure)?;
     Ok(())
@@ -206,7 +218,7 @@ fn get_manifest_request(
         postcard::from_bytes::<GetManifestRequest>(request_buffer).map_err(deserialize_failure)?;
 
     trace!("GET MANIFEST bundle_id {}", request.bundle_id);
-    let manifest = unsafe { CANTRIP_SECURITY.get_manifest(request.bundle_id) }?;
+    let manifest = cantrip_security().get_manifest(request.bundle_id)?;
     let _ = postcard::to_slice(
         &GetManifestResponse {
             manifest: &manifest,
@@ -225,7 +237,7 @@ fn load_application_request(
         .map_err(deserialize_failure)?;
 
     trace!("LOAD APPLICATION bundle_id {}", request.bundle_id);
-    let bundle_frames = unsafe { CANTRIP_SECURITY.load_application(request.bundle_id) }?;
+    let bundle_frames = cantrip_security().load_application(request.bundle_id)?;
     // TODO(sleffler): maybe rearrange to eliminate clone
     postcard::to_slice(
         &LoadApplicationResponse {
@@ -247,7 +259,7 @@ fn load_model_request(
     let request =
         postcard::from_bytes::<LoadModelRequest>(request_buffer).map_err(deserialize_failure)?;
 
-    let model_frames = unsafe { CANTRIP_SECURITY.load_model(request.bundle_id, request.model_id) }?;
+    let model_frames = cantrip_security().load_model(request.bundle_id, request.model_id)?;
     // TODO(sleffler): maybe rearrange to eliminate clone
     let _ = postcard::to_slice(
         &LoadApplicationResponse {
@@ -271,7 +283,7 @@ fn read_key_request(
         postcard::from_bytes::<ReadKeyRequest>(request_buffer).map_err(deserialize_failure)?;
 
     trace!("READ KEY bundle_id {} key {}", request.bundle_id, request.key);
-    let value = unsafe { CANTRIP_SECURITY.read_key(request.bundle_id, request.key) }?;
+    let value = cantrip_security().read_key(request.bundle_id, request.key)?;
     let _ = postcard::to_slice(&ReadKeyResponse { value }, reply_buffer).map_err(serialize_failure);
     Ok(())
 }
@@ -293,7 +305,7 @@ fn write_key_request(
     // NB: the serialized data are variable length so copy to convert
     let mut keyval = [0u8; KEY_VALUE_DATA_SIZE];
     keyval[..request.value.len()].copy_from_slice(request.value);
-    unsafe { CANTRIP_SECURITY.write_key(request.bundle_id, request.key, &keyval) }
+    cantrip_security().write_key(request.bundle_id, request.key, &keyval)
 }
 
 fn delete_key_request(
@@ -305,13 +317,13 @@ fn delete_key_request(
         postcard::from_bytes::<DeleteKeyRequest>(request_buffer).map_err(deserialize_failure)?;
 
     trace!("DELETE KEY bundle_id {} key {}", request.bundle_id, request.key);
-    unsafe { CANTRIP_SECURITY.delete_key(request.bundle_id, request.key) }
+    cantrip_security().delete_key(request.bundle_id, request.key)
 }
 
 fn test_mailbox_request() -> Result<(), SecurityRequestError> {
     let _cleanup = Camkes::cleanup_request_cap();
     trace!("TEST MAILBOX");
-    unsafe { CANTRIP_SECURITY.test_mailbox() }
+    cantrip_security().test_mailbox()
 }
 
 fn capscan_request() -> Result<(), SecurityRequestError> {

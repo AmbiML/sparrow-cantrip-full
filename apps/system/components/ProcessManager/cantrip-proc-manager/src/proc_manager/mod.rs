@@ -20,13 +20,11 @@ use alloc::string::String;
 use cantrip_memory_interface::ObjDescBundle;
 use cantrip_proc_interface::Bundle;
 use cantrip_proc_interface::BundleIdArray;
-use cantrip_proc_interface::BundleImplInterface;
 use cantrip_proc_interface::PackageManagementInterface;
 use cantrip_proc_interface::ProcessControlInterface;
 use cantrip_proc_interface::ProcessManagerError;
 use cantrip_proc_interface::ProcessManagerInterface;
 use cantrip_proc_interface::DEFAULT_BUNDLE_ID_CAPACITY;
-use core::marker::Sync;
 use hashbrown::HashMap;
 use log::trace;
 use smallstr::SmallString;
@@ -44,14 +42,14 @@ enum BundleState {
 }
 
 // We track the Bundle & ProcessControlInterface state.
-struct BundleData {
+struct BundleData<T> {
     state: BundleState,
     bundle: Box<Bundle>,
-    bundle_impl: Option<Box<dyn BundleImplInterface>>,
+    bundle_impl: Option<T>,
 }
-impl BundleData {
+impl<T> BundleData<T> {
     fn new(bundle: &Bundle) -> Self {
-        BundleData {
+        Self {
             state: BundleState::Stopped,
             bundle: Box::new(bundle.clone()),
             bundle_impl: None,
@@ -65,16 +63,16 @@ impl BundleData {
 // system(s) are abstracted through the ProcessManagerInterface. One instance
 // of the ProcessManager is created at start and accessed through SeL4 RPC's
 // (from other components).
-pub struct ProcessManager {
-    manager: Box<dyn ProcessManagerInterface + Sync>,
-    bundles: HashMap<BundleId, BundleData>,
+pub struct ProcessManager<P: ProcessManagerInterface> {
+    manager: P,
+    bundles: HashMap<BundleId, BundleData<P::BundleImpl>>,
 }
 
-impl ProcessManager {
+impl<P: ProcessManagerInterface> ProcessManager<P> {
     // Creates a new ProcessManager instance.
-    pub fn new(manager: impl ProcessManagerInterface + Sync + 'static) -> ProcessManager {
-        ProcessManager {
-            manager: Box::new(manager),
+    pub fn new(manager: P) -> Self {
+        Self {
+            manager,
             bundles: HashMap::with_capacity(DEFAULT_BUNDLES_CAPACITY),
         }
     }
@@ -82,7 +80,7 @@ impl ProcessManager {
     pub fn capacity(&self) -> usize { self.bundles.capacity() }
 }
 
-impl PackageManagementInterface for ProcessManager {
+impl<P: ProcessManagerInterface> PackageManagementInterface for ProcessManager<P> {
     // NB: doc says a bundle may have multiple apps; support one for now
     //   (assume a fixed pathname to the app is used)
     fn install(&mut self, pkg_contents: &ObjDescBundle) -> Result<String, ProcessManagerError> {
@@ -140,7 +138,7 @@ impl PackageManagementInterface for ProcessManager {
     }
 }
 
-impl ProcessControlInterface for ProcessManager {
+impl<P: ProcessManagerInterface> ProcessControlInterface for ProcessManager<P> {
     fn start(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError> {
         trace!("start bundle_id {}", bundle_id);
         let bid = BundleId::from_str(bundle_id);
@@ -170,8 +168,7 @@ impl ProcessControlInterface for ProcessManager {
             Some(bundle) => {
                 trace!("stop state {:?}", bundle.state);
                 if bundle.state == BundleState::Running {
-                    self.manager
-                        .stop(bundle.bundle_impl.as_deref_mut().unwrap())?;
+                    self.manager.stop(bundle.bundle_impl.as_mut().unwrap())?;
                 }
                 bundle.state = BundleState::Stopped;
                 bundle.bundle_impl = None;
@@ -205,7 +202,7 @@ impl ProcessControlInterface for ProcessManager {
             if bundle.state != BundleState::Running {
                 return Err(ProcessManagerError::BundleNotRunning);
             }
-            self.manager.capscan(bundle.bundle_impl.as_deref().unwrap())
+            self.manager.capscan(bundle.bundle_impl.as_ref().unwrap())
         } else {
             trace!("capscan {} not found", bundle_id);
             Err(ProcessManagerError::BundleNotFound)
@@ -216,6 +213,7 @@ impl ProcessControlInterface for ProcessManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cantrip_proc_interface::BundleImplInterface;
     use cantrip_proc_interface::ProcessManagerError as pme;
 
     // NB: just enough state to track install'd bundles

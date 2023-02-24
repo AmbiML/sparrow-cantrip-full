@@ -32,7 +32,7 @@ use log::error;
 use spin::Mutex;
 
 static mut CAMKES: Camkes = Camkes::new("MlCoordinator");
-static mut ML_COORD: Mutex<MLCoordinator> = Mutex::new(MLCoordinator::new());
+static ML_COORD: Mutex<MLCoordinator> = Mutex::new(MLCoordinator::new());
 
 #[no_mangle]
 pub unsafe extern "C" fn pre_init() {
@@ -118,7 +118,7 @@ pub unsafe extern "C" fn mlcoord_request(
 }
 
 fn completed_jobs_request(reply_buffer: &mut MlCoordResponseData) -> Result<(), MlCoordError> {
-    let job_mask = unsafe { ML_COORD.lock().completed_jobs() };
+    let job_mask = ML_COORD.lock().completed_jobs();
     let _ = postcard::to_slice(&CompleteJobsResponse { job_mask }, reply_buffer)
         .or(Err(MlCoordError::MceSerializeFailed))?;
     Ok(())
@@ -129,7 +129,7 @@ fn oneshot_request(bundle_id: &str, model_id: &str) -> Result<(), MlCoordError> 
         bundle_id: bundle_id.to_string(),
         model_id: model_id.to_string(),
     };
-    unsafe { ML_COORD.lock().oneshot(image_id) }?;
+    ML_COORD.lock().oneshot(image_id)?;
     Ok(())
 }
 
@@ -138,7 +138,7 @@ fn periodic_request(bundle_id: &str, model_id: &str, rate_in_ms: u32) -> Result<
         bundle_id: bundle_id.to_string(),
         model_id: model_id.to_string(),
     };
-    unsafe { ML_COORD.lock().periodic(image_id, rate_in_ms) }?;
+    ML_COORD.lock().periodic(image_id, rate_in_ms)?;
     Ok(())
 }
 
@@ -147,14 +147,10 @@ fn cancel_request(bundle_id: &str, model_id: &str) -> Result<(), MlCoordError> {
         bundle_id: bundle_id.to_string(),
         model_id: model_id.to_string(),
     };
-    unsafe { ML_COORD.lock().cancel(&image_id) }?;
+    ML_COORD.lock().cancel(&image_id)?;
     Ok(())
 }
 
-fn debug_state_request() {
-    unsafe {
-        ML_COORD.lock().debug_state();
-    }
-}
+fn debug_state_request() { ML_COORD.lock().debug_state(); }
 
 fn capscan_request() { let _ = Camkes::capscan(); }

@@ -20,24 +20,39 @@
 use cantrip_timer_interface::*;
 use core::time::Duration;
 use spin::Mutex;
+use spin::MutexGuard;
 
 mod timer_manager;
 pub use timer_manager::TimerManager;
 
-pub struct CantripTimerService {
-    manager: Mutex<Option<TimerManager>>,
+pub struct CantripTimerService<HT> {
+    manager: Mutex<Option<TimerManager<HT>>>,
 }
-impl CantripTimerService {
-    pub const fn empty() -> CantripTimerService {
+impl<HT: HardwareTimer> CantripTimerService<HT> {
+    pub const fn empty() -> CantripTimerService<HT> {
         CantripTimerService {
             manager: Mutex::new(None),
         }
     }
-    pub fn init(&self, timer: impl HardwareTimer + Sync + 'static) {
-        *self.manager.lock() = Some(TimerManager::new(timer));
+
+    pub fn get(&self) -> Guard<HT> {
+        Guard {
+            manager: self.manager.lock(),
+        }
     }
 }
-impl TimerInterface for CantripTimerService {
+pub struct Guard<'a, HT> {
+    manager: MutexGuard<'a, Option<TimerManager<HT>>>,
+}
+impl<'a, HT: HardwareTimer> Guard<'a, HT> {
+    pub fn is_empty(&self) -> bool { self.manager.is_none() }
+
+    pub fn init(&mut self, timer: HT) {
+        assert!(self.manager.is_none());
+        *self.manager = Some(TimerManager::new(timer));
+    }
+}
+impl<'a, HT: HardwareTimer> TimerInterface for Guard<'a, HT> {
     fn add_oneshot(
         &mut self,
         client_id: usize,
@@ -45,7 +60,6 @@ impl TimerInterface for CantripTimerService {
         duration: Duration,
     ) -> Result<(), TimerServiceError> {
         self.manager
-            .lock()
             .as_mut()
             .unwrap()
             .add_oneshot(client_id, timer_id, duration)
@@ -57,24 +71,15 @@ impl TimerInterface for CantripTimerService {
         duration: Duration,
     ) -> Result<(), TimerServiceError> {
         self.manager
-            .lock()
             .as_mut()
             .unwrap()
             .add_periodic(client_id, timer_id, duration)
     }
     fn cancel(&mut self, client_id: usize, timer_id: TimerId) -> Result<(), TimerServiceError> {
-        self.manager
-            .lock()
-            .as_mut()
-            .unwrap()
-            .cancel(client_id, timer_id)
+        self.manager.as_mut().unwrap().cancel(client_id, timer_id)
     }
     fn completed_timers(&mut self, client_id: usize) -> Result<TimerMask, TimerServiceError> {
-        self.manager
-            .lock()
-            .as_mut()
-            .unwrap()
-            .completed_timers(client_id)
+        self.manager.as_mut().unwrap().completed_timers(client_id)
     }
-    fn service_interrupt(&mut self) { self.manager.lock().as_mut().unwrap().service_interrupt() }
+    fn service_interrupt(&mut self) { self.manager.as_mut().unwrap().service_interrupt() }
 }

@@ -33,20 +33,25 @@ extern "C" {
 }
 
 static mut CAMKES: Camkes = Camkes::new("TimerService");
-// NB: CANTRIP_TIMER cannot be used before setup is completed with a call to init()
-static mut CANTRIP_TIMER: CantripTimerService = CantripTimerService::empty();
+
+fn cantrip_timer() -> impl TimerInterface {
+    static CANTRIP_TIMER: CantripTimerService<opentitan_timer::OtTimer> =
+        CantripTimerService::empty();
+    let mut manager = CANTRIP_TIMER.get();
+    if manager.is_empty() {
+        #[cfg(feature = "CONFIG_PLAT_SPARROW")]
+        manager.init(opentitan_timer::OtTimer);
+
+        #[cfg(not(feature = "CONFIG_PLAT_SPARROW"))]
+        panic!("TimerService enabled without hardware timer support!");
+    }
+    manager
+}
 
 #[no_mangle]
 pub unsafe extern "C" fn pre_init() {
     static mut HEAP_MEMORY: [u8; 4 * 1024] = [0; 4 * 1024];
     CAMKES.pre_init(log::LevelFilter::Debug, &mut HEAP_MEMORY);
-
-    // Complete CANTRIP_TIMER setup now that the global allocator is setup.
-    #[cfg(feature = "CONFIG_PLAT_SPARROW")]
-    CANTRIP_TIMER.init(opentitan_timer::OtTimer);
-
-    #[cfg(not(feature = "CONFIG_PLAT_SPARROW"))]
-    panic!("TimerService enabled without hardware timer support!");
 }
 
 #[no_mangle]
@@ -86,10 +91,8 @@ pub unsafe extern "C" fn timer_request(
 fn completed_timers_request(
     reply_buffer: &mut TimerServiceResponseData,
 ) -> Result<(), TimerServiceError> {
-    let timer_mask = unsafe {
-        let client_id = timer_get_sender_id();
-        CANTRIP_TIMER.completed_timers(client_id)
-    }?;
+    let client_id = unsafe { timer_get_sender_id() };
+    let timer_mask = cantrip_timer().completed_timers(client_id)?;
     let _ = postcard::to_slice(&CompletedTimersResponse { timer_mask }, reply_buffer)
         .or(Err(TimerServiceError::TseSerializeFailed))?;
     Ok(())
@@ -97,25 +100,19 @@ fn completed_timers_request(
 
 fn oneshot_request(timer_id: TimerId, duration_ms: u32) -> Result<(), TimerServiceError> {
     let duration = Duration::from_millis(duration_ms as u64);
-    unsafe {
-        let client_id = timer_get_sender_id();
-        CANTRIP_TIMER.add_oneshot(client_id, timer_id, duration)
-    }
+    let client_id = unsafe { timer_get_sender_id() };
+    cantrip_timer().add_oneshot(client_id, timer_id, duration)
 }
 
 fn periodic_request(timer_id: TimerId, duration_ms: u32) -> Result<(), TimerServiceError> {
     let duration = Duration::from_millis(duration_ms as u64);
-    unsafe {
-        let client_id = timer_get_sender_id();
-        CANTRIP_TIMER.add_periodic(client_id, timer_id, duration)
-    }
+    let client_id = unsafe { timer_get_sender_id() };
+    cantrip_timer().add_periodic(client_id, timer_id, duration)
 }
 
 fn cancel_request(timer_id: TimerId) -> Result<(), TimerServiceError> {
-    unsafe {
-        let client_id = timer_get_sender_id();
-        CANTRIP_TIMER.cancel(client_id, timer_id)
-    }
+    let client_id = unsafe { timer_get_sender_id() };
+    cantrip_timer().cancel(client_id, timer_id)
 }
 
 fn capscan_request() { let _ = Camkes::capscan(); }
@@ -125,6 +122,6 @@ pub unsafe extern "C" fn timer_interrupt_handle() {
     extern "C" {
         fn timer_interrupt_acknowledge() -> u32;
     }
-    CANTRIP_TIMER.service_interrupt();
+    cantrip_timer().service_interrupt();
     assert!(timer_interrupt_acknowledge() == 0);
 }

@@ -72,13 +72,44 @@ extern "C" {
 }
 
 static mut CAMKES: Camkes = Camkes::new("SDKRuntime");
-// NB: CANTRIP_SDK cannot be used before setup is completed with a call to init()
-static mut CANTRIP_SDK: CantripSDKRuntime = CantripSDKRuntime::empty();
 
 // Server RPC plumbing.
 static mut CANTRIP_SDK_ENDPOINT: seL4_CPtr = 0;
 static mut CANTRIP_SDK_REPLY: seL4_CPtr = 0;
 static mut CANTRIP_SDK_RECV_SLOT: seL4_CPtr = 0;
+
+fn cantrip_sdk() -> impl SDKManagerInterface + SDKRuntimeInterface {
+    static CANTRIP_SDK: CantripSDKRuntime = CantripSDKRuntime::empty();
+    let mut runtime = CANTRIP_SDK.get();
+    if runtime.is_empty() {
+        // Setup the SDKRuntime service (endpoint part) from scratch (no CAmkES help).
+        let bundle =
+            cantrip_object_alloc_in_toplevel(vec![ObjDesc::new(seL4_EndpointObject, 1, 0)])
+                .expect("alloc");
+
+        // Create endpoint (R)
+        let endpoint = Camkes::top_level_path(bundle.objs[0].cptr);
+        let mut ep_slot = CSpaceSlot::new();
+        ep_slot
+            .copy_to(
+                endpoint.0,
+                endpoint.1,
+                endpoint.2 as u8,
+                seL4_CapRights::new(
+                    /*grant_reply=*/ 0, /*grant=*/ 0, /*read=*/ 1, /*write=*/ 0,
+                ),
+            )
+            .expect("endpoint");
+        unsafe {
+            CANTRIP_SDK_ENDPOINT = ep_slot.release();
+        }
+
+        // NB: SDKRuntime needs the original (unbadged) cap to mint badged
+        // caps with WGP rights for applications (returned by get_endpoint).
+        runtime.init(&endpoint);
+    }
+    runtime
+}
 
 /// CAmkES component pre-init method.
 ///
@@ -88,30 +119,13 @@ pub unsafe extern "C" fn pre_init() {
     static mut HEAP_MEMORY: [u8; 8 * 1024] = [0; 8 * 1024];
     CAMKES.pre_init(log::LevelFilter::Trace, &mut HEAP_MEMORY);
 
-    // Setup the SDKRuntime service from scratch (no CAmkES help).
-    let bundle = cantrip_object_alloc_in_toplevel(vec![
-        ObjDesc::new(seL4_EndpointObject, 1, 0),
-        ObjDesc::new(seL4_ReplyObject, 1, 1),
-    ])
-    .expect("alloc");
-
-    // Create endpoint (R)
-    let endpoint = Camkes::top_level_path(bundle.objs[0].cptr);
-    let mut ep_slot = CSpaceSlot::new();
-    ep_slot
-        .copy_to(
-            endpoint.0,
-            endpoint.1,
-            endpoint.2 as u8,
-            seL4_CapRights::new(
-                /*grant_reply=*/ 0, /*grant=*/ 0, /*read=*/ 1, /*write=*/ 0,
-            ),
-        )
-        .expect("endpoint");
-    CANTRIP_SDK_ENDPOINT = ep_slot.release();
+    // Setup the SDKRuntime service (reply part) from scratch (no CAmkES help).
+    // NB: the endpoint part is done in cantrip_sdk().
+    let bundle = cantrip_object_alloc_in_toplevel(vec![ObjDesc::new(seL4_ReplyObject, 1, 1)])
+        .expect("alloc");
 
     // Create reply (WG).
-    let reply = Camkes::top_level_path(bundle.objs[1].cptr);
+    let reply = Camkes::top_level_path(bundle.objs[0].cptr);
     let mut reply_slot = CSpaceSlot::new();
     reply_slot
         .copy_to(
@@ -130,9 +144,7 @@ pub unsafe extern "C" fn pre_init() {
     // Receive slot for frames with RPC parameters.
     CANTRIP_SDK_RECV_SLOT = CSpaceSlot::new().release();
 
-    // NB: SDKRuntime needs the original (unbadged) cap to mint badged
-    // caps with WGP rights for applications (returned by get_endpoint).
-    CANTRIP_SDK.init(&endpoint);
+    cantrip_sdk();
 }
 
 fn delete_path(path: &seL4_CPath) -> seL4_Result {
@@ -269,7 +281,7 @@ fn ping_request(
     _request_slice: &[u8],
     _reply_slice: &mut [u8],
 ) -> Result<(), SDKError> {
-    unsafe { CANTRIP_SDK.ping(app_id) }
+    cantrip_sdk().ping(app_id)
 }
 
 fn log_request(
@@ -280,7 +292,7 @@ fn log_request(
     let request = postcard::from_bytes::<sdk_interface::LogRequest>(request_slice)
         .map_err(deserialize_failure)?;
     let msg = core::str::from_utf8(request.msg).or(Err(SDKError::InvalidString))?;
-    unsafe { CANTRIP_SDK.log(app_id, msg) }
+    cantrip_sdk().log(app_id, msg)
 }
 
 fn read_key_request(
@@ -291,7 +303,7 @@ fn read_key_request(
     let request = postcard::from_bytes::<sdk_interface::ReadKeyRequest>(request_slice)
         .map_err(deserialize_failure)?;
     let mut keyval = ::core::mem::MaybeUninit::<KeyValueData>::uninit();
-    let value = unsafe { CANTRIP_SDK.read_key(app_id, request.key, keyval.assume_init_mut())? };
+    let value = cantrip_sdk().read_key(app_id, request.key, unsafe { keyval.assume_init_mut() })?;
     let _ = postcard::to_slice(&sdk_interface::ReadKeyResponse { value }, reply_slice)
         .map_err(serialize_failure)?;
     Ok(())
@@ -307,7 +319,7 @@ fn write_key_request(
     // NB: the serialized data are variable length so copy to convert
     let mut keyval = [0u8; sdk_interface::KEY_VALUE_DATA_SIZE];
     keyval[..request.value.len()].copy_from_slice(request.value);
-    unsafe { CANTRIP_SDK.write_key(app_id, request.key, &keyval) }
+    cantrip_sdk().write_key(app_id, request.key, &keyval)
 }
 
 fn delete_key_request(
@@ -317,7 +329,7 @@ fn delete_key_request(
 ) -> Result<(), SDKError> {
     let request = postcard::from_bytes::<sdk_interface::DeleteKeyRequest>(request_slice)
         .map_err(deserialize_failure)?;
-    unsafe { CANTRIP_SDK.delete_key(app_id, request.key) }
+    cantrip_sdk().delete_key(app_id, request.key)
 }
 
 fn timer_oneshot_request(
@@ -327,7 +339,7 @@ fn timer_oneshot_request(
 ) -> Result<(), SDKError> {
     let request = postcard::from_bytes::<sdk_interface::TimerStartRequest>(request_slice)
         .map_err(deserialize_failure)?;
-    unsafe { CANTRIP_SDK.timer_oneshot(app_id, request.id, request.duration_ms) }
+    cantrip_sdk().timer_oneshot(app_id, request.id, request.duration_ms)
 }
 
 fn timer_periodic_request(
@@ -337,7 +349,7 @@ fn timer_periodic_request(
 ) -> Result<(), SDKError> {
     let request = postcard::from_bytes::<sdk_interface::TimerStartRequest>(request_slice)
         .map_err(deserialize_failure)?;
-    unsafe { CANTRIP_SDK.timer_periodic(app_id, request.id, request.duration_ms) }
+    cantrip_sdk().timer_periodic(app_id, request.id, request.duration_ms)
 }
 
 fn timer_cancel_request(
@@ -347,7 +359,7 @@ fn timer_cancel_request(
 ) -> Result<(), SDKError> {
     let request = postcard::from_bytes::<sdk_interface::TimerCancelRequest>(request_slice)
         .map_err(deserialize_failure)?;
-    unsafe { CANTRIP_SDK.timer_cancel(app_id, request.id) }
+    cantrip_sdk().timer_cancel(app_id, request.id)
 }
 
 fn timer_wait_request(
@@ -355,7 +367,7 @@ fn timer_wait_request(
     _request_slice: &[u8],
     reply_slice: &mut [u8],
 ) -> Result<(), SDKError> {
-    let mask = unsafe { CANTRIP_SDK.timer_wait(app_id)? };
+    let mask = cantrip_sdk().timer_wait(app_id)?;
     let _ = postcard::to_slice(&sdk_interface::TimerWaitResponse { mask }, reply_slice)
         .map_err(serialize_failure)?;
     Ok(())
@@ -366,7 +378,7 @@ fn timer_poll_request(
     _request_slice: &[u8],
     reply_slice: &mut [u8],
 ) -> Result<(), SDKError> {
-    let mask = unsafe { CANTRIP_SDK.timer_poll(app_id)? };
+    let mask = cantrip_sdk().timer_poll(app_id)?;
     let _ = postcard::to_slice(&sdk_interface::TimerWaitResponse { mask }, reply_slice)
         .map_err(serialize_failure)?;
     Ok(())
@@ -379,7 +391,7 @@ fn model_oneshot_request(
 ) -> Result<(), SDKError> {
     let request = postcard::from_bytes::<sdk_interface::ModelOneshotRequest>(request_slice)
         .map_err(deserialize_failure)?;
-    let id = unsafe { CANTRIP_SDK.model_oneshot(app_id, request.model_id)? };
+    let id = cantrip_sdk().model_oneshot(app_id, request.model_id)?;
     let _ = postcard::to_slice(&sdk_interface::ModelStartResponse { id }, reply_slice)
         .map_err(serialize_failure)?;
     Ok(())
@@ -392,7 +404,7 @@ fn model_periodic_request(
 ) -> Result<(), SDKError> {
     let request = postcard::from_bytes::<sdk_interface::ModelPeriodicRequest>(request_slice)
         .map_err(deserialize_failure)?;
-    let id = unsafe { CANTRIP_SDK.model_periodic(app_id, request.model_id, request.duration_ms)? };
+    let id = cantrip_sdk().model_periodic(app_id, request.model_id, request.duration_ms)?;
     let _ = postcard::to_slice(&sdk_interface::ModelStartResponse { id }, reply_slice)
         .map_err(serialize_failure)?;
     Ok(())
@@ -405,7 +417,7 @@ fn model_cancel_request(
 ) -> Result<(), SDKError> {
     let request = postcard::from_bytes::<sdk_interface::ModelCancelRequest>(request_slice)
         .map_err(deserialize_failure)?;
-    unsafe { CANTRIP_SDK.model_cancel(app_id, request.id) }
+    cantrip_sdk().model_cancel(app_id, request.id)
 }
 
 fn model_wait_request(
@@ -413,7 +425,7 @@ fn model_wait_request(
     _request_slice: &[u8],
     reply_slice: &mut [u8],
 ) -> Result<(), SDKError> {
-    let mask = unsafe { CANTRIP_SDK.model_wait(app_id)? };
+    let mask = cantrip_sdk().model_wait(app_id)?;
     let _ = postcard::to_slice(&sdk_interface::ModelWaitResponse { mask }, reply_slice)
         .map_err(serialize_failure)?;
     Ok(())
@@ -424,7 +436,7 @@ fn model_poll_request(
     _request_slice: &[u8],
     reply_slice: &mut [u8],
 ) -> Result<(), SDKError> {
-    let mask = unsafe { CANTRIP_SDK.model_poll(app_id)? };
+    let mask = cantrip_sdk().model_poll(app_id)?;
     let _ = postcard::to_slice(&sdk_interface::ModelWaitResponse { mask }, reply_slice)
         .map_err(serialize_failure)?;
     Ok(())
@@ -437,7 +449,7 @@ pub unsafe extern "C" fn sdk_manager_get_endpoint(
     c_app_id: *const cstr_core::c_char,
 ) -> SDKManagerError {
     let ret_status = match CStr::from_ptr(c_app_id).to_str() {
-        Ok(app_id) => match CANTRIP_SDK.get_endpoint(app_id) {
+        Ok(app_id) => match cantrip_sdk().get_endpoint(app_id) {
             Ok(cap_endpoint) => {
                 Camkes::set_reply_cap_release(cap_endpoint);
                 SDKManagerError::SmSuccess
@@ -454,7 +466,7 @@ pub unsafe extern "C" fn sdk_manager_release_endpoint(
     c_app_id: *const cstr_core::c_char,
 ) -> SDKManagerError {
     let ret_status = match CStr::from_ptr(c_app_id).to_str() {
-        Ok(app_id) => match CANTRIP_SDK.release_endpoint(app_id) {
+        Ok(app_id) => match cantrip_sdk().release_endpoint(app_id) {
             Ok(_) => SDKManagerError::SmSuccess,
             Err(e) => e,
         },

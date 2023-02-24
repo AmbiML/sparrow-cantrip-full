@@ -20,13 +20,7 @@
 #![feature(const_fn_trait_bound)]
 
 extern crate alloc;
-use alloc::boxed::Box;
-use alloc::string::String;
-use cantrip_memory_interface::ObjDescBundle;
-use cantrip_security_interface::BundleIdArray;
-use cantrip_security_interface::KeyValueData;
 use cantrip_security_interface::SecurityCoordinatorInterface;
-use cantrip_security_interface::SecurityRequestError;
 
 #[cfg(all(feature = "fake", feature = "sel4"))]
 compile_error!("features \"fake\" and \"sel4\" are mutually exclusive");
@@ -38,93 +32,27 @@ pub use platform::CantripSecurityCoordinatorInterface;
 
 mod upload;
 
-#[cfg(not(test))]
-pub static mut CANTRIP_SECURITY: CantripSecurityCoordinator = CantripSecurityCoordinator::empty();
-
 // CantripSecurityCoordinator bundles an instance of the SecurityCoordinator that operates
 // on CantripOS interfaces. There is a two-step dance to setup an instance because we want
 // CANTRIP_SECURITY static.
 // NB: no locking is done; we assume the caller/user is single-threaded
-pub struct CantripSecurityCoordinator {
-    manager: Option<Box<dyn SecurityCoordinatorInterface + Sync>>,
+pub struct CantripSecurityCoordinator<SC> {
+    manager: Option<SC>,
 }
-impl CantripSecurityCoordinator {
+impl<SC: SecurityCoordinatorInterface> CantripSecurityCoordinator<SC> {
     // Constructs a partially-initialized instance; to complete call init().
     // This is needed because we need a const fn for static setup.
-    const fn empty() -> CantripSecurityCoordinator { CantripSecurityCoordinator { manager: None } }
+    pub const fn empty() -> CantripSecurityCoordinator<SC> {
+        CantripSecurityCoordinator { manager: None }
+    }
 
-    pub fn init(&mut self) {
-        self.manager = Some(Box::new(CantripSecurityCoordinatorInterface::new()));
-    }
-}
-impl SecurityCoordinatorInterface for CantripSecurityCoordinator {
-    fn install(&mut self, pkg_contents: &ObjDescBundle) -> Result<String, SecurityRequestError> {
-        self.manager.as_mut().unwrap().install(pkg_contents)
-    }
-    fn install_app(
-        &mut self,
-        app_id: &str,
-        pkg_contents: &ObjDescBundle,
-    ) -> Result<(), SecurityRequestError> {
+    pub fn is_empty(&self) -> bool { self.manager.is_none() }
+
+    pub fn init(&mut self, manager: SC) { self.manager = Some(manager); }
+
+    pub fn get(&mut self) -> &mut impl SecurityCoordinatorInterface {
         self.manager
             .as_mut()
-            .unwrap()
-            .install_app(app_id, pkg_contents)
-    }
-    fn install_model(
-        &mut self,
-        app_id: &str,
-        model_id: &str,
-        pkg_contents: &ObjDescBundle,
-    ) -> Result<(), SecurityRequestError> {
-        self.manager
-            .as_mut()
-            .unwrap()
-            .install_model(app_id, model_id, pkg_contents)
-    }
-    fn uninstall(&mut self, bundle_id: &str) -> Result<(), SecurityRequestError> {
-        self.manager.as_mut().unwrap().uninstall(bundle_id)
-    }
-    fn get_packages(&self) -> Result<BundleIdArray, SecurityRequestError> {
-        self.manager.as_ref().unwrap().get_packages()
-    }
-    fn size_buffer(&self, bundle_id: &str) -> Result<usize, SecurityRequestError> {
-        self.manager.as_ref().unwrap().size_buffer(bundle_id)
-    }
-    fn get_manifest(&self, bundle_id: &str) -> Result<String, SecurityRequestError> {
-        self.manager.as_ref().unwrap().get_manifest(bundle_id)
-    }
-    fn load_application(&mut self, bundle_id: &str) -> Result<ObjDescBundle, SecurityRequestError> {
-        self.manager.as_mut().unwrap().load_application(bundle_id)
-    }
-    fn load_model(
-        &mut self,
-        bundle_id: &str,
-        model_id: &str,
-    ) -> Result<ObjDescBundle, SecurityRequestError> {
-        self.manager
-            .as_mut()
-            .unwrap()
-            .load_model(bundle_id, model_id)
-    }
-    fn read_key(&self, bundle_id: &str, key: &str) -> Result<&KeyValueData, SecurityRequestError> {
-        self.manager.as_ref().unwrap().read_key(bundle_id, key)
-    }
-    fn write_key(
-        &mut self,
-        bundle_id: &str,
-        key: &str,
-        value: &KeyValueData,
-    ) -> Result<(), SecurityRequestError> {
-        self.manager
-            .as_mut()
-            .unwrap()
-            .write_key(bundle_id, key, value)
-    }
-    fn delete_key(&mut self, bundle_id: &str, key: &str) -> Result<(), SecurityRequestError> {
-        self.manager.as_mut().unwrap().delete_key(bundle_id, key)
-    }
-    fn test_mailbox(&mut self) -> Result<(), SecurityRequestError> {
-        self.manager.as_mut().unwrap().test_mailbox()
+            .expect("must call init before first get")
     }
 }

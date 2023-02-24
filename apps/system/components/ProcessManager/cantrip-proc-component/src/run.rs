@@ -31,8 +31,17 @@ use log::trace;
 use sel4_sys::seL4_CPtr;
 
 static mut CAMKES: Camkes = Camkes::new("ProcessManager");
-// NB: CANTRIP_PROC cannot be used before setup is completed with a call to init()
-static mut CANTRIP_PROC: CantripProcManager = CantripProcManager::empty();
+
+fn cantrip_proc() -> impl PackageManagementInterface + ProcessControlInterface {
+    static CANTRIP_PROC: CantripProcManager = CantripProcManager::empty();
+    let mut manager = CANTRIP_PROC.get();
+    if manager.is_empty() {
+        // Complete CANTRIP_PROC setup now that Global allocator is setup.
+        manager.init();
+        trace!("ProcessManager has capacity for {} bundles", manager.capacity());
+    }
+    manager
+}
 
 // TODO(sleffler): 0 is valid
 static mut PKG_MGMT_RECV_SLOT: seL4_CPtr = 0;
@@ -41,10 +50,6 @@ static mut PKG_MGMT_RECV_SLOT: seL4_CPtr = 0;
 pub unsafe extern "C" fn pre_init() {
     static mut HEAP_MEMORY: [u8; 16 * 1024] = [0; 16 * 1024];
     CAMKES.pre_init(log::LevelFilter::Trace, &mut HEAP_MEMORY);
-
-    // Complete CANTRIP_PROC setup now that Global allocator is setup.
-    CANTRIP_PROC.init();
-    trace!("ProcessManager has capacity for {} bundles", CANTRIP_PROC.capacity());
 
     PKG_MGMT_RECV_SLOT = CSpaceSlot::new().release();
 }
@@ -99,7 +104,7 @@ fn install_request(
 
     pkg_contents.cnode = recv_path.1;
 
-    let bundle_id = unsafe { CANTRIP_PROC.install(&pkg_contents) }?;
+    let bundle_id = cantrip_proc().install(&pkg_contents)?;
     let _ = postcard::to_slice(&InstallResponse { bundle_id }, reply_buffer)
         .or(Err(ProcessManagerError::SerializeError))?;
     Ok(())
@@ -117,7 +122,7 @@ fn install_app_request(
 
     pkg_contents.cnode = recv_path.1;
 
-    unsafe { CANTRIP_PROC.install_app(app_id, &pkg_contents) }
+    cantrip_proc().install_app(app_id, &pkg_contents)
 }
 
 fn uninstall_request(
@@ -129,7 +134,7 @@ fn uninstall_request(
     let recv_path = unsafe { CAMKES.get_owned_current_recv_path() };
     Camkes::debug_assert_slot_empty("uninstall_request", &recv_path);
 
-    unsafe { CANTRIP_PROC.uninstall(bundle_id) }?;
+    cantrip_proc().uninstall(bundle_id)?;
     Camkes::debug_assert_slot_empty("uninstall_request", &recv_path);
     Ok(())
 }
@@ -166,17 +171,17 @@ fn start_request(
     bundle_id: &str,
     _reply_buffer: &mut RawBundleIdData,
 ) -> Result<(), ProcessManagerError> {
-    unsafe { CANTRIP_PROC.start(bundle_id) }
+    cantrip_proc().start(bundle_id)
 }
 
 fn stop_request(bundle_id: &str, _reply_buffer: &mut [u8]) -> Result<(), ProcessManagerError> {
-    unsafe { CANTRIP_PROC.stop(bundle_id) }
+    cantrip_proc().stop(bundle_id)
 }
 
 fn get_running_bundles_request(
     reply_buffer: &mut RawBundleIdData,
 ) -> Result<(), ProcessManagerError> {
-    let bundle_ids = unsafe { CANTRIP_PROC.get_running_bundles() }?;
+    let bundle_ids = cantrip_proc().get_running_bundles()?;
     // Serialize the bundle_id's in the result buffer. If we
     // overflow the buffer, an error is returned and the
     // contents are undefined (postcard does not specify).
@@ -194,5 +199,5 @@ fn capscan_bundle_request(
     bundle_id: &str,
     _reply_buffer: &mut [u8],
 ) -> Result<(), ProcessManagerError> {
-    unsafe { CANTRIP_PROC.capscan(bundle_id) }
+    cantrip_proc().capscan(bundle_id)
 }

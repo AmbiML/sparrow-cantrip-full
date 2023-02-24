@@ -14,7 +14,6 @@
 
 extern crate alloc;
 
-use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
 use cantrip_os_common::sel4_sys::seL4_Word;
 use cantrip_timer_interface::*;
@@ -38,16 +37,16 @@ struct Event {
 // the associated event.
 // Each client may have multiple outstanding timers, which we represent through
 // a bit vector in timer_state.
-pub struct TimerManager {
-    timer: Box<dyn HardwareTimer + Sync>,
+pub struct TimerManager<HT> {
+    timer: HT,
     events: BTreeMap<Ticks, Event>,
     timer_state: [u32; NUM_CLIENTS], // XXX: bitvec?
 }
-impl TimerManager {
-    pub fn new(timer: impl HardwareTimer + Sync + 'static) -> Self {
+impl<HT: HardwareTimer> TimerManager<HT> {
+    pub fn new(timer: HT) -> Self {
         timer.setup();
         Self {
-            timer: Box::new(timer),
+            timer,
             events: BTreeMap::new(),
             timer_state: [0; NUM_CLIENTS],
         }
@@ -105,7 +104,7 @@ impl TimerManager {
         Ok(())
     }
 }
-impl TimerInterface for TimerManager {
+impl<HT: HardwareTimer> TimerInterface for TimerManager<HT> {
     fn add_oneshot(
         &mut self,
         client_id: usize,
