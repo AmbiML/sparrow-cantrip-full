@@ -79,7 +79,7 @@ impl seL4BundleImpl {
         let frame_obj = self.get_stack_frame_obj(sp - size_of::<seL4_Word>());
 
         let mut copy_region =
-            CopyRegion::new(unsafe { ptr::addr_of_mut!(LOAD_APPLICATION[0]) }, PAGE_SIZE);
+            unsafe { CopyRegion::new(ptr::addr_of_mut!(LOAD_APPLICATION[0]), PAGE_SIZE) };
         copy_region.map(frame_obj.cptr)?;
 
         // Write spillover arguments to the TCB's stack.

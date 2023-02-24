@@ -115,7 +115,7 @@ fn deep_copy(src: &ObjDescBundle) -> Result<ObjDescBundle, seL4_Error> {
 
     // Src top-level slot & copy region
     let src_slot = CSpaceSlot::new();
-    let mut src_region = CopyRegion::new(unsafe { ptr::addr_of_mut!(DEEP_COPY_SRC[0]) }, PAGE_SIZE);
+    let mut src_region = unsafe { CopyRegion::new(ptr::addr_of_mut!(DEEP_COPY_SRC[0]), PAGE_SIZE) };
 
     for src_cptr in src.cptr_iter() {
         // Map src frame and copy data (allocating memory as needed)..

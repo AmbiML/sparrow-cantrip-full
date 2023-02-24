@@ -36,13 +36,13 @@ extern "C" {
     static SELF_CNODE: seL4_CPtr;
 }
 
-pub struct Upload {
+pub struct Upload<'a> {
     frames: ObjDescBundle, // Page frames
-    copyregion: CopyRegion,
+    copyregion: CopyRegion<'a>,
     next_free: usize, // Next available byte in mapped frame
 }
 
-impl Upload {
+impl<'a> Upload<'a> {
     pub fn new(region: *mut seL4_Word, size: usize) -> Self {
         Self {
             frames: ObjDescBundle::new(
@@ -51,7 +51,7 @@ impl Upload {
                 seL4_WordBits as u8,
                 vec![],
             ),
-            copyregion: CopyRegion::new(region, size),
+            copyregion: unsafe { CopyRegion::new(region, size) },
             next_free: 0,
         }
     }

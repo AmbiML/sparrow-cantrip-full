@@ -17,6 +17,7 @@
 #![no_std]
 #![allow(non_camel_case_types)]
 
+use core::marker::PhantomData;
 use core::mem::size_of;
 
 use sel4_sys::seL4_CPtr;
@@ -44,17 +45,21 @@ extern "C" {
 // TODO(sleffler): do we need to parameterize VM_Attributes & CapRights?
 // TODO(sleffler): Mutex-wrapped & maybe RefCell-wrapped versions?
 
-pub struct CopyRegion {
+// The lifetime 'a captured by the PhantomData reflects the lifetime
+// of |region| because we cannot associate a lifetime with a pointer.
+pub struct CopyRegion<'a> {
     region: *mut seL4_Word,
     size: usize,
     cur_frame: Option<seL4_CPtr>,
+    _region_lifetime: PhantomData<&'a seL4_Word>,
 }
-impl CopyRegion {
-    pub fn new(region: *mut seL4_Word, size: usize) -> Self {
+impl<'a> CopyRegion<'a> {
+    pub unsafe fn new(region: *mut seL4_Word, size: usize) -> Self {
         CopyRegion {
             region,
             size,
             cur_frame: None,
+            _region_lifetime: PhantomData,
         }
     }
 
@@ -71,7 +76,7 @@ impl CopyRegion {
     }
 
     // Returns an immutable [u8] ref to the mapped region.
-    pub fn as_ref(&mut self) -> &[u8] {
+    pub fn as_ref(&self) -> &'a [u8] {
         assert!(self.cur_frame.is_some());
         unsafe { core::slice::from_raw_parts(self.region as _, self.size) }
     }
@@ -83,7 +88,7 @@ impl CopyRegion {
     }
 
     // Returns an immutable [seL4_Word] ref to the mapped region.
-    pub fn as_word_ref(&mut self) -> &[seL4_Word] {
+    pub fn as_word_ref(&self) -> &'a [seL4_Word] {
         assert!(self.cur_frame.is_some());
         unsafe { core::slice::from_raw_parts(self.region, self.size / size_of::<seL4_Word>()) }
     }
@@ -125,6 +130,6 @@ impl CopyRegion {
         Ok(())
     }
 }
-impl Drop for CopyRegion {
+impl<'a> Drop for CopyRegion<'a> {
     fn drop(&mut self) { self.unmap().expect("CopyRegion"); }
 }

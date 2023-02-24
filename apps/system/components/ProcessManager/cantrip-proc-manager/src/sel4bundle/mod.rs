@@ -411,7 +411,7 @@ impl seL4BundleImpl {
         let mut image = BundleImage::new(bundle_frames);
 
         let mut copy_region =
-            CopyRegion::new(unsafe { ptr::addr_of_mut!(LOAD_APPLICATION[0]) }, PAGE_SIZE);
+            unsafe { CopyRegion::new(ptr::addr_of_mut!(LOAD_APPLICATION[0]), PAGE_SIZE) };
 
         let mut vaddr_top = 0;
         // Track last allocated page that was mapped to handle gaps between
