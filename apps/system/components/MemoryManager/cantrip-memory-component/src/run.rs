@@ -164,10 +164,10 @@ fn stats_request(reply_buffer: &mut MemoryResponseData) -> Result<(), MemoryMana
     unsafe {
         CAMKES.assert_recv_path();
     }
-
-    let stats = cantrip_memory().stats()?;
     // Verify no cap was received
     Camkes::debug_assert_slot_empty("stats_request", &recv_path);
+
+    let stats = cantrip_memory().stats()?;
     let _ = postcard::to_slice(&StatsResponse { value: stats }, reply_buffer)
         .or(Err(MemoryManagerError::MmeSerializeFailed))?;
     Ok(())
