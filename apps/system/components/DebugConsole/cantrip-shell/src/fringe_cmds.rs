@@ -15,7 +15,6 @@
 //! Infrequently used shell commands
 
 extern crate alloc;
-use crate::rz;
 use crate::CmdFn;
 use crate::CommandError;
 use crate::HashMap;
@@ -44,7 +43,6 @@ fn add_command(
     args: &mut dyn Iterator<Item = &str>,
     _input: &mut dyn io::BufRead,
     output: &mut dyn io::Write,
-    _builtin_cpio: &[u8],
 ) -> Result<(), CommandError> {
     let x_str = args.next().ok_or(CommandError::BadArgs)?;
     let x = x_str.parse::<f32>()?;
@@ -58,7 +56,6 @@ fn clear_command(
     _args: &mut dyn Iterator<Item = &str>,
     _input: &mut dyn io::BufRead,
     output: &mut dyn io::Write,
-    _builtin_cpio: &[u8],
 ) -> Result<(), CommandError> {
     Ok(output.write_str("\x1b\x63")?)
 }
@@ -68,7 +65,6 @@ fn echo_command(
     args: &mut dyn Iterator<Item = &str>,
     _input: &mut dyn io::BufRead,
     output: &mut dyn io::Write,
-    _builtin_cpio: &[u8],
 ) -> Result<(), CommandError> {
     let value = args.collect::<Vec<&str>>().join(" ");
     Ok(writeln!(output, "{}", &value)?)
@@ -79,9 +75,8 @@ fn rz_command(
     _args: &mut dyn Iterator<Item = &str>,
     input: &mut dyn io::BufRead,
     mut output: &mut dyn io::Write,
-    _builtin_cpio: &[u8],
 ) -> Result<(), CommandError> {
-    let upload = rz::rz(input, &mut output)?;
+    let upload = crate::rz::rz(input, &mut output)?;
     writeln!(
         output,
         "size: {}, crc32: {}",

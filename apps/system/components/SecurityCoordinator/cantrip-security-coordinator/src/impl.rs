@@ -48,11 +48,14 @@ impl SecurityCoordinatorInterface for SeL4SecurityCoordinator {
     fn get_manifest(&self, _bundle_id: &str) -> Result<String, SecurityRequestError> {
         Err(SreGetManifestFailed)
     }
-    fn load_application(&self, _bundle_id: &str) -> Result<ObjDescBundle, SecurityRequestError> {
+    fn load_application(
+        &mut self,
+        _bundle_id: &str,
+    ) -> Result<ObjDescBundle, SecurityRequestError> {
         Err(SreLoadApplicationFailed)
     }
     fn load_model(
-        &self,
+        &mut self,
         _bundle_id: &str,
         _model_id: &str,
     ) -> Result<ObjDescBundle, SecurityRequestError> {

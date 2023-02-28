@@ -44,7 +44,6 @@ fn malloc_command(
     args: &mut dyn Iterator<Item = &str>,
     _input: &mut dyn io::BufRead,
     output: &mut dyn io::Write,
-    _builtin_cpio: &[u8],
 ) -> Result<(), CommandError> {
     let space_str = args.next().ok_or(CommandError::BadArgs)?;
     let space_bytes = space_str.parse::<usize>()?;
@@ -63,7 +62,6 @@ fn mfree_command(
     args: &mut dyn Iterator<Item = &str>,
     _input: &mut dyn io::BufRead,
     output: &mut dyn io::Write,
-    _builtin_cpio: &[u8],
 ) -> Result<(), CommandError> {
     extern "C" {
         static SELF_CNODE: seL4_CPtr;
@@ -94,7 +92,6 @@ fn obj_alloc_command(
     _args: &mut dyn Iterator<Item = &str>,
     _input: &mut dyn io::BufRead,
     output: &mut dyn io::Write,
-    _builtin_cpio: &[u8],
 ) -> Result<(), CommandError> {
     let before_stats = cantrip_memory_stats().expect("before stats");
     mstats(output, &before_stats)?;

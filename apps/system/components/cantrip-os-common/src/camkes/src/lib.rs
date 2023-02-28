@@ -85,6 +85,13 @@ impl Drop for OwnedCPath {
     }
 }
 
+// Attaches a capability to a CAmkES RPC request/reply msg.
+// seL4 will copy the capabiltiy.
+// NB: private because the api is unsafe, set_request_cap
+//   and set_reply_cap_release should always be used
+fn set_cap(cptr: seL4_CPtr) { unsafe { seL4_SetCap(0, cptr) } }
+fn get_cap() -> seL4_CPtr { unsafe { seL4_GetCap(0) } }
+
 pub struct Camkes {
     name: &'static str,    // Component name
     recv_path: seL4_CPath, // IPCBuffer receive path
@@ -188,33 +195,29 @@ impl Camkes {
         );
     }
 
-    // Attaches a capability to a CAmkES RPC request msg. seL4 will copy
-    // the capabiltiy.
+    // Attaches a capability to a CAmkES RPC request MessageInfo and
+    // returns a helper to reset/cleanup on block exit. seL4 will copy
+    // the capabilty if the MessageInfo indicates there are capabilities
+    // attached (beware this is currently buried in the CAmkES template).
     #[must_use]
     pub fn set_request_cap(cptr: seL4_CPtr) -> RequestCapCleanup {
-        unsafe {
-            seL4_SetCap(0, cptr);
-        }
-        RequestCapCleanup {}
+        set_cap(cptr);
+        Self::cleanup_request_cap()
     }
 
-    // Clears any capability attached to a CAmkES RPC request msg.
-    pub fn clear_request_cap() {
-        unsafe {
-            seL4_SetCap(0, 0);
-        }
-    }
+    // Arranges for the CAmkES RPC request capability be clear'd on
+    // block exit. This is to guard against accidentally attaching a
+    // capability to a reply.
+    // TODO(sleffler): remove after the C templates are replaced
+    #[must_use]
+    pub fn cleanup_request_cap() -> RequestCapCleanup { RequestCapCleanup {} }
+
+    // Immediately clears any capability attached to a CAmkES RPC request
+    // msg. NB: cleanup_request_cap may be more useful.
+    pub fn clear_request_cap() { set_cap(0); }
 
     // Returns the capability attached to an seL4 IPC.
-    pub fn get_request_cap() -> seL4_CPtr { unsafe { seL4_GetCap(0) } }
-
-    // Attaches a capability to a CAmkES RPC reply msg. seL4 will copy
-    // the capabiltiy.
-    pub fn set_reply_cap(cptr: seL4_CPtr) {
-        unsafe {
-            seL4_SetCap(0, cptr);
-        }
-    }
+    pub fn get_request_cap() -> seL4_CPtr { get_cap() }
 
     // Attaches a capability to a CAmkES RPC reply msg and arranges for
     // the capability to be released after the reply completes.
@@ -226,12 +229,15 @@ impl Camkes {
             // is assumed single-threaded (and CAmkES-generated code does
             // not short-circuit the cap delete).
             CANTRIP_CSPACE_SLOTS.free(cptr, 1);
-            seL4_SetCap(0, cptr | CAP_RELEASE);
+            set_cap(cptr | CAP_RELEASE);
         }
     }
 
     // Clears any capability attached to a CAmkES RPC reply msg.
-    pub fn clear_reply_cap() { Camkes::set_reply_cap(0); }
+    pub fn clear_reply_cap() { set_cap(0); }
+
+    // Returns the capability attached to an seL4 IPC.
+    pub fn get_reply_cap() -> seL4_CPtr { get_cap() }
 
     // Wrappers for sel4_sys::debug_assert macros.
     pub fn debug_assert_slot_empty(tag: &str, path: &seL4_CPath) {

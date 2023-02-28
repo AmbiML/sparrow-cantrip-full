@@ -35,7 +35,8 @@ static mut SECURITY_RECV_SLOT: seL4_CPtr = 0;
 
 #[no_mangle]
 pub unsafe extern "C" fn pre_init() {
-    static mut HEAP_MEMORY: [u8; 8 * 1024] = [0; 8 * 1024];
+    const HEAP_SIZE: usize = 12 * 1024;
+    static mut HEAP_MEMORY: [u8; HEAP_SIZE] = [0; HEAP_SIZE];
     // NB: set to max; the LoggerInterface will filter
     CAMKES.pre_init(log::LevelFilter::Trace, &mut HEAP_MEMORY);
 
@@ -71,6 +72,7 @@ fn echo_request(
     request_buffer: &[u8],
     reply_buffer: &mut [u8],
 ) -> Result<(), SecurityRequestError> {
+    let _cleanup = Camkes::cleanup_request_cap();
     let request =
         postcard::from_bytes::<EchoRequest>(request_buffer).map_err(deserialize_failure)?;
 
@@ -84,6 +86,7 @@ fn install_request(
     request_buffer: &[u8],
     reply_buffer: &mut [u8],
 ) -> Result<(), SecurityRequestError> {
+    let _cleanup = Camkes::cleanup_request_cap();
     let recv_path = unsafe { CAMKES.get_current_recv_path() };
     Camkes::debug_assert_slot_cnode("install_request", &recv_path);
 
@@ -112,6 +115,7 @@ fn install_app_request(
     request_buffer: &[u8],
     _reply_buffer: &mut [u8],
 ) -> Result<(), SecurityRequestError> {
+    let _cleanup = Camkes::cleanup_request_cap();
     let recv_path = unsafe { CAMKES.get_current_recv_path() };
     Camkes::debug_assert_slot_cnode("install_application_request", &recv_path);
 
@@ -132,6 +136,7 @@ fn install_model_request(
     request_buffer: &[u8],
     _reply_buffer: &mut [u8],
 ) -> Result<(), SecurityRequestError> {
+    let _cleanup = Camkes::cleanup_request_cap();
     let recv_path = unsafe { CAMKES.get_current_recv_path() };
     Camkes::debug_assert_slot_cnode("install_model_request", &recv_path);
 
@@ -154,6 +159,7 @@ fn uninstall_request(
     request_buffer: &[u8],
     _reply_buffer: &mut [u8],
 ) -> Result<(), SecurityRequestError> {
+    let _cleanup = Camkes::cleanup_request_cap();
     let request =
         postcard::from_bytes::<UninstallRequest>(request_buffer).map_err(deserialize_failure)?;
 
@@ -161,10 +167,27 @@ fn uninstall_request(
     unsafe { CANTRIP_SECURITY.uninstall(request.bundle_id) }
 }
 
+fn get_packages_request(
+    _request_buffer: &[u8],
+    reply_buffer: &mut [u8],
+) -> Result<(), SecurityRequestError> {
+    let _cleanup = Camkes::cleanup_request_cap();
+    let bundle_ids = unsafe { CANTRIP_SECURITY.get_packages() }?;
+
+    trace!("GET PACKAGES -> {:?}", &bundle_ids);
+    // Serialize the bundle_id's in the result buffer. If we
+    // overflow the buffer, an error is returned and the
+    // contents are undefined (postcard does not specify).
+    let _ = postcard::to_slice(&GetPackagesResponse { bundle_ids }, reply_buffer)
+        .map_err(serialize_failure)?;
+    Ok(())
+}
+
 fn size_buffer_request(
     request_buffer: &[u8],
     reply_buffer: &mut [u8],
 ) -> Result<(), SecurityRequestError> {
+    let _cleanup = Camkes::cleanup_request_cap();
     let request =
         postcard::from_bytes::<SizeBufferRequest>(request_buffer).map_err(deserialize_failure)?;
 
@@ -243,6 +266,7 @@ fn read_key_request(
     request_buffer: &[u8],
     reply_buffer: &mut [u8],
 ) -> Result<(), SecurityRequestError> {
+    let _cleanup = Camkes::cleanup_request_cap();
     let request =
         postcard::from_bytes::<ReadKeyRequest>(request_buffer).map_err(deserialize_failure)?;
 
@@ -256,6 +280,7 @@ fn write_key_request(
     request_buffer: &[u8],
     _reply_buffer: &mut [u8],
 ) -> Result<(), SecurityRequestError> {
+    let _cleanup = Camkes::cleanup_request_cap();
     let request =
         postcard::from_bytes::<WriteKeyRequest>(request_buffer).map_err(deserialize_failure)?;
 
@@ -275,6 +300,7 @@ fn delete_key_request(
     request_buffer: &[u8],
     _reply_buffer: &mut [u8],
 ) -> Result<(), SecurityRequestError> {
+    let _cleanup = Camkes::cleanup_request_cap();
     let request =
         postcard::from_bytes::<DeleteKeyRequest>(request_buffer).map_err(deserialize_failure)?;
 
@@ -283,11 +309,13 @@ fn delete_key_request(
 }
 
 fn test_mailbox_request() -> Result<(), SecurityRequestError> {
+    let _cleanup = Camkes::cleanup_request_cap();
     trace!("TEST MAILBOX");
     unsafe { CANTRIP_SECURITY.test_mailbox() }
 }
 
 fn capscan_request() -> Result<(), SecurityRequestError> {
+    let _cleanup = Camkes::cleanup_request_cap();
     let _ = Camkes::capscan();
     Ok(())
 }
@@ -307,6 +335,7 @@ pub unsafe extern "C" fn security_request(
         SecurityRequest::SrInstallApp => install_app_request(request_buffer, reply_buffer),
         SecurityRequest::SrInstallModel => install_model_request(request_buffer, reply_buffer),
         SecurityRequest::SrUninstall => uninstall_request(request_buffer, reply_buffer),
+        SecurityRequest::SrGetPackages => get_packages_request(request_buffer, reply_buffer),
         SecurityRequest::SrSizeBuffer => size_buffer_request(request_buffer, reply_buffer),
         SecurityRequest::SrGetManifest => get_manifest_request(request_buffer, reply_buffer),
         SecurityRequest::SrLoadApplication => {

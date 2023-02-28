@@ -17,6 +17,7 @@
 members = [
     "cantrip-debug-console",
     "cantrip-io",
+    "cantrip-io-objdesc",
     "cantrip-line-reader",
     "cantrip-shell",
     "cantrip-uart-client",

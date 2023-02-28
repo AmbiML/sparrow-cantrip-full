@@ -201,7 +201,7 @@ impl ObjDescBundle {
                 unsafe {
                     // TODO(sleffler): cleanup on error?
                     seL4_CNode_Move(
-                        /*desT_root=*/ dest_cnode,
+                        /*dest_root=*/ dest_cnode,
                         /*dest_index=*/ dest_slot + offset,
                         /*dest_depth=*/ dest_depth,
                         /*src_root=*/ self.cnode,
@@ -411,6 +411,7 @@ fn cantrip_memory_request_aux(
         ) -> MemoryManagerError;
     }
     if let Some(cap) = cap {
+        sel4_sys::debug_assert_slot_cnode!(cap);
         let _cleanup = Camkes::set_request_cap(cap);
         unsafe {
             memory_request(
@@ -459,7 +460,6 @@ fn cantrip_memory_request<T: DeserializeOwned>(
 #[inline]
 pub fn cantrip_object_alloc(request: &ObjDescBundle) -> Result<(), MemoryManagerError> {
     trace!("cantrip_object_alloc {}", request);
-    sel4_sys::debug_assert_slot_cnode!(request.cnode);
     cantrip_memory_request(&MemoryManagerRequest::Alloc(Cow::Borrowed(request)))
 }
 
@@ -682,7 +682,6 @@ pub fn cantrip_page_table_alloc() -> Result<ObjDescBundle, MemoryManagerError> {
 #[inline]
 pub fn cantrip_object_free(request: &ObjDescBundle) -> Result<(), MemoryManagerError> {
     trace!("cantrip_object_free {}", request);
-    sel4_sys::debug_assert_slot_cnode!(request.cnode);
     cantrip_memory_request(&MemoryManagerRequest::Free(Cow::Borrowed(request)))
 }
 

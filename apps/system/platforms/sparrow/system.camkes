@@ -55,6 +55,7 @@ component VectorCoreHw {
 
 component BuiltinCpioArchive {
     hardware;
+    // NB: should match cpio.cpio_size below
     dataport Buf(0x1000000) cpio;
 }
 
@@ -87,8 +88,8 @@ assembly {
         component SecurityCoordinator security_coordinator;
         component TimerService timer_service;
 
-        // Built-in CPIO archive is visible only to DebugConsole.
-        connection seL4HardwareMMIO cpio_archive(from debug_console.cpio_archive,
+        // Built-in CPIO archive is visible only to the SecurityCoordinator.
+        connection seL4HardwareMMIO cpio_archive(from security_coordinator.cpio_archive,
                                                  to cpio.cpio);
 
         // MailboxHardware & MailboxDriver:
@@ -155,9 +156,10 @@ assembly {
             from debug_console.proc_ctrl,    // NB: start, stop, etc
             to process_manager.proc_ctrl);
         // NB: this allocates a 4KB shared region to pass an ObjDescArray
-        connection seL4RPCOverMultiSharedData shell_package(
-            from debug_console.pkg_mgmt,     // NB: install* & uninstall
-            to process_manager.pkg_mgmt);
+// NB: requires dynamic_load_support, otherwise only builtins are available
+//        connection seL4RPCOverMultiSharedData shell_package(
+//            from debug_console.pkg_mgmt,     // NB: install* & uninstall
+//            to process_manager.pkg_mgmt);
 
         // MlCoordinator:
         connection seL4RPCCallSignal shell_ml(
@@ -212,6 +214,11 @@ assembly {
     }
 
     configuration {
+        // The cpio archive is mapped into the FLASH region for now. This
+        // models what will happen when the Security Core owns the contents
+        // (likely with a different filesystem format).
+        // TODO(sleffler): SC eFLASH is @0x20000000 and not visible in SMC
+        //    address space so does it matter where we place this?
         cpio.cpio_paddr = 0x46000000;
         cpio.cpio_size = 0x1000000;
 
@@ -253,6 +260,7 @@ assembly {
 
         process_manager._stack_size = 16*1024;
         process_manager.proc_ctrl_stack_size = 16*1024;
+        // NB: only meaningful with dynamic_load_support
         process_manager.pkg_mgmt_stack_size = 16*1024;
 
         ml_coordinator._stack_size = 16*1024;

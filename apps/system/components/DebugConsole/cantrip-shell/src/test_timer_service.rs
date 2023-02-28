@@ -39,7 +39,6 @@ fn timer_async_command(
     args: &mut dyn Iterator<Item = &str>,
     _input: &mut dyn io::BufRead,
     output: &mut dyn io::Write,
-    _builtin_cpio: &[u8],
 ) -> Result<(), CommandError> {
     let id_str = args.next().ok_or(CommandError::BadArgs)?;
     let id = id_str.parse::<u32>()?;
@@ -62,7 +61,6 @@ fn timer_blocking_command(
     args: &mut dyn Iterator<Item = &str>,
     _input: &mut dyn io::BufRead,
     output: &mut dyn io::Write,
-    _builtin_cpio: &[u8],
 ) -> Result<(), CommandError> {
     let time_str = args.next().ok_or(CommandError::BadArgs)?;
     let time_ms = time_str.parse::<u32>()?;
@@ -77,7 +75,7 @@ fn timer_blocking_command(
 
     let _ = cantrip_timer_wait();
 
-    return Ok(writeln!(output, "Timer completed.")?);
+    Ok(writeln!(output, "Timer completed.")?)
 }
 
 /// Implements a command that checks the completed timers.
@@ -85,11 +83,10 @@ fn timer_completed_command(
     _args: &mut dyn Iterator<Item = &str>,
     _input: &mut dyn io::BufRead,
     output: &mut dyn io::Write,
-    _builtin_cpio: &[u8],
 ) -> Result<(), CommandError> {
-    return Ok(writeln!(
+    Ok(writeln!(
         output,
         "Timers completed: {:#032b}",
         cantrip_timer_completed_timers().unwrap(),
-    )?);
+    )?)
 }

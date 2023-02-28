@@ -18,6 +18,7 @@
 
 extern crate alloc;
 use alloc::string::{String, ToString};
+use alloc::vec::Vec;
 use cantrip_memory_interface::ObjDescBundle;
 use cantrip_os_common::camkes::Camkes;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
@@ -46,6 +47,8 @@ pub type SecurityReplyData = [u8; SECURITY_REPLY_DATA_SIZE];
 // TODO(sleffler): temp constraint on value part of key-value pairs
 pub const KEY_VALUE_DATA_SIZE: usize = 100;
 pub type KeyValueData = [u8; KEY_VALUE_DATA_SIZE];
+
+pub type BundleIdArray = Vec<String>;
 
 // NB: struct's marked repr(C) are processed by cbindgen to get a .h file
 //   used in camkes C interfaces.
@@ -122,6 +125,17 @@ pub struct UninstallRequest<'a> {
     pub bundle_id: &'a str,
 }
 impl<'a> SecurityCapability for UninstallRequest<'a> {}
+
+// SecurityRequest::GetPackages
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GetPackagesRequest {}
+impl SecurityCapability for GetPackagesRequest {}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GetPackagesResponse {
+    pub bundle_ids: BundleIdArray,
+}
+impl SecurityCapability for GetPackagesResponse {}
 
 // SecurityRequestSizeBuffer
 #[derive(Debug, Serialize, Deserialize)]
@@ -270,6 +284,7 @@ pub enum SecurityRequest {
     SrInstallApp,   // Install application [app_id, pkg_buffer]
     SrInstallModel, // Install model [app_id, model_id, pkg_buffer]
     SrUninstall,    // Uninstall package [bundle_id]
+    SrGetPackages,  // Return names of packages [
 
     SrSizeBuffer,      // Size application image [bundle_id] -> u32
     SrGetManifest,     // Return application manifest [bundle_id] -> String
@@ -300,11 +315,12 @@ pub trait SecurityCoordinatorInterface {
         pkg_contents: &ObjDescBundle,
     ) -> Result<(), SecurityRequestError>;
     fn uninstall(&mut self, bundle_id: &str) -> Result<(), SecurityRequestError>;
+    fn get_packages(&self) -> Result<BundleIdArray, SecurityRequestError>;
     fn size_buffer(&self, bundle_id: &str) -> Result<usize, SecurityRequestError>;
     fn get_manifest(&self, bundle_id: &str) -> Result<String, SecurityRequestError>;
-    fn load_application(&self, bundle_id: &str) -> Result<ObjDescBundle, SecurityRequestError>;
+    fn load_application(&mut self, bundle_id: &str) -> Result<ObjDescBundle, SecurityRequestError>;
     fn load_model(
-        &self,
+        &mut self,
         bundle_id: &str,
         model_id: &str,
     ) -> Result<ObjDescBundle, SecurityRequestError>;
@@ -451,6 +467,15 @@ pub fn cantrip_security_uninstall(bundle_id: &str) -> Result<(), SecurityRequest
         &UninstallRequest { bundle_id },
         &mut [0u8; SECURITY_REPLY_DATA_SIZE],
     )
+}
+
+#[inline]
+pub fn cantrip_security_get_packages() -> Result<BundleIdArray, SecurityRequestError> {
+    let reply = &mut [0u8; SECURITY_REPLY_DATA_SIZE];
+    cantrip_security_request(SecurityRequest::SrGetPackages, &GetPackagesRequest {}, reply)?;
+    let response = postcard::from_bytes::<GetPackagesResponse>(reply)
+        .or(Err(SecurityRequestError::SreDeserializeFailed))?;
+    Ok(response.bundle_ids)
 }
 
 #[inline]

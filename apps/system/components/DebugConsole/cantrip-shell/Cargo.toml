@@ -31,6 +31,7 @@ default = [
 ]
 ml_support = ["cantrip-ml-interface"]
 timer_support = []
+dynamic_load_support = ["zmodem"]
 CONFIG_DEBUG_BUILD = []
 CONFIG_PRINTING = []
 CONFIG_KERNEL_MCS = []
@@ -44,7 +45,7 @@ CONFIG_PLAT_SPARROW = [
     "TEST_MAILBOX",
 ]
 # Commands that are likely not useful
-FRINGE_CMDS = []
+FRINGE_CMDS = ["zmodem"]
 # Runtime tests for various services (please keep sorted)
 TEST_GLOBAL_ALLOCATOR = []
 TEST_MAILBOX = []
@@ -58,17 +59,17 @@ TEST_UART = []
 
 [dependencies]
 crc = { version = "1.4.0", default_features = false }
-cpio = { git = "https://github.com/rcore-os/cpio" }
 hashbrown = { version = "0.11", features = ["ahash-compile-time-rng"] }
 hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
 cantrip-io = { path = "../cantrip-io" }
 cantrip-line-reader = { path = "../cantrip-line-reader" }
 cantrip-memory-interface = { path = "../../MemoryManager/cantrip-memory-interface" }
 cantrip-ml-interface = { path = "../../MlCoordinator/cantrip-ml-interface", optional = true }
+cantrip-io-objdesc = { path = "../cantrip-io-objdesc" }
 cantrip-proc-interface = { path = "../../ProcessManager/cantrip-proc-interface" }
 cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-security-interface = { path = "../../SecurityCoordinator/cantrip-security-interface" }
 cantrip-timer-interface = { path = "../../TimerService/cantrip-timer-interface" }
 cantrip-sdk-manager = { path = "../../SDKRuntime/cantrip-sdk-manager" }
 log = { version = "0.4", features = ["release_max_level_info"] }
-zmodem = { path = "../zmodem" }
+zmodem = { path = "../zmodem", optional = true }

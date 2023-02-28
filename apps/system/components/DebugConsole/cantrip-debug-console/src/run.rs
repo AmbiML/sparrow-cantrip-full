@@ -28,8 +28,6 @@
 
 use cantrip_os_common::camkes::Camkes;
 use core::fmt::Write;
-use core::slice;
-use cpio::CpioNewcReader;
 use cstr_core::CStr;
 use log::LevelFilter;
 
@@ -44,15 +42,11 @@ const INIT_LOG_LEVEL: LevelFilter = LevelFilter::Trace;
 #[cfg(not(any(feature = "LOG_DEBUG", feature = "LOG_TRACE")))]
 const INIT_LOG_LEVEL: LevelFilter = LevelFilter::Info;
 
-extern "C" {
-    static cpio_archive: *const u8; // CPIO archive of built-in files
-}
-
 static mut CAMKES: Camkes = Camkes::new("DebugConsole");
 
 #[no_mangle]
 pub unsafe extern "C" fn pre_init() {
-    const HEAP_SIZE: usize = 16 * 1024;
+    const HEAP_SIZE: usize = 12 * 1024;
     static mut HEAP_MEMORY: [u8; HEAP_SIZE] = [0; HEAP_SIZE];
     CAMKES.pre_init(INIT_LOG_LEVEL, &mut HEAP_MEMORY);
 }
@@ -110,53 +104,32 @@ pub unsafe extern "C" fn logger_log(level: u8, msg: *const cstr_core::c_char) {
     }
 }
 
-// If the builtins archive includes an "autostart.repl" file it is run
-// through the shell with output sent either to the console or /dev/null
-// depending on the feature selection.
+// Run any "autostart.repl" file in the eFLASH through the shell with output
+// sent either to the console or /dev/null depending on the feature selection.
 #[cfg(feature = "autostart_support")]
-fn run_autostart_shell(cpio_archive_ref: &[u8]) {
-    const AUTOSTART_NAME: &str = "autostart.repl";
-
-    let mut autostart_script: Option<&[u8]> = None;
-    let reader = CpioNewcReader::new(cpio_archive_ref);
-    for e in reader {
-        if e.is_err() {
-            break;
-        }
-        let entry = e.unwrap();
-        if entry.name == AUTOSTART_NAME {
-            autostart_script = Some(entry.data);
-            break;
-        }
-    }
-    if let Some(script) = autostart_script {
-        // Rx data comes from the embedded script
-        // Tx data goes to either the uart or /dev/null
-        let mut rx = cantrip_io::BufReader::new(script);
-        cantrip_shell::repl_eof(&mut get_tx(), &mut rx, cpio_archive_ref);
-    }
+fn run_autostart_shell() {
+    // Rx data comes from the embedded script
+    // Tx data goes to either the uart or /dev/null
+    // XXX test if autostart.repl is present
+    let mut rx = cantrip_io::BufReader::new("source -q autostart.repl\n".as_bytes());
+    cantrip_shell::repl_eof(&mut get_tx(), &mut rx);
 }
 
 // Runs an interactive shell using the Sparrow UART.
 #[cfg(feature = "CONFIG_PLAT_SPARROW")]
-fn run_sparrow_shell(cpio_archive_ref: &[u8]) -> ! {
+fn run_sparrow_shell() -> ! {
     let mut tx = cantrip_uart_client::Tx::new();
     let mut rx = io::BufReader::new(cantrip_uart_client::Rx::new());
-    cantrip_shell::repl(&mut tx, &mut rx, cpio_archive_ref);
+    cantrip_shell::repl(&mut tx, &mut rx);
 }
 
 /// Entry point for DebugConsole. Optionally runs an autostart script
 /// after which it runs an interactive shell with UART IO.
 #[no_mangle]
 pub extern "C" fn run() {
-    let cpio_archive_ref = unsafe {
-        // XXX want begin-end or begin+size instead of a fixed-size block
-        slice::from_raw_parts(cpio_archive, 16777216)
-    };
-
     #[cfg(feature = "autostart_support")]
-    run_autostart_shell(cpio_archive_ref);
+    run_autostart_shell();
 
     #[cfg(feature = "CONFIG_PLAT_SPARROW")]
-    run_sparrow_shell(cpio_archive_ref);
+    run_sparrow_shell();
 }

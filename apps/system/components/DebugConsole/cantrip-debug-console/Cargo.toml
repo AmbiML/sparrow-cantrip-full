@@ -31,7 +31,6 @@ autostart_support = []
 CONFIG_PRINTING = []
 # Target platform support
 CONFIG_PLAT_BCM2837 = []
-# TODO(sleffler): not working when this comes from build.rs
 CONFIG_PLAT_SPARROW = ["cantrip-uart-client"]
 # Log level is Info unless LOG_DEBUG or LOG_TRACE are specified
 LOG_DEBUG = []
@@ -39,7 +38,7 @@ LOG_TRACE = []
 
 [dependencies]
 cpio = { git = "https://github.com/rcore-os/cpio" }
-# Disable default so we don't pull in CString which requires an allocator
+# Disable default so we don't pull in CString
 cstr_core = { version = "0.2.3", default-features = false }
 cty = "0.2.1"
 cantrip-io = { path = "../cantrip-io" }

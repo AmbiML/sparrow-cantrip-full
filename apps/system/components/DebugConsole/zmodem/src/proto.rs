@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use alloc::string::ToString;
 use alloc::vec::Vec;
 use alloc::{format, vec};
 
@@ -264,7 +263,7 @@ where
     if let Some(size) = filesize {
         zfile_data += &format!(" {}", size);
     }
-    zfile_data += &"\0".to_string();
+    zfile_data += "\0";
 
     debug!("ZFILE supplied data: {}", zfile_data);
     write_zlde_data(w, ZCRCW, zfile_data.as_bytes())

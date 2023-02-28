@@ -33,7 +33,6 @@ fn uart_command(
     _args: &mut dyn Iterator<Item = &str>,
     _input: &mut dyn io::BufRead,
     output: &mut dyn io::Write,
-    _builtin_cpio: &[u8],
 ) -> Result<(), CommandError> {
     // Just like the cantrip shell prompt.
     const TESTING: &str = "testing...";

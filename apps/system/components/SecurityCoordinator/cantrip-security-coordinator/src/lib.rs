@@ -23,6 +23,7 @@ extern crate alloc;
 use alloc::boxed::Box;
 use alloc::string::String;
 use cantrip_memory_interface::ObjDescBundle;
+use cantrip_security_interface::BundleIdArray;
 use cantrip_security_interface::KeyValueData;
 use cantrip_security_interface::SecurityCoordinatorInterface;
 use cantrip_security_interface::SecurityRequestError;
@@ -84,22 +85,25 @@ impl SecurityCoordinatorInterface for CantripSecurityCoordinator {
     fn uninstall(&mut self, bundle_id: &str) -> Result<(), SecurityRequestError> {
         self.manager.as_mut().unwrap().uninstall(bundle_id)
     }
+    fn get_packages(&self) -> Result<BundleIdArray, SecurityRequestError> {
+        self.manager.as_ref().unwrap().get_packages()
+    }
     fn size_buffer(&self, bundle_id: &str) -> Result<usize, SecurityRequestError> {
         self.manager.as_ref().unwrap().size_buffer(bundle_id)
     }
     fn get_manifest(&self, bundle_id: &str) -> Result<String, SecurityRequestError> {
         self.manager.as_ref().unwrap().get_manifest(bundle_id)
     }
-    fn load_application(&self, bundle_id: &str) -> Result<ObjDescBundle, SecurityRequestError> {
-        self.manager.as_ref().unwrap().load_application(bundle_id)
+    fn load_application(&mut self, bundle_id: &str) -> Result<ObjDescBundle, SecurityRequestError> {
+        self.manager.as_mut().unwrap().load_application(bundle_id)
     }
     fn load_model(
-        &self,
+        &mut self,
         bundle_id: &str,
         model_id: &str,
     ) -> Result<ObjDescBundle, SecurityRequestError> {
         self.manager
-            .as_ref()
+            .as_mut()
             .unwrap()
             .load_model(bundle_id, model_id)
     }

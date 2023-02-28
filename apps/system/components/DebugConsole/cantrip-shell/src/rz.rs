@@ -82,6 +82,7 @@ impl Upload {
         (self.frames.count() * PAGE_SIZE) - (self.mapped_bytes - self.next_free)
     }
     pub fn finish(&mut self) { self.unmap_current_frame().expect("finish"); }
+    #[allow(dead_code)]
     pub fn frames(&self) -> &ObjDescBundle { &self.frames }
 
     // Unmap the current page and reset state.

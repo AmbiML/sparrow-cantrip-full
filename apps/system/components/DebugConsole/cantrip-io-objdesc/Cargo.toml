@@ -13,20 +13,13 @@
 # limitations under the License.
 
 [package]
-name = "cantrip-security-coordinator"
+name = "cantrip-io-objdesc"
 version = "0.1.0"
 edition = "2021"
 
-[features]
-default = ["fake"]  # TODO(sleffler): sel4 once it exists
-fake = ["cpio"]
-sel4 = []
-
 [dependencies]
-hashbrown = { version = "0.11", features = ["ahash-compile-time-rng"] }
+core2 = { version = "0.3", default-features = false }
+cantrip-io = { path = "../cantrip-io" }
 cantrip-memory-interface = { path = "../../MemoryManager/cantrip-memory-interface" }
 cantrip-os-common = { path = "../../cantrip-os-common" }
-cantrip-security-interface = { path = "../cantrip-security-interface" }
-cpio = { git = "https://github.com/rcore-os/cpio", optional = true }
-log = { version = "0.4", features = ["release_max_level_info"] }
-postcard = { version = "0.7", features = ["alloc"], default-features = false }
+log = "0.4"

@@ -35,7 +35,6 @@ fn mlcancel_command(
     args: &mut dyn Iterator<Item = &str>,
     _input: &mut dyn io::BufRead,
     output: &mut dyn io::Write,
-    _builtin_cpio: &[u8],
 ) -> Result<(), CommandError> {
     let bundle_id = args.next().ok_or(CommandError::BadArgs)?;
     let model_id = args.next().ok_or(CommandError::BadArgs)?;
@@ -53,7 +52,6 @@ fn mlexecute_command(
     args: &mut dyn Iterator<Item = &str>,
     _input: &mut dyn io::BufRead,
     output: &mut dyn io::Write,
-    _builtin_cpio: &[u8],
 ) -> Result<(), CommandError> {
     let bundle_id = args.next().ok_or(CommandError::BadArgs)?;
     let model_id = args.next().ok_or(CommandError::BadArgs)?;
@@ -70,7 +68,6 @@ fn mlperiodic_command(
     args: &mut dyn Iterator<Item = &str>,
     _input: &mut dyn io::BufRead,
     output: &mut dyn io::Write,
-    _builtin_cpio: &[u8],
 ) -> Result<(), CommandError> {
     let bundle_id = args.next().ok_or(CommandError::BadArgs)?;
     let model_id = args.next().ok_or(CommandError::BadArgs)?;

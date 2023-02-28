@@ -151,17 +151,16 @@ impl ProcessControlInterface for ProcessManager {
                     bundle.bundle_impl = Some(self.manager.start(&bundle.bundle)?);
                 }
                 bundle.state = BundleState::Running;
-                Ok(())
             }
             None => {
-                // We depend on the hashmap contents since we need the Bundle
-                // to setup/start the application. To that end we pre-populate
-                // the hashmap at start by querying the StorageManager for
-                // previously installed applications.
-                trace!("start {} not found", bundle_id);
-                Err(ProcessManagerError::BundleNotFound)
+                trace!("builtin auto-install");
+                let mut bundle = BundleData::new(&Bundle::new(&bid));
+                bundle.bundle_impl = Some(self.manager.start(&bundle.bundle)?);
+                bundle.state = BundleState::Running;
+                assert!(self.bundles.insert(bid, bundle).is_none());
             }
         }
+        Ok(())
     }
 
     fn stop(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError> {

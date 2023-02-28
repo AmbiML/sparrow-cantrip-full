@@ -25,13 +25,11 @@ import <SDKManagerInterface.camkes>;
 component DebugConsole {
   control;
 
-  dataport Buf(0x1000000) cpio_archive;
-
   provides LoggerInterface logger;
   uses MemoryInterface memory;
-  uses PackageManagementInterface pkg_mgmt;
+  // NB: load+unload are optional shell commands
+  maybe uses PackageManagementInterface pkg_mgmt;
   uses ProcessControlInterface proc_ctrl;
-  // TODO(b/200707300): for debugging
   maybe uses SecurityCoordinatorInterface security;
   maybe uses SDKManagerInterface sdk_manager;
 

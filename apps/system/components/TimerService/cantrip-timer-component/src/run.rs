@@ -55,6 +55,7 @@ pub unsafe extern "C" fn timer_request(
     c_request_buffer: *const u8,
     c_reply_buffer: *mut TimerServiceResponseData,
 ) -> TimerServiceError {
+    let _cleanup = Camkes::cleanup_request_cap();
     let request_buffer = slice::from_raw_parts(c_request_buffer, c_reques_buffer_len as usize);
     let request = match postcard::from_bytes::<TimerServiceRequest>(request_buffer) {
         Ok(request) => request,

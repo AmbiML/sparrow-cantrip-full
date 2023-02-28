@@ -37,8 +37,8 @@ assembly {
 
         component SDKRuntime sdk_runtime;
 
-        // Built-in CPIO archive is visible only to DebugConsole.
-        connection seL4HardwareMMIO cpio_archive(from debug_console.cpio_archive,
+        // Built-in CPIO archive is visible only to the SecurityCoordinator.
+        connection seL4HardwareMMIO cpio_archive(from security_coordinator.cpio_archive,
                                                  to cpio.cpio);
 
         // Hookup ProcessManager to DebugConsole for shell commands.
@@ -53,11 +53,12 @@ assembly {
             from debug_console.sdk_manager,  // NB: for capscan support
             to sdk_runtime.sdk_manager);
 
+// NB: requires dynamic_load_support, otherwise only builtins are available
         // Note this allocates a 4KB shared memory region for pkg install
         // to pass an ObjDescArray
-        connection seL4RPCOverMultiSharedData shell_package(
-            from debug_console.pkg_mgmt,
-            to process_manager.pkg_mgmt);
+//        connection seL4RPCOverMultiSharedData shell_package(
+//            from debug_console.pkg_mgmt,
+//            to process_manager.pkg_mgmt);
 
         // Connect the MemoryInterface to each component that needs to allocate
         // global memory. Note this allocates a 4KB shared memory region to each
@@ -99,6 +100,7 @@ assembly {
 
         process_manager._stack_size = 16*1024;
         process_manager.proc_ctrl_stack_size = 32*1024; // 2x for bundle creation
+        // NB: only meaningful with dynamic_load_support
         process_manager.pkg_mgmt_stack_size = 16*1024;
 
         // TODO(sleffler): need to understand why a larger stack is needed

@@ -26,6 +26,11 @@ component SecurityCoordinator {
   uses MemoryInterface memory;
   maybe uses MailboxAPI mailbox_api;
 
+  // Mapped cpio archive to emulate eFLASH for use by fake impl.
+  // The real hw has no access to this region; it must go through
+  // the Security Core.
+  dataport Buf(0x1000000) cpio_archive;
+
   // Enable CantripOS CAmkES support.
   attribute int cantripos = true;
 

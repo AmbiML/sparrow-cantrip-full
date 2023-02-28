@@ -42,7 +42,6 @@ fn scecho_command(
     args: &mut dyn Iterator<Item = &str>,
     _input: &mut dyn io::BufRead,
     output: &mut dyn io::Write,
-    _builtin_cpio: &[u8],
 ) -> Result<(), CommandError> {
     let request = args.collect::<Vec<&str>>().join(" ");
     match cantrip_security_echo(&request) {
@@ -56,7 +55,6 @@ fn size_buffer_command(
     args: &mut dyn Iterator<Item = &str>,
     _input: &mut dyn io::BufRead,
     output: &mut dyn io::Write,
-    _builtin_cpio: &[u8],
 ) -> Result<(), CommandError> {
     let bundle_id = args.next().ok_or(CommandError::BadArgs)?;
     match cantrip_security_size_buffer(bundle_id) {
@@ -70,7 +68,6 @@ fn get_manifest_command(
     args: &mut dyn Iterator<Item = &str>,
     _input: &mut dyn io::BufRead,
     output: &mut dyn io::Write,
-    _builtin_cpio: &[u8],
 ) -> Result<(), CommandError> {
     let bundle_id = args.next().ok_or(CommandError::BadArgs)?;
     match cantrip_security_get_manifest(bundle_id) {
@@ -84,7 +81,6 @@ fn load_application_command(
     args: &mut dyn Iterator<Item = &str>,
     _input: &mut dyn io::BufRead,
     output: &mut dyn io::Write,
-    _builtin_cpio: &[u8],
 ) -> Result<(), CommandError> {
     let bundle_id = args.next().ok_or(CommandError::BadArgs)?;
     let mut container_slot = CSpaceSlot::new();
@@ -103,7 +99,6 @@ fn load_model_command(
     args: &mut dyn Iterator<Item = &str>,
     _input: &mut dyn io::BufRead,
     output: &mut dyn io::Write,
-    _builtin_cpio: &[u8],
 ) -> Result<(), CommandError> {
     let bundle_id = args.next().ok_or(CommandError::BadArgs)?;
     let model_id = args.next().ok_or(CommandError::BadArgs)?;
@@ -123,7 +118,6 @@ fn test_mailbox_command(
     _args: &mut dyn Iterator<Item = &str>,
     _input: &mut dyn io::BufRead,
     output: &mut dyn io::Write,
-    _builtin_cpio: &[u8],
 ) -> Result<(), CommandError> {
     match cantrip_security_test_mailbox() {
         Ok(_) => {

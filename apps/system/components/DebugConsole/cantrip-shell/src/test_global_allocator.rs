@@ -37,7 +37,6 @@ fn alloc_command(
     _args: &mut dyn Iterator<Item = &str>,
     _input: &mut dyn io::BufRead,
     output: &mut dyn io::Write,
-    _builtin_cpio: &[u8],
 ) -> Result<(), CommandError> {
     extern crate alloc;
     use alloc::{boxed::Box, rc::Rc};
@@ -78,7 +77,6 @@ fn alloc_error_command(
     _args: &mut dyn Iterator<Item = &str>,
     _input: &mut dyn io::BufRead,
     output: &mut dyn io::Write,
-    _builtin_cpio: &[u8],
 ) -> Result<(), CommandError> {
     // Default heap holds 16KB.
     let mut vec = Vec::with_capacity(16384);

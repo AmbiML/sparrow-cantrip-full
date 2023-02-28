@@ -66,6 +66,7 @@ pub unsafe extern "C" fn pkg_mgmt_request(
     c_request_buffer: *const u8,
     c_reply_buffer: *mut RawBundleIdData,
 ) -> ProcessManagerError {
+    let _cleanup = Camkes::cleanup_request_cap();
     let request_buffer = slice::from_raw_parts(c_request_buffer, c_request_buffer_len as usize);
     let request = match postcard::from_bytes::<PackageManagementRequest>(request_buffer) {
         Ok(request) => request,
@@ -139,6 +140,7 @@ pub unsafe extern "C" fn proc_ctrl_request(
     c_request_buffer: *const u8,
     c_reply_buffer: *mut RawBundleIdData,
 ) -> ProcessManagerError {
+    let _cleanup = Camkes::cleanup_request_cap();
     let request_buffer = slice::from_raw_parts(c_request_buffer, c_request_buffer_len as usize);
     let request = match postcard::from_bytes::<ProcessControlRequest>(request_buffer) {
         Ok(request) => request,
