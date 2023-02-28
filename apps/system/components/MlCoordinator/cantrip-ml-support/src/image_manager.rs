@@ -81,9 +81,6 @@ struct Image {
 
 pub type ImageIdx = usize;
 
-// NB: Can't use `None` as it's Option<T>, need to clarify its Option<Image>
-const INIT_NONE: Option<Image> = None;
-
 // ImageManager tracks three pointers into TCM:
 //                   +---------------+
 //                   |               |
@@ -122,6 +119,8 @@ fn space_needed(current_size: usize, requested_size: usize) -> usize {
 
 impl ImageManager {
     pub const fn new() -> Self {
+        // NB: The repeat operand requires a const item.
+        const INIT_NONE: Option<Image> = None;
         ImageManager {
             images: [INIT_NONE; MAX_MODELS],
             image_queue: Vec::new(),

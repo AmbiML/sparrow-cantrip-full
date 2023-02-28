@@ -71,11 +71,10 @@ pub struct MLCoordinator {
 // The index of a model in MLCoordinator.models
 pub type ModelIdx = usize;
 
-// NB: Can't use `None` as it's Option<T>, need to clarify its Option<Model>
-const INIT_NONE: Option<LoadableModel> = None;
-
 impl MLCoordinator {
     pub const fn new() -> Self {
+        // NB: The repeat operand requires a const item.
+        const INIT_NONE: Option<LoadableModel> = None;
         MLCoordinator {
             running_model: None,
             models: [INIT_NONE; MAX_MODELS],
