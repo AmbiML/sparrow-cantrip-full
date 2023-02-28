@@ -109,12 +109,7 @@ pub fn write_image_part<R: Read>(
 /// Move |src_index..src_index + byte_length| to
 /// |dest_index..dest_index + byte_length|.
 pub fn tcm_move(src: usize, dest: usize, byte_length: usize) {
-    trace!(
-        "Moving 0x{:x} bytes to 0x{:x} from 0x{:x}",
-        byte_length,
-        dest as usize,
-        src as usize,
-    );
+    trace!("Moving {:#x} bytes to {:#x} from {:#x}", byte_length, dest, src);
 
     let tcm_slice = get_tcm_slice();
     let src_index = (src - TCM_PADDR) / size_of::<u32>();

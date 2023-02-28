@@ -129,7 +129,7 @@ fn uninstall_request(
     let recv_path = unsafe { CAMKES.get_owned_current_recv_path() };
     Camkes::debug_assert_slot_empty("uninstall_request", &recv_path);
 
-    let _ = unsafe { CANTRIP_PROC.uninstall(bundle_id) }?;
+    unsafe { CANTRIP_PROC.uninstall(bundle_id) }?;
     Camkes::debug_assert_slot_empty("uninstall_request", &recv_path);
     Ok(())
 }
