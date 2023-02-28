@@ -60,6 +60,8 @@ for crate in ${CRATE_LIST[@]}; do
     ${CARGO_HOME}/bin/cargo +${CANTRIP_RUST_VERSION} clippy \
       -Z unstable-options -Z avoid-dev-deps \
       --target ${RUST_TARGET} --features=${CONFIG_PLATFORM} \
-      --target-dir ${CANTRIP_OUT_DIR}/clippy -- -D warnings
+      --target-dir ${CANTRIP_OUT_DIR}/clippy -- \
+          -D warnings \
+          -A clippy::uninlined_format_args
   popd > /dev/null
 done
