@@ -209,12 +209,7 @@ pub trait SDKRuntimeInterface {
 
     /// Returns any value for the specified |key| in the app's  private key-value store.
     /// Data are written to |keyval| and returned as a slice.
-    fn read_key<'a>(
-        &self,
-        app_id: SDKAppId,
-        key: &str,
-        keyval: &'a mut [u8],
-    ) -> Result<&'a [u8], SDKError>;
+    fn read_key(&self, app_id: SDKAppId, key: &str) -> Result<KeyValueData, SDKError>;
 
     /// Writes |value| for the specified |key| in the app's private key-value store.
     fn write_key(&self, app_id: SDKAppId, key: &str, value: &KeyValueData) -> Result<(), SDKError>;

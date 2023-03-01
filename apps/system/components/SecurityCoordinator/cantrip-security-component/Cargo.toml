@@ -22,6 +22,7 @@ CONFIG_PLAT_BCM2837 = []
 CONFIG_PLAT_SPARROW = []
 
 [dependencies]
+cantrip-memory-interface = { path = "../../MemoryManager/cantrip-memory-interface" }
 cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-security-interface = { path = "../cantrip-security-interface" }
 cantrip-security-coordinator = { path = "../cantrip-security-coordinator" }

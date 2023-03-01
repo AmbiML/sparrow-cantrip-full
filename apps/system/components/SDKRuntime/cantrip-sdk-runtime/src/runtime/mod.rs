@@ -389,15 +389,9 @@ impl SDKRuntimeInterface for SDKRuntime {
     }
 
     /// Returns any value for the specified |key| in the app's  private key-value store.
-    fn read_key<'a>(
-        &self,
-        app_id: SDKAppId,
-        key: &str,
-        keyval: &'a mut [u8],
-    ) -> Result<&'a [u8], SDKError> {
+    fn read_key(&self, app_id: SDKAppId, key: &str) -> Result<KeyValueData, SDKError> {
         let app = self.get_app(app_id)?;
-        cantrip_security_read_key(&app.app_id, key, keyval).or(Err(SDKError::ReadKeyFailed))?; // XXX
-        Ok(keyval)
+        cantrip_security_read_key(&app.app_id, key).or(Err(SDKError::ReadKeyFailed))
     }
 
     /// Writes |value| for the specified |key| in the app's private key-value store.

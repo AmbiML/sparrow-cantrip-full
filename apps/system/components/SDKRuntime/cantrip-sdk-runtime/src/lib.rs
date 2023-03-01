@@ -87,13 +87,8 @@ impl SDKRuntimeInterface for Guard<'_> {
     }
 
     // Key-value store interfaces.
-    fn read_key<'a>(
-        &self,
-        app_id: SDKAppId,
-        key: &str,
-        keyval: &'a mut [u8],
-    ) -> Result<&'a [u8], SDKError> {
-        self.runtime.as_ref().unwrap().read_key(app_id, key, keyval)
+    fn read_key(&self, app_id: SDKAppId, key: &str) -> Result<KeyValueData, SDKError> {
+        self.runtime.as_ref().unwrap().read_key(app_id, key)
     }
     fn write_key(&self, app_id: SDKAppId, key: &str, value: &KeyValueData) -> Result<(), SDKError> {
         self.runtime.as_ref().unwrap().write_key(app_id, key, value)

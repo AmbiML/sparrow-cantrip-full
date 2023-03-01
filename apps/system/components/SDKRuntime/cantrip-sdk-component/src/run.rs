@@ -45,7 +45,6 @@ use core::ptr;
 use cstr_core::CStr;
 use log::error;
 
-use sdk_interface::KeyValueData;
 use sdk_interface::SDKAppId;
 use sdk_interface::SDKError;
 use sdk_interface::SDKRuntimeError;
@@ -302,9 +301,8 @@ fn read_key_request(
 ) -> Result<(), SDKError> {
     let request = postcard::from_bytes::<sdk_interface::ReadKeyRequest>(request_slice)
         .map_err(deserialize_failure)?;
-    let mut keyval = ::core::mem::MaybeUninit::<KeyValueData>::uninit();
-    let value = cantrip_sdk().read_key(app_id, request.key, unsafe { keyval.assume_init_mut() })?;
-    let _ = postcard::to_slice(&sdk_interface::ReadKeyResponse { value }, reply_slice)
+    let value = cantrip_sdk().read_key(app_id, request.key)?;
+    let _ = postcard::to_slice(&sdk_interface::ReadKeyResponse { value: &value }, reply_slice)
         .map_err(serialize_failure)?;
     Ok(())
 }

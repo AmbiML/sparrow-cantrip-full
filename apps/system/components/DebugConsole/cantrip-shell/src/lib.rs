@@ -474,9 +474,8 @@ fn kvread_command(
 ) -> Result<(), CommandError> {
     let bundle_id = args.next().ok_or(CommandError::BadArgs)?;
     let key = args.next().ok_or(CommandError::BadArgs)?;
-    let mut keyval = [0u8; cantrip_security_interface::KEY_VALUE_DATA_SIZE];
-    match cantrip_security_read_key(bundle_id, key, &mut keyval) {
-        Ok(_) => {
+    match cantrip_security_read_key(bundle_id, key) {
+        Ok(keyval) => {
             writeln!(output, "Read key \"{}\" = {:?}.", key, keyval)?;
         }
         Err(status) => {

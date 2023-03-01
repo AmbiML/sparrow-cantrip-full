@@ -395,10 +395,12 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinator {
         &mut self,
         bundle_id: &str,
         key: &str,
-        value: &KeyValueData,
+        value: &[u8],
     ) -> Result<(), SecurityRequestError> {
         let bundle = self.get_bundle_mut(bundle_id)?;
-        let _ = bundle.keys.insert(key.to_string(), *value);
+        let mut keyval = [0u8; KEY_VALUE_DATA_SIZE];
+        keyval[..value.len()].copy_from_slice(value);
+        let _ = bundle.keys.insert(key.to_string(), keyval);
         Ok(())
     }
     fn delete_key(&mut self, bundle_id: &str, key: &str) -> Result<(), SecurityRequestError> {

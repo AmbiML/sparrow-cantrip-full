@@ -18,6 +18,9 @@
 #![no_std]
 #![allow(clippy::missing_safety_doc)]
 
+extern crate alloc;
+use alloc::string::ToString;
+use cantrip_memory_interface::ObjDescBundle;
 use cantrip_os_common::camkes::Camkes;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_os_common::sel4_sys;
@@ -26,8 +29,6 @@ use cantrip_security_coordinator::CantripSecurityCoordinatorInterface;
 use cantrip_security_interface::*;
 use core::slice;
 use log::trace;
-
-use SecurityRequestError::*;
 
 use sel4_sys::seL4_CPtr;
 
@@ -73,116 +74,137 @@ pub unsafe extern "C" fn security__init() {
     Camkes::debug_assert_slot_empty("security__init", path);
 }
 
-fn serialize_failure(e: postcard::Error) -> SecurityRequestError {
-    trace!("serialize failed: {:?}", e);
-    SreBundleDataInvalid
-}
-fn deserialize_failure(e: postcard::Error) -> SecurityRequestError {
-    trace!("deserialize failed: {:?}", e);
-    SreDeserializeFailed
+#[no_mangle]
+pub unsafe extern "C" fn security_request(
+    c_request_buffer_len: u32,
+    c_request_buffer: *const u8,
+    c_reply_buffer: *mut SecurityReplyData,
+) -> SecurityRequestError {
+    let request_buffer = slice::from_raw_parts(c_request_buffer, c_request_buffer_len as usize);
+    let request = match postcard::from_bytes::<SecurityRequest>(request_buffer) {
+        Ok(request) => request,
+        Err(_) => return SecurityRequestError::SreDeserializeFailed,
+    };
+
+    let reply_buffer = &mut *c_reply_buffer;
+    match request {
+        SecurityRequest::Echo(value) => echo_request(value, reply_buffer),
+        SecurityRequest::Install(pkg_contents) => {
+            install_request(pkg_contents.into_owned(), reply_buffer)
+        }
+        SecurityRequest::InstallApp {
+            app_id,
+            pkg_contents,
+        } => install_app_request(app_id, pkg_contents.into_owned()),
+        SecurityRequest::InstallModel {
+            app_id,
+            model_id,
+            pkg_contents,
+        } => install_model_request(app_id, model_id, pkg_contents.into_owned()),
+        SecurityRequest::Uninstall(bundle_id) => uninstall_request(bundle_id),
+        SecurityRequest::GetPackages => get_packages_request(reply_buffer),
+        SecurityRequest::SizeBuffer(bundle_id) => size_buffer_request(bundle_id, reply_buffer),
+        SecurityRequest::GetManifest(bundle_id) => get_manifest_request(bundle_id, reply_buffer),
+        SecurityRequest::LoadApplication(bundle_id) => {
+            load_application_request(bundle_id, reply_buffer)
+        }
+        SecurityRequest::LoadModel {
+            bundle_id,
+            model_id,
+        } => load_model_request(bundle_id, model_id, reply_buffer),
+        SecurityRequest::ReadKey { bundle_id, key } => {
+            read_key_request(bundle_id, key, reply_buffer)
+        }
+        SecurityRequest::WriteKey {
+            bundle_id,
+            key,
+            value,
+        } => write_key_request(bundle_id, key, value),
+        SecurityRequest::DeleteKey { bundle_id, key } => delete_key_request(bundle_id, key),
+        SecurityRequest::TestMailbox => test_mailbox_request(),
+        SecurityRequest::CapScan => capscan_request(),
+    }
+    .map_or_else(|e| e, |_v| SecurityRequestError::SreSuccess)
 }
 
-fn echo_request(
-    request_buffer: &[u8],
-    reply_buffer: &mut [u8],
-) -> Result<(), SecurityRequestError> {
+fn echo_request(value: &str, reply_buffer: &mut [u8]) -> Result<(), SecurityRequestError> {
     let _cleanup = Camkes::cleanup_request_cap();
-    let request =
-        postcard::from_bytes::<EchoRequest>(request_buffer).map_err(deserialize_failure)?;
-
-    trace!("ECHO {:?}", request.value);
-    // NB: cheat, bypass serde
-    reply_buffer[0..request.value.len()].copy_from_slice(request.value);
+    trace!("ECHO {:?}", value);
+    let _ = postcard::to_slice(
+        &EchoResponse {
+            value: value.to_string(),
+        },
+        reply_buffer,
+    )
+    .or(Err(SecurityRequestError::SreSerializeFailed))?;
     Ok(())
 }
 
 fn install_request(
-    request_buffer: &[u8],
+    mut pkg_contents: ObjDescBundle,
     reply_buffer: &mut [u8],
 ) -> Result<(), SecurityRequestError> {
     let _cleanup = Camkes::cleanup_request_cap();
     let recv_path = unsafe { CAMKES.get_current_recv_path() };
     Camkes::debug_assert_slot_cnode("install_request", &recv_path);
 
-    let mut request =
-        postcard::from_bytes::<InstallRequest>(request_buffer).map_err(deserialize_failure)?; // XXX clear_path
-
     // Move the container CNode so it's not clobbered.
     let mut container_slot = CSpaceSlot::new();
     container_slot
         .move_to(recv_path.0, recv_path.1, recv_path.2 as u8)
         .or(Err(SecurityRequestError::SreCapMoveFailed))?; // XXX expect?
-    request.set_container_cap(container_slot.release());
+    pkg_contents.cnode = container_slot.release();
 
-    let bundle_id = cantrip_security().install(&request.pkg_contents)?;
-    let _ = postcard::to_slice(
-        &InstallResponse {
-            bundle_id: &bundle_id,
-        },
-        reply_buffer,
-    )
-    .map_err(serialize_failure)?;
+    let bundle_id = cantrip_security().install(&pkg_contents)?;
+    let _ = postcard::to_slice(&InstallResponse { bundle_id }, reply_buffer)
+        .or(Err(SecurityRequestError::SreSerializeFailed))?;
     Ok(())
 }
 
 fn install_app_request(
-    request_buffer: &[u8],
-    _reply_buffer: &mut [u8],
+    app_id: &str,
+    mut pkg_contents: ObjDescBundle,
 ) -> Result<(), SecurityRequestError> {
     let _cleanup = Camkes::cleanup_request_cap();
     let recv_path = unsafe { CAMKES.get_current_recv_path() };
     Camkes::debug_assert_slot_cnode("install_application_request", &recv_path);
 
-    let mut request =
-        postcard::from_bytes::<InstallAppRequest>(request_buffer).map_err(deserialize_failure)?; // XXX clear_path
-
     // Move the container CNode so it's not clobbered.
     let mut container_slot = CSpaceSlot::new();
     container_slot
         .move_to(recv_path.0, recv_path.1, recv_path.2 as u8)
         .or(Err(SecurityRequestError::SreCapMoveFailed))?; // XXX expect?
-    request.set_container_cap(container_slot.release());
+    pkg_contents.cnode = container_slot.release();
 
-    cantrip_security().install_app(request.app_id, &request.pkg_contents)
+    cantrip_security().install_app(app_id, &pkg_contents)
 }
 
 fn install_model_request(
-    request_buffer: &[u8],
-    _reply_buffer: &mut [u8],
+    app_id: &str,
+    model_id: &str,
+    mut pkg_contents: ObjDescBundle,
 ) -> Result<(), SecurityRequestError> {
     let _cleanup = Camkes::cleanup_request_cap();
     let recv_path = unsafe { CAMKES.get_current_recv_path() };
     Camkes::debug_assert_slot_cnode("install_model_request", &recv_path);
 
-    let mut request =
-        postcard::from_bytes::<InstallModelRequest>(request_buffer).map_err(deserialize_failure)?; // XXX clear_path
-
     // Move the container CNode so it's not clobbered.
     let mut container_slot = CSpaceSlot::new();
     container_slot
         .move_to(recv_path.0, recv_path.1, recv_path.2 as u8)
         .or(Err(SecurityRequestError::SreCapMoveFailed))?; // XXX expect?
-    request.set_container_cap(container_slot.release());
+    pkg_contents.cnode = container_slot.release();
 
-    cantrip_security().install_model(request.app_id, request.model_id, &request.pkg_contents)
+    cantrip_security().install_model(app_id, model_id, &pkg_contents)
 }
 
-fn uninstall_request(
-    request_buffer: &[u8],
-    _reply_buffer: &mut [u8],
-) -> Result<(), SecurityRequestError> {
+fn uninstall_request(bundle_id: &str) -> Result<(), SecurityRequestError> {
     let _cleanup = Camkes::cleanup_request_cap();
-    let request =
-        postcard::from_bytes::<UninstallRequest>(request_buffer).map_err(deserialize_failure)?;
-
-    trace!("UNINSTALL {}", request.bundle_id);
-    cantrip_security().uninstall(request.bundle_id)
+    trace!("UNINSTALL {}", bundle_id);
+    cantrip_security().uninstall(bundle_id)
 }
 
-fn get_packages_request(
-    _request_buffer: &[u8],
-    reply_buffer: &mut [u8],
-) -> Result<(), SecurityRequestError> {
+fn get_packages_request(reply_buffer: &mut [u8]) -> Result<(), SecurityRequestError> {
     let _cleanup = Camkes::cleanup_request_cap();
     let bundle_ids = cantrip_security().get_packages()?;
 
@@ -191,61 +213,49 @@ fn get_packages_request(
     // overflow the buffer, an error is returned and the
     // contents are undefined (postcard does not specify).
     let _ = postcard::to_slice(&GetPackagesResponse { bundle_ids }, reply_buffer)
-        .map_err(serialize_failure)?;
+        .or(Err(SecurityRequestError::SreSerializeFailed))?;
     Ok(())
 }
 
 fn size_buffer_request(
-    request_buffer: &[u8],
+    bundle_id: &str,
     reply_buffer: &mut [u8],
 ) -> Result<(), SecurityRequestError> {
     let _cleanup = Camkes::cleanup_request_cap();
-    let request =
-        postcard::from_bytes::<SizeBufferRequest>(request_buffer).map_err(deserialize_failure)?;
 
-    trace!("SIZE BUFFER bundle_id {}", request.bundle_id);
-    let buffer_size = cantrip_security().size_buffer(request.bundle_id)?;
+    trace!("SIZE BUFFER bundle_id {}", bundle_id);
+    let buffer_size = cantrip_security().size_buffer(bundle_id)?;
     let _ = postcard::to_slice(&SizeBufferResponse { buffer_size }, reply_buffer)
-        .map_err(serialize_failure)?;
+        .or(Err(SecurityRequestError::SreSerializeFailed))?;
     Ok(())
 }
 
 fn get_manifest_request(
-    request_buffer: &[u8],
+    bundle_id: &str,
     reply_buffer: &mut [u8],
 ) -> Result<(), SecurityRequestError> {
-    let request =
-        postcard::from_bytes::<GetManifestRequest>(request_buffer).map_err(deserialize_failure)?;
-
-    trace!("GET MANIFEST bundle_id {}", request.bundle_id);
-    let manifest = cantrip_security().get_manifest(request.bundle_id)?;
-    let _ = postcard::to_slice(
-        &GetManifestResponse {
-            manifest: &manifest,
-        },
-        reply_buffer,
-    )
-    .map_err(serialize_failure)?;
+    let _cleanup = Camkes::cleanup_request_cap();
+    trace!("GET MANIFEST bundle_id {}", bundle_id);
+    let manifest = cantrip_security().get_manifest(bundle_id)?;
+    let _ = postcard::to_slice(&GetManifestResponse { manifest }, reply_buffer)
+        .or(Err(SecurityRequestError::SreSerializeFailed))?;
     Ok(())
 }
 
 fn load_application_request(
-    request_buffer: &[u8],
+    bundle_id: &str,
     reply_buffer: &mut [u8],
 ) -> Result<(), SecurityRequestError> {
-    let request = postcard::from_bytes::<LoadApplicationRequest>(request_buffer)
-        .map_err(deserialize_failure)?;
-
-    trace!("LOAD APPLICATION bundle_id {}", request.bundle_id);
-    let bundle_frames = cantrip_security().load_application(request.bundle_id)?;
+    trace!("LOAD APPLICATION bundle_id {}", bundle_id);
+    let bundle_frames = cantrip_security().load_application(bundle_id)?;
     // TODO(sleffler): maybe rearrange to eliminate clone
-    postcard::to_slice(
+    let _ = postcard::to_slice(
         &LoadApplicationResponse {
             bundle_frames: bundle_frames.clone(),
         },
         reply_buffer,
     )
-    .map_err(serialize_failure)?;
+    .or(Err(SecurityRequestError::SreSerializeFailed))?;
     trace!("LOAD APPLICATION -> {}", bundle_frames);
     // Cleanup allocated slot & mark cap for release after reply completes.
     Camkes::set_reply_cap_release(bundle_frames.cnode);
@@ -253,13 +263,11 @@ fn load_application_request(
 }
 
 fn load_model_request(
-    request_buffer: &[u8],
+    bundle_id: &str,
+    model_id: &str,
     reply_buffer: &mut [u8],
 ) -> Result<(), SecurityRequestError> {
-    let request =
-        postcard::from_bytes::<LoadModelRequest>(request_buffer).map_err(deserialize_failure)?;
-
-    let model_frames = cantrip_security().load_model(request.bundle_id, request.model_id)?;
+    let model_frames = cantrip_security().load_model(bundle_id, model_id)?;
     // TODO(sleffler): maybe rearrange to eliminate clone
     let _ = postcard::to_slice(
         &LoadApplicationResponse {
@@ -267,7 +275,7 @@ fn load_model_request(
         },
         reply_buffer,
     )
-    .map_err(serialize_failure)?;
+    .or(Err(SecurityRequestError::SreSerializeFailed))?;
     trace!("LOAD MODEL -> {}", model_frames);
     // Cleanup allocated slot & mark cap for release after reply completes.
     Camkes::set_reply_cap_release(model_frames.cnode);
@@ -275,49 +283,28 @@ fn load_model_request(
 }
 
 fn read_key_request(
-    request_buffer: &[u8],
+    bundle_id: &str,
+    key: &str,
     reply_buffer: &mut [u8],
 ) -> Result<(), SecurityRequestError> {
     let _cleanup = Camkes::cleanup_request_cap();
-    let request =
-        postcard::from_bytes::<ReadKeyRequest>(request_buffer).map_err(deserialize_failure)?;
-
-    trace!("READ KEY bundle_id {} key {}", request.bundle_id, request.key);
-    let value = cantrip_security().read_key(request.bundle_id, request.key)?;
-    let _ = postcard::to_slice(&ReadKeyResponse { value }, reply_buffer).map_err(serialize_failure);
+    trace!("READ KEY bundle_id {} key {}", bundle_id, key);
+    let value = cantrip_security().read_key(bundle_id, key)?;
+    let _ = postcard::to_slice(&ReadKeyResponse { value: *value }, reply_buffer)
+        .or(Err(SecurityRequestError::SreSerializeFailed))?;
     Ok(())
 }
 
-fn write_key_request(
-    request_buffer: &[u8],
-    _reply_buffer: &mut [u8],
-) -> Result<(), SecurityRequestError> {
+fn write_key_request(bundle_id: &str, key: &str, value: &[u8]) -> Result<(), SecurityRequestError> {
     let _cleanup = Camkes::cleanup_request_cap();
-    let request =
-        postcard::from_bytes::<WriteKeyRequest>(request_buffer).map_err(deserialize_failure)?;
-
-    trace!(
-        "WRITE KEY bundle_id {} key {} value {:?}",
-        request.bundle_id,
-        request.key,
-        request.value
-    );
-    // NB: the serialized data are variable length so copy to convert
-    let mut keyval = [0u8; KEY_VALUE_DATA_SIZE];
-    keyval[..request.value.len()].copy_from_slice(request.value);
-    cantrip_security().write_key(request.bundle_id, request.key, &keyval)
+    trace!("WRITE KEY bundle_id {} key {} value {:?}", bundle_id, key, value);
+    cantrip_security().write_key(bundle_id, key, value)
 }
 
-fn delete_key_request(
-    request_buffer: &[u8],
-    _reply_buffer: &mut [u8],
-) -> Result<(), SecurityRequestError> {
+fn delete_key_request(bundle_id: &str, key: &str) -> Result<(), SecurityRequestError> {
     let _cleanup = Camkes::cleanup_request_cap();
-    let request =
-        postcard::from_bytes::<DeleteKeyRequest>(request_buffer).map_err(deserialize_failure)?;
-
-    trace!("DELETE KEY bundle_id {} key {}", request.bundle_id, request.key);
-    cantrip_security().delete_key(request.bundle_id, request.key)
+    trace!("DELETE KEY bundle_id {} key {}", bundle_id, key);
+    cantrip_security().delete_key(bundle_id, key)
 }
 
 fn test_mailbox_request() -> Result<(), SecurityRequestError> {
@@ -330,35 +317,4 @@ fn capscan_request() -> Result<(), SecurityRequestError> {
     let _cleanup = Camkes::cleanup_request_cap();
     let _ = Camkes::capscan();
     Ok(())
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn security_request(
-    c_request: SecurityRequest,
-    c_request_buffer_len: u32,
-    c_request_buffer: *const u8,
-    c_reply_buffer: *mut SecurityReplyData,
-) -> SecurityRequestError {
-    let request_buffer = slice::from_raw_parts(c_request_buffer, c_request_buffer_len as usize);
-    let reply_buffer = &mut (*c_reply_buffer)[..];
-    match c_request {
-        SecurityRequest::SrEcho => echo_request(request_buffer, reply_buffer),
-        SecurityRequest::SrInstall => install_request(request_buffer, reply_buffer),
-        SecurityRequest::SrInstallApp => install_app_request(request_buffer, reply_buffer),
-        SecurityRequest::SrInstallModel => install_model_request(request_buffer, reply_buffer),
-        SecurityRequest::SrUninstall => uninstall_request(request_buffer, reply_buffer),
-        SecurityRequest::SrGetPackages => get_packages_request(request_buffer, reply_buffer),
-        SecurityRequest::SrSizeBuffer => size_buffer_request(request_buffer, reply_buffer),
-        SecurityRequest::SrGetManifest => get_manifest_request(request_buffer, reply_buffer),
-        SecurityRequest::SrLoadApplication => {
-            load_application_request(request_buffer, reply_buffer)
-        }
-        SecurityRequest::SrLoadModel => load_model_request(request_buffer, reply_buffer),
-        SecurityRequest::SrReadKey => read_key_request(request_buffer, reply_buffer),
-        SecurityRequest::SrWriteKey => write_key_request(request_buffer, reply_buffer),
-        SecurityRequest::SrDeleteKey => delete_key_request(request_buffer, reply_buffer),
-        SecurityRequest::SrTestMailbox => test_mailbox_request(),
-        SecurityRequest::SrCapScan => capscan_request(),
-    }
-    .map_or_else(|e| e, |_v| SecurityRequestError::SreSuccess)
 }

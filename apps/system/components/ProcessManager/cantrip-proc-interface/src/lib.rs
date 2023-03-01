@@ -77,9 +77,6 @@ pub trait BundleImplInterface {
     fn capscan(&self) -> Result<(), ProcessManagerError>;
 }
 
-// NB: struct's marked repr(C) are processed by cbindgen to get a .h file
-//   used in camkes C interfaces.
-
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ProcessManagerError {
@@ -121,9 +118,6 @@ pub trait ProcessManagerInterface {
     fn stop(&mut self, bundle_impl: &mut Self::BundleImpl) -> Result<(), ProcessManagerError>;
     fn capscan(&self, bundle_impl: &Self::BundleImpl) -> Result<(), ProcessManagerError>;
 }
-
-// NB: bundle_id comes across the C interface as *const cstr_core::c_char
-// and is converted to a &str using CStr::from_ptr().to_str().
 
 pub trait PackageManagementInterface {
     fn install(&mut self, pkg_contents: &ObjDescBundle) -> Result<String, ProcessManagerError>;
