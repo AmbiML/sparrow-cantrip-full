@@ -87,7 +87,7 @@ fn load_application_command(
     match cantrip_security_load_application(bundle_id, &container_slot) {
         Ok(frames) => {
             container_slot.release(); // NB: take ownership
-            writeln!(output, "{:?}", &frames)?;
+            writeln!(output, "{:?}", frames)?;
             let _ = cantrip_object_free_in_cnode(&frames);
         }
         Err(status) => writeln!(output, "LoadApplication failed: {:?}", status)?,
@@ -106,10 +106,10 @@ fn load_model_command(
     match cantrip_security_load_model(bundle_id, model_id, &container_slot) {
         Ok(frames) => {
             container_slot.release(); // NB: take ownership
-            writeln!(output, "{:?}", &frames)?;
+            writeln!(output, "{:?}", frames)?;
             let _ = cantrip_object_free_in_cnode(&frames);
         }
-        Err(status) => writeln!(output, "LoadApplication failed: {:?}", status)?,
+        Err(status) => writeln!(output, "LoadModel failed: {:?}", status)?,
     }
     Ok(())
 }
