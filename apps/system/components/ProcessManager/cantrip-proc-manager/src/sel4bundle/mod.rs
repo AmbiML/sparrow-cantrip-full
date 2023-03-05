@@ -716,10 +716,17 @@ impl BundleImplInterface for seL4BundleImpl {
             .or(Err(ProcessManagerError::StopFailed))?;
         cantrip_object_free_in_cnode(&self.bundle_frames)
             .or(Err(ProcessManagerError::StopFailed))?;
+        // NB: must delete the dup reference to the TCB before cleaning
+        //    up the application's CNode so the container is treated as
+        //    revokable. Otherwise seL4 will defer reclaiming the space
+        //    used for the CNode which will in-turn make the parent
+        //    untyped slab "occupied" and block it from being reset on
+        //    the next retype operation. This will not be necessary
+        //    when we remove the TCB reference in the CNode.
+        self.cap_tcb = CSpaceSlot::new(); // NB: force drop
         cantrip_object_free_in_cnode(&self.dynamic_objs)
             .or(Err(ProcessManagerError::StopFailed))?;
-        self.cap_tcb = CSpaceSlot::new(); // NB: force drop
-                                          // XXX delete any other local caps
+        // XXX delete any other local caps
         Ok(())
     }
     fn resume(&self) -> Result<(), ProcessManagerError> {
