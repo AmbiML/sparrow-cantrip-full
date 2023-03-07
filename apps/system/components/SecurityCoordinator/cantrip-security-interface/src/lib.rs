@@ -402,7 +402,7 @@ pub fn cantrip_security_load_application(
     //   silently fail.
     sel4_sys::debug_assert_slot_empty!(
         container_slot.slot,
-        "Expected slot {:?} empty but has cap type {:?}",
+        "Expected slot {:?} empty but has {:?}",
         &container_slot.get_path(),
         sel4_sys::cap_identify(container_slot.slot)
     );
@@ -422,12 +422,11 @@ pub fn cantrip_security_load_model(
     container_slot: &CSpaceSlot,
 ) -> Result<ObjDescBundle, SecurityRequestError> {
     let _cleanup = container_slot.push_recv_path();
-    // NB: LoadModel returns a CNode with the application
-    //   contents, make sure the receive slot is empty or it can
-    //   silently fail.
+    // NB: SrLoadModel returns a CNode with the model contents, make
+    // sure the receive slot is empty or it can silently fail.
     sel4_sys::debug_assert_slot_empty!(
         container_slot.slot,
-        "Expected slot {:?} empty but has cap type {:?}",
+        "Expected slot {:?} empty but has {:?}",
         &container_slot.get_path(),
         sel4_sys::cap_identify(container_slot.slot)
     );
