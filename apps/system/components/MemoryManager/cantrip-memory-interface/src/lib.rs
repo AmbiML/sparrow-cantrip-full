@@ -311,10 +311,26 @@ pub struct MemoryManagerStats {
     pub out_of_memory: usize,
 }
 
+// Hint that indicates the expected lifetime of the allocated memory
+// objects. This may be used by the allocator to co-locate objects
+// with a similar lifetime (especially Static).
+// NB: there is limited space for Static objects, incorrect use may
+//    cause the system to run out of memory
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub enum MemoryLifetime {
+    Short,  // e.g. loading a model
+    Medium, // e.g. for application/process construction
+    Static, // Never free'd
+}
+
 // Objects are potentially batched with caps to allocated objects returned
 // in the container slots specified by the |bundle] objects.
 pub trait MemoryManagerInterface {
-    fn alloc(&mut self, bundle: &ObjDescBundle) -> Result<(), MemoryError>;
+    fn alloc(
+        &mut self,
+        bundle: &ObjDescBundle,
+        lifetime: MemoryLifetime,
+    ) -> Result<(), MemoryError>;
     fn free(&mut self, bundle: &ObjDescBundle) -> Result<(), MemoryError>;
     fn stats(&self) -> Result<MemoryManagerStats, MemoryError>;
     fn debug(&self) -> Result<(), MemoryError>;
@@ -374,7 +390,10 @@ pub struct StatsResponse {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum MemoryManagerRequest<'a> {
-    Alloc(Cow<'a, ObjDescBundle>),
+    Alloc {
+        bundle: Cow<'a, ObjDescBundle>,
+        lifetime: MemoryLifetime,
+    },
     Free(Cow<'a, ObjDescBundle>),
     Stats, // -> MemoryResponseData
     Debug,
@@ -384,7 +403,11 @@ pub enum MemoryManagerRequest<'a> {
 impl<'a> MemoryManagerRequest<'a> {
     fn get_container_cap(&self) -> Option<seL4_CPtr> {
         match self {
-            Self::Alloc(request) | Self::Free(request) => Some(request.cnode),
+            Self::Alloc {
+                bundle,
+                lifetime: _,
+            }
+            | Self::Free(bundle) => Some(bundle.cnode),
             Self::Stats | Self::Debug | Self::Capscan => None,
         }
     }
@@ -460,7 +483,25 @@ fn cantrip_memory_request<T: DeserializeOwned>(
 #[inline]
 pub fn cantrip_object_alloc(request: &ObjDescBundle) -> Result<(), MemoryManagerError> {
     trace!("cantrip_object_alloc {}", request);
-    cantrip_memory_request(&MemoryManagerRequest::Alloc(Cow::Borrowed(request)))
+    cantrip_memory_request(&MemoryManagerRequest::Alloc {
+        bundle: Cow::Borrowed(request),
+        lifetime: MemoryLifetime::Medium,
+    })
+}
+
+// Allocates the objects specified in |request| with a specified |lifetime|.
+// The capabilities are stored in |request|.cnode which is assumed to be a
+// CNode with sufficient capacity
+#[inline]
+pub fn cantrip_object_alloc_with_lifetime(
+    request: &ObjDescBundle,
+    lifetime: MemoryLifetime,
+) -> Result<(), MemoryManagerError> {
+    trace!("cantrip_object_alloc_with_lifetime {} {:?}", request, lifetime);
+    cantrip_memory_request(&MemoryManagerRequest::Alloc {
+        bundle: Cow::Borrowed(request),
+        lifetime,
+    })
 }
 
 // Allocates the objects specified in |objs|. The capabilities are moved
@@ -476,6 +517,26 @@ pub fn cantrip_object_alloc_in_toplevel(
     match request.move_objects_to_toplevel() {
         Err(_) => {
             cantrip_object_free(&request).expect("cantrip_object_alloc_in_toplevel");
+            Err(MemoryManagerError::MmeObjCapInvalid) // TODO(sleffler): e.into
+        }
+        Ok(_) => Ok(request),
+    }
+}
+
+// Like cantrip_object_alloc_in_toplevel but for objects that will not be
+// free'd. Use this sparingly, there is a limited amount of memory available
+// for Static objects.
+#[inline]
+pub fn cantrip_object_alloc_in_toplevel_static(
+    objs: Vec<ObjDesc>,
+) -> Result<ObjDescBundle, MemoryManagerError> {
+    // Request the objects using the dedicated MemoryManager container.
+    let mut request =
+        ObjDescBundle::new(unsafe { MEMORY_RECV_CNODE }, unsafe { MEMORY_RECV_CNODE_DEPTH }, objs);
+    cantrip_object_alloc_with_lifetime(&request, MemoryLifetime::Static)?;
+    match request.move_objects_to_toplevel() {
+        Err(_) => {
+            cantrip_object_free(&request).expect("cantrip_object_alloc_in_toplevel_static");
             Err(MemoryManagerError::MmeObjCapInvalid) // TODO(sleffler): e.into
         }
         Ok(_) => Ok(request),
@@ -649,7 +710,7 @@ pub fn cantrip_frame_alloc_in_cnode(
     // NB: always allocate small pages
     let npages = howmany(space_bytes, 1 << seL4_PageBits);
     // XXX horrible band-aid to workaround Retype "fanout" limit of 256
-    // objects: split our request accordingly. This shold be handled in
+    // objects: split our request accordingly. This should be handled in
     // MemoryManager using the kernel config or bump the kernel limit.
     assert!(npages <= 512); // XXX 2MB
     if npages > 256 {

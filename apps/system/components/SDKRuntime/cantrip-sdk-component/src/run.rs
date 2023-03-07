@@ -31,7 +31,7 @@ assert_cfg!(feature = "CONFIG_KERNEL_MCS");
 
 extern crate alloc;
 use alloc::vec;
-use cantrip_memory_interface::cantrip_object_alloc_in_toplevel;
+use cantrip_memory_interface::cantrip_object_alloc_in_toplevel_static;
 use cantrip_memory_interface::ObjDesc;
 use cantrip_os_common::camkes::{seL4_CPath, Camkes};
 use cantrip_os_common::copyregion::CopyRegion;
@@ -83,7 +83,7 @@ fn cantrip_sdk() -> impl SDKManagerInterface + SDKRuntimeInterface {
     if runtime.is_empty() {
         // Setup the SDKRuntime service (endpoint part) from scratch (no CAmkES help).
         let bundle =
-            cantrip_object_alloc_in_toplevel(vec![ObjDesc::new(seL4_EndpointObject, 1, 0)])
+            cantrip_object_alloc_in_toplevel_static(vec![ObjDesc::new(seL4_EndpointObject, 1, 0)])
                 .expect("alloc");
 
         // Create endpoint (R)
@@ -120,8 +120,9 @@ pub unsafe extern "C" fn pre_init() {
 
     // Setup the SDKRuntime service (reply part) from scratch (no CAmkES help).
     // NB: the endpoint part is done in cantrip_sdk().
-    let bundle = cantrip_object_alloc_in_toplevel(vec![ObjDesc::new(seL4_ReplyObject, 1, 1)])
-        .expect("alloc");
+    let bundle =
+        cantrip_object_alloc_in_toplevel_static(vec![ObjDesc::new(seL4_ReplyObject, 1, 1)])
+            .expect("alloc");
 
     // Create reply (WG).
     let reply = Camkes::top_level_path(bundle.objs[0].cptr);

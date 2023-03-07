@@ -18,6 +18,7 @@
 #![no_std]
 #![allow(clippy::missing_safety_doc)]
 
+use cantrip_memory_interface::MemoryLifetime;
 use cantrip_memory_interface::MemoryManagerError;
 use cantrip_memory_interface::MemoryManagerInterface;
 use cantrip_memory_interface::MemoryManagerRequest;
@@ -122,7 +123,10 @@ pub unsafe extern "C" fn memory_request(
     };
 
     match request {
-        MemoryManagerRequest::Alloc(mut bundle) => alloc_request(bundle.to_mut()),
+        MemoryManagerRequest::Alloc {
+            mut bundle,
+            lifetime,
+        } => alloc_request(bundle.to_mut(), lifetime),
         MemoryManagerRequest::Free(mut bundle) => free_request(bundle.to_mut()),
         MemoryManagerRequest::Stats => stats_request(&mut *c_reply_buffer),
 
@@ -132,7 +136,10 @@ pub unsafe extern "C" fn memory_request(
     .map_or_else(|e| e, |()| MemoryManagerError::MmeSuccess)
 }
 
-fn alloc_request(bundle: &mut ObjDescBundle) -> Result<(), MemoryManagerError> {
+fn alloc_request(
+    bundle: &mut ObjDescBundle,
+    lifetime: MemoryLifetime,
+) -> Result<(), MemoryManagerError> {
     // NB: make sure noone clobbers the setup done in memory__init;
     // and clear any capability the path points to when dropped, for next request
     let recv_path = unsafe { CAMKES.get_owned_current_recv_path() };
@@ -142,7 +149,7 @@ fn alloc_request(bundle: &mut ObjDescBundle) -> Result<(), MemoryManagerError> {
     bundle.cnode = recv_path.1;
     // NB: bundle.depth should reflect the received cnode
 
-    cantrip_memory().alloc(bundle)?;
+    cantrip_memory().alloc(bundle, lifetime)?;
     Ok(())
 }
 

@@ -3,6 +3,7 @@
 #![cfg_attr(not(test), no_std)]
 
 use cantrip_memory_interface::MemoryError;
+use cantrip_memory_interface::MemoryLifetime;
 use cantrip_memory_interface::MemoryManagerInterface;
 use cantrip_memory_interface::MemoryManagerStats;
 use cantrip_memory_interface::ObjDescBundle;
@@ -51,8 +52,8 @@ impl Guard<'_> {
     }
 }
 impl MemoryManagerInterface for Guard<'_> {
-    fn alloc(&mut self, objs: &ObjDescBundle) -> Result<(), MemoryError> {
-        self.manager.as_mut().unwrap().alloc(objs)
+    fn alloc(&mut self, objs: &ObjDescBundle, lifetime: MemoryLifetime) -> Result<(), MemoryError> {
+        self.manager.as_mut().unwrap().alloc(objs, lifetime)
     }
     fn free(&mut self, objs: &ObjDescBundle) -> Result<(), MemoryError> {
         self.manager.as_mut().unwrap().free(objs)

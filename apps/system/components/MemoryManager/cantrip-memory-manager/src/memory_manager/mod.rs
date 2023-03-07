@@ -2,6 +2,7 @@
 
 extern crate alloc;
 use cantrip_memory_interface::MemoryError;
+use cantrip_memory_interface::MemoryLifetime;
 use cantrip_memory_interface::MemoryManagerInterface;
 use cantrip_memory_interface::MemoryManagerStats;
 use cantrip_memory_interface::ObjDesc;
@@ -39,6 +40,7 @@ fn untyped_describe(cptr: seL4_CPtr) -> seL4_Untyped_Describe {
 // structures will land in .bss and only overflow to the heap if
 // initialized with more than this count.
 const UNTYPED_SLAB_CAPACITY: usize = 64; // # slabs kept inline
+const STATIC_UNTYPED_SLAB_CAPACITY: usize = 4; // # slabs kept inline
 
 // The MemoryManager supports allocating & freeing seL4 objects that are
 // instantiated from UntypedMemory "slabs". Allocation causes untyped memory
@@ -62,15 +64,17 @@ impl UntypedSlab {
             _size_bits: ut.size_bits(),
             free_bytes,
             _base_paddr: ut.paddr,
-            _last_paddr: ut.paddr + (1 << ut.size_bits()),
+            _last_paddr: ut.paddr + l2tob(ut.size_bits()),
             cptr,
         }
     }
 }
 pub struct MemoryManager {
     untypeds: SmallVec<[UntypedSlab; UNTYPED_SLAB_CAPACITY]>,
+    static_untypeds: SmallVec<[UntypedSlab; STATIC_UNTYPED_SLAB_CAPACITY]>,
     _device_untypeds: SmallVec<[UntypedSlab; UNTYPED_SLAB_CAPACITY]>,
     cur_untyped: usize,
+    cur_static_untyped: usize,
     _cur_device_untyped: usize,
 
     total_bytes: usize,     // Total available space
@@ -103,8 +107,10 @@ impl MemoryManager {
         assert_eq!(slots.end - slots.start, untypeds.len());
         let mut m = MemoryManager {
             untypeds: SmallVec::new(),
+            static_untypeds: SmallVec::new(),
             _device_untypeds: SmallVec::new(),
             cur_untyped: 0,
+            cur_static_untyped: 0,
             _cur_device_untyped: 0,
 
             total_bytes: 0,
@@ -127,17 +133,40 @@ impl MemoryManager {
                     .push(UntypedSlab::new(ut, slab_size, slots.start + ut_index));
             } else {
                 if ut.is_tainted() {
+                    // Slabs marked "tainted" were used by the rootserver
+                    // which has terminated. Reclaim the resources with a
+                    // revoke.
                     revoke_cap(slots.start + ut_index).expect("revoke untyped");
                 }
-                // NB: must get current state of ut as it will reflect resources
-                //   allocated before we run.
+                // NB: must get the current state of the slab as the value
+                //   supplied by the rootserver (in |untypeds|) will reflect
+                //   resources available before the above revoke.
                 let info = untyped_describe(slots.start + ut_index);
                 assert_eq!(info.sizeBits, ut.size_bits());
 
                 // We only have the remainder available for allocations.
-                m.untypeds
-                    .push(UntypedSlab::new(ut, info.remainingBytes, slots.start + ut_index));
-                m.total_bytes += info.remainingBytes;
+                // Beware that slabs with existing allocations (for the
+                // services constructed by the rootserver) are not generally
+                // useful because we cannot recycle memory once retype'd.
+                // We use those to satisfy "static object" alloc's (e.g.
+                // as done by SDKRuntime); think of these requests as an
+                // extension of the work done by the rootserver.
+                // TODO(sleffler): split to minimize wasted space
+                if info.remainingBytes > 0 {
+                    let slab = UntypedSlab::new(ut, info.remainingBytes, slots.start + ut_index);
+                    if info.remainingBytes == slab_size {
+                        m.untypeds.push(slab);
+                    } else {
+                        m.static_untypeds.push(slab);
+                    }
+                    m.total_bytes += info.remainingBytes;
+                } else {
+                    trace!(
+                        "Discard slot {}, size {}, no usable space",
+                        slots.start + ut_index,
+                        ut.size_bits()
+                    );
+                }
 
                 // Use overhead to track memory allocated out of our control.
                 m.overhead_bytes += slab_size - info.remainingBytes;
@@ -146,6 +175,15 @@ impl MemoryManager {
         // Sort non-device slabs by descending amount of free space.
         m.untypeds
             .sort_unstable_by(|a, b| b.free_bytes.cmp(&a.free_bytes));
+        m.static_untypeds
+            .sort_unstable_by(|a, b| b.free_bytes.cmp(&a.free_bytes));
+        if m.static_untypeds.is_empty() {
+            // No untyped memory available for static object requests;
+            // seed the pool with the smallest "normal" slab.
+            // TODO(sleffler): maybe split slab if "too big" (better to
+            //   dynamically grow static_untypeds on demand?)
+            m.static_untypeds.push(m.untypeds.pop().unwrap());
+        }
         m
     }
 
@@ -192,11 +230,48 @@ impl MemoryManager {
         }
         Ok(())
     }
+
+    fn alloc_static(&mut self, bundle: &ObjDescBundle) -> Result<(), MemoryError> {
+        let first_ut = self.cur_static_untyped;
+        let mut ut_index = first_ut;
+
+        for od in &bundle.objs {
+            // NB: we don't check slots are available (the kernel will tell us).
+            while let Err(e) =
+                Self::retype_untyped(self.static_untypeds[ut_index].cptr, bundle.cnode, od)
+            {
+                if e != seL4_Error::seL4_NotEnoughMemory {
+                    // Should not happen.
+                    panic!("static allocation failed: {:?}", e);
+                }
+                // This untyped does not have enough available space, try
+                // the next slab until we exhaust all slabs. This is the best
+                // we can do without per-slab bookkeeping.
+                ut_index = (ut_index + 1) % self.static_untypeds.len();
+                if ut_index == first_ut {
+                    // TODO(sleffler): maybe steal memory from normal pool?
+                    panic!("static allocation failed: out of space");
+                }
+            }
+        }
+        self.cur_static_untyped = ut_index;
+
+        Ok(())
+    }
 }
 
 impl MemoryManagerInterface for MemoryManager {
-    fn alloc(&mut self, bundle: &ObjDescBundle) -> Result<(), MemoryError> {
-        trace!("alloc {:?}", bundle);
+    fn alloc(
+        &mut self,
+        bundle: &ObjDescBundle,
+        lifetime: MemoryLifetime,
+    ) -> Result<(), MemoryError> {
+        trace!("alloc {:?} {:?}", bundle, lifetime);
+
+        if lifetime == MemoryLifetime::Static {
+            // Static allocations are handle separately.
+            return self.alloc_static(bundle);
+        }
 
         // TODO(sleffler): split by device vs no-device (or allow mixing)
         let first_ut = self.cur_untyped;
@@ -212,11 +287,7 @@ impl MemoryManagerInterface for MemoryManager {
             while let Err(e) =
                 // NB: we don't allocate ASIDPool objects but if we did it
                 //   would fail because it needs to map to an UntypedObject
-                MemoryManager::retype_untyped(
-                    self.untypeds[ut_index].cptr,
-                    bundle.cnode,
-                    od,
-                )
+                Self::retype_untyped(self.untypeds[ut_index].cptr, bundle.cnode, od)
             {
                 if e != seL4_Error::seL4_NotEnoughMemory {
                     // Should not happen.
@@ -229,7 +300,8 @@ impl MemoryManagerInterface for MemoryManager {
                 // we can do without per-slab bookkeeping.
                 self.untyped_slab_too_small += 1;
                 ut_index = (ut_index + 1) % self.untypeds.len();
-                debug!("Advance to untyped slab {}", ut_index);
+                trace!("Advance to untyped slab {}", ut_index);
+                // XXX { self.cur_untyped = ut_index; let _ = self.debug(); }
                 if ut_index == first_ut {
                     // TODO(sleffler): reclaim allocations
                     self.out_of_memory += 1;
@@ -257,7 +329,7 @@ impl MemoryManagerInterface for MemoryManager {
         for od in &bundle.objs {
             // TODO(sleffler): support leaving objects so client can do bulk
             //   reclaim on exit (maybe require cptr != 0)
-            if MemoryManager::delete_caps(bundle.cnode, bundle.depth, od).is_ok() {
+            if Self::delete_caps(bundle.cnode, bundle.depth, od).is_ok() {
                 // NB: atm we do not do per-untyped bookkeeping so just track
                 //   global stats.
                 // TODO(sleffler): temp workaround for bad bookkeeping / client mis-handling
@@ -288,16 +360,31 @@ impl MemoryManagerInterface for MemoryManager {
     }
     fn debug(&self) -> Result<(), MemoryError> {
         // TODO(sleffler): only shows !device slabs
+        let cur_cptr = self.untypeds[self.cur_untyped].cptr;
         for ut in &self.untypeds {
             let info = untyped_describe(ut.cptr);
             let size = l2tob(info.sizeBits);
-            info!(
-                "[{:2}] bits {:2} allocated {:8} free {}",
+            info!(target: if ut.cptr == cur_cptr { "*" } else { " " },
+                "[{:2}, bits {:2}] watermark {:8} available {}",
                 ut.cptr,
                 info.sizeBits,
                 size - info.remainingBytes,
                 info.remainingBytes,
             );
+        }
+        if !self.static_untypeds.is_empty() {
+            let cur_static_cptr = self.static_untypeds[self.cur_static_untyped].cptr;
+            for ut in &self.static_untypeds {
+                let info = untyped_describe(ut.cptr);
+                let size = l2tob(info.sizeBits);
+                info!(target: if ut.cptr == cur_static_cptr { "!" } else { " " },
+                    "[{:2}, bits {:2}] watermark {:8} available {}",
+                    ut.cptr,
+                    info.sizeBits,
+                    size - info.remainingBytes,
+                    info.remainingBytes,
+                );
+            }
         }
         Ok(())
     }
