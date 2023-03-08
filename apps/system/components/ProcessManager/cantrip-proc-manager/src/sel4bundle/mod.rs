@@ -516,6 +516,15 @@ impl seL4BundleImpl {
 
         // Setup the stack & IPC buffer.
 
+        let mut zero_region =
+            unsafe { CopyRegion::new(ptr::addr_of_mut!(LOAD_APPLICATION[0]), PAGE_SIZE) };
+        let mut zero_page = |frame: &ObjDesc| -> seL4_Result {
+            zero_region.map(frame.cptr)?;
+            zero_region.as_mut()[..].fill(0);
+            zero_region.unmap()?;
+            Ok(())
+        };
+
         // NB: no need for actual guard pages, just leave 'em unmapped.
         let mut vaddr = roundup(vaddr_top, PAGE_SIZE);
         trace!("guard page vaddr {:#x}", vaddr);
@@ -526,6 +535,7 @@ impl seL4BundleImpl {
         for index in 0..stack_frames.retype_count() {
             let frame = &stack_frames.new_at(index);
             trace!("map stack slot {} vaddr {:#x} {:?}", frame.cptr, vaddr, rights_rwn);
+            zero_page(frame)?;
             arch::map_page(frame, root, vaddr, rights_rwn, vm_attribs)?;
             vaddr += frame.size_bytes().unwrap();
         }
@@ -542,6 +552,7 @@ impl seL4BundleImpl {
             vaddr,
             rights_rwn,
         );
+        zero_page(ipcbuffer_frame)?;
         arch::map_page(ipcbuffer_frame, root, vaddr, rights_rwn, vm_attribs)?;
         vaddr += ipcbuffer_frame.size_bytes().unwrap();
 
@@ -553,6 +564,7 @@ impl seL4BundleImpl {
             vaddr,
             rights_rwn,
         );
+        zero_page(sdk_frame)?;
         arch::map_page(sdk_frame, root, vaddr, rights_rwn, vm_attribs)?;
 
         Ok(())
