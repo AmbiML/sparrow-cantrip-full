@@ -39,6 +39,8 @@ use cantrip_sdk_manager::cantrip_sdk_manager_release_endpoint;
 use core::cmp;
 use core::mem::size_of;
 use core::ptr;
+#[cfg(feature = "CONFIG_CHECK_BUNDLE_IMAGE")]
+use crc::{crc32, Hasher32};
 use log::{debug, error, info, trace};
 use smallvec::smallvec;
 use smallvec::SmallVec;
@@ -433,6 +435,8 @@ impl seL4BundleImpl {
             // identically, just filled with 0's instead of reading (for now
             // we pre-zero each frame which may need to be revisited).
             let mut vaddr = section.vaddr;
+            #[cfg(feature = "CONFIG_CHECK_BUNDLE_IMAGE")]
+            let mut digest = crc32::Digest::new(crc32::IEEE);
 
             // Calculate range of pages in the section's VSpace in order to
             // do page-by-page copying or zero-filling.
@@ -461,6 +465,8 @@ impl seL4BundleImpl {
                     image
                         .read_exact(&mut copy_region.as_mut()[start..end])
                         .or(Err(seL4_Error::seL4_NoError))?; // XXX
+                    #[cfg(feature = "CONFIG_CHECK_BUNDLE_IMAGE")]
+                    digest.write(&copy_region.as_ref()[start..end]);
                 }
                 copy_region.unmap()?;
 
@@ -469,6 +475,14 @@ impl seL4BundleImpl {
                 trace!("map slot {} vaddr {:#x} {:?}", frame.cptr, frame_vaddr, rights);
                 arch::map_page(frame, root, frame_vaddr, *rights, vm_attribs)?;
                 vaddr += frame.size_bytes().unwrap();
+            }
+            #[cfg(feature = "CONFIG_CHECK_BUNDLE_IMAGE")]
+            if section.crc32 != 0 && section.crc32 != (digest.sum32() as usize) {
+                error!(
+                    "CRC mismatch: section {:#x} != calculated {:#x}",
+                    section.crc32,
+                    digest.sum32()
+                );
             }
             prev_last_page = last_page;
             if vaddr > vaddr_top {

@@ -24,6 +24,7 @@ sel4-config = { path = "../../cantrip-os-common/src/sel4-config" }
 
 [features]
 default = []
+CONFIG_CHECK_BUNDLE_IMAGE = ["crc"]
 CONFIG_CAPDL_LOADER_CC_REGISTERS = []
 CONFIG_CAPDL_LOADER_WRITEABLE_PAGES = []
 CONFIG_DEBUG_BUILD = []
@@ -32,6 +33,7 @@ CONFIG_KERNEL_MCS = []
 CONFIG_SMP_SUPPORT = []
 
 [dependencies]
+crc = { version = "1.4.0", default-features = false, optional = true }
 cstr_core = "0.2.3"
 hashbrown = { version = "0.11", features = ["ahash-compile-time-rng"] }
 cantrip-io = { path = "../../DebugConsole/cantrip-io" }
