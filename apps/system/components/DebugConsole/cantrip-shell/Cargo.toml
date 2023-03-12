@@ -58,7 +58,7 @@ TEST_TIMER_SERVICE = []
 TEST_UART = []
 
 [dependencies]
-crc = { version = "1.4.0", default_features = false }
+crc = { version = "1.4.0", default-features = false }
 hashbrown = { version = "0.11", features = ["ahash-compile-time-rng"] }
 hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
 cantrip-io = { path = "../cantrip-io" }
