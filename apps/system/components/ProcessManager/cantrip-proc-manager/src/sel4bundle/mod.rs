@@ -450,7 +450,7 @@ impl seL4BundleImpl {
                 // to avoid dealing with partial zero-fill logic (both from
                 // zero_range and "to the left of" data_range).
                 copy_region.map(frame.cptr)?;
-                copy_region.as_mut()[..].fill(0);
+                copy_region.as_word_mut().fill(0); // A bit faster than as_mut()
                 if data_range.contains(&vaddr) {
                     let start = if index > 0 {
                         0
