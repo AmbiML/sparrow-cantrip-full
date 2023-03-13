@@ -45,7 +45,7 @@ _start:
 
     .option pop
 
-    j main
+    jal main
 1:  j 1b                        /* NB: should not return */
 
     .section .bss
