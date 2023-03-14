@@ -25,6 +25,8 @@ fn main() {
     // Default to python3 (maybe necessary for code divergence)
     let python_bin = env::var("PYTHON").unwrap_or_else(|_| "python3".to_string());
 
+    let cpp_bin = env::var("CPP").unwrap_or_else(|_| "cpp".to_string());
+
     // Default to "seL4" for backwards compat; can either use git submodule or
     // symbolic link (neither recommended)
     let sel4_dir = env::var("SEL4_DIR")
@@ -147,6 +149,7 @@ fn main() {
     println!("{}/types{}.rs", out_dir, cargo_target_pointer_width);
     let bfout =
         File::create(&*format!("{}/types{}.rs", out_dir, cargo_target_pointer_width)).unwrap();
+
     let mut cmd = Command::new("/usr/bin/env");
     cmd.args(&[
         &python_bin,
@@ -160,4 +163,46 @@ fn main() {
     assert!(cmd.status().unwrap().success());
     std::mem::forget(bfin);
     std::mem::forget(bfout);
+
+    // Generate fault types from the bitfield files in libsel4
+    println!("{}/shared_types_{}.rs", out_dir, archdir);
+    let faultout =
+        File::create(&*format!("{}/shared_types_{}.rs", out_dir, archdir)).unwrap();
+
+    let mut cppcmd = Command::new(cpp_bin);
+    cppcmd.args(&[
+            "-E",  // preprocess only
+            "-P",  // inhibit linemarkers
+            &*format!("-I{}/autoconf", sel4_out_dir),
+            &*format!("-I{}/gen_config", sel4_out_dir),
+            &*format!("-I{}/libsel4/include", sel4_out_dir),
+            &*format!("-I{}/libsel4/arch_include/{}", sel4_dir, archdir),
+            &*format!("{}/libsel4/sel4_arch_include/{}/sel4/sel4_arch/types.bf", sel4_dir, arch)
+        ]);
+
+    println!("Running {:?}", cppcmd);
+    let mut cppchild = cppcmd
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("Failed to start cpp process.");
+
+    let mut bfgencmd = Command::new(python_bin);
+    bfgencmd.args(&[
+            "tools/bitfield_gen.py",
+            "--language=rust",
+    ]);
+    println!("Running {:?}", bfgencmd);
+
+    let cppstdout = cppchild.stdout.take().unwrap();
+    let mut bfgenchild = bfgencmd
+        .stdin(cppstdout)
+        .stdout(unsafe { Stdio::from_raw_fd(faultout.as_raw_fd()) })
+        .spawn()
+        .expect("Failed to start bitfield_gen.py process.");
+
+    assert!(cppchild.wait().unwrap().success());
+    assert!(bfgenchild.wait().unwrap().success());
+
+    std::mem::forget(faultout);
 }

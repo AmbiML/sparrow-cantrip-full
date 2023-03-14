@@ -314,7 +314,8 @@ rust_ptr_generator_template = \
 }"""
 
 rust_reader_template = \
-"""impl %(block)s {
+"""/* rust_reader_template */
+impl %(block)s {
     #[inline(always)]
     pub fn get_%(field)s(&self) -> %(type)s {
         let mut ret = (self.words[%(index)d] & 0x%(mask)x%(suf)s) %(r_shift_op)s %(shift)d;
@@ -327,7 +328,8 @@ rust_reader_template = \
 }"""
 
 rust_writer_template = \
-"""impl %(block)s {
+"""/* rust_writer_template */
+impl %(block)s {
     #[inline(always)]
     pub fn set_%(field)s(&mut self, v: %(type)s) {
         /* fail if user has passed bits that we will override */
@@ -375,16 +377,39 @@ rust_tag_eq_reader_footer_template = \
 }"""
 
 rust_tag_writer_template = \
-"""impl %(union)s {
+"""/* rust_tag_writer_template */
+impl %(union)s {
     #[inline(always)]
-    pub fn set_%(tagname)s(&mut self, v: %(type)s) {
-        /* fail if user has passed bits that we will override */
-        %(assert)s(((!0x%(mask)x%(suf)s %(r_shift_op)s %(shift)d) & v) == (0 != (v & (1%(suf)s << (%(extend_bit)d)))) ? 0x%(high_bits)x : 0));
+    pub fn set_%(tagname)s_%(field)s(&mut self, v: %(type)s) {
+       /* fail if user has passed bits that we will override */
+       let a = (!0x%(mask)x%(suf)s %(r_shift_op)s %(shift)d) & v;
+       let b = 0 != (v & (1%(suf)s << (%(extend_bit)d)));
+
+       if (b) {
+           %(assert)s(a == 0x%(high_bits)x);
+       } else {
+           %(assert)s(a == 0);
+       }
 
        self.words[%(index)d] &= !0x%(mask)x%(suf)s;
        self.words[%(index)d] |= (v << %(shift)d) & 0x%(mask)x%(suf)s;
     }
 }"""
+
+rust_tag_reader_template = \
+"""/* rust_tag_reader_template */
+impl %(block)s {
+    #[inline(always)]
+    pub fn get_%(tagname)s_%(field)s(&self) -> %(type)s {
+        let mut ret = (self.words[%(index)d] & 0x%(mask)x%(suf)s) %(r_shift_op)s %(shift)d;
+        /* Possibly sign extend */
+        if (0 != (ret & (1%(suf)s << (%(extend_bit)d)))) {
+            ret |= 0x%(high_bits)x;
+        }
+        ret
+    }
+}"""
+
 
 # C templates
 
@@ -2157,7 +2182,10 @@ class TaggedUnion:
 
         emit_named("%s_%s_equals" % (self.name, self.tagname), params, fs)
 
+        print("// Have %d tags to process" % (len(self.tags)), file=output)
         for name, value, ref in self.tags:
+            print("// Tag %s (%s) (%s)" % (name, value, ref), file=output)
+
             # Generate generators
             arg_list = ["%s %s" % ("usize", field) for \
                             field in ref.visible_order if
@@ -2236,7 +2264,11 @@ class TaggedUnion:
             # Generate field readers/writers
             tagnameoffset, tagnamesize, _ = ref.field_map[self.tagname]
             tagmask = (2 ** tagnamesize) - 1
+            print("// Have %d fields to process" % (len(ref.fields)), file=output)
             for field, offset, size, high in ref.fields:
+                print("// Tag %s (%d) Field %s (offset=%d, size=%d, high=%d)" %
+                      (name, value, field, offset, size, high), file=output)
+
                 # Don't duplicate tag accessors
                 if field == self.tagname: continue
 
@@ -2260,29 +2292,31 @@ class TaggedUnion:
                     high_bits = 0
                 mask = ((1 << size) - 1) << (offset % self.base)
 
-                subs = {\
-                    "block": self.name, \
-                    "field": field, \
-                    "type": "usize", \
-                    "assert": RUST_ASSERTS[options.environment], \
-                    "index": index, \
-                    "shift": shift, \
-                    "r_shift_op": read_shift, \
-                    "w_shift_op": write_shift, \
-                    "mask": mask, \
-                    "tagindex": tagnameoffset // self.base, \
-                    "tagshift": tagnameoffset % self.base, \
-                    "tagmask": tagmask, \
-                    "union": self.name, \
+                subs = {
+                    "block": self.name,
+                    "tagname": name,
+                    "field": field,
+                    "type": "usize",
+                    "assert": RUST_ASSERTS[options.environment],
+                    "index": index,
+                    "shift": shift,
+                    "r_shift_op": read_shift,
+                    "w_shift_op": write_shift,
+                    "mask": mask,
+                    "tagindex": tagnameoffset // self.base,
+                    "tagshift": tagnameoffset % self.base,
+                    "tagmask": tagmask,
+                    "union": self.name,
                     "suf": self.constant_suffix,
                     "high_bits": high_bits,
                     "sign_extend": self.base_sign_extend and high,
-                    "extend_bit": self.base_bits - 1}
+                    "extend_bit": self.base_bits - 1
+                }
 
                 emit_named("%s_%s_get_%s" % (self.name, ref.name, field),
-                    params, rust_reader_template % subs)
+                    params, rust_tag_reader_template % subs)
                 emit_named("%s_%s_set_%s" % (self.name, ref.name, field),
-                    params, rust_writer_template % subs)
+                    params, rust_tag_writer_template % subs)
 
 
     def c_generate(self, params):
@@ -2981,6 +3015,7 @@ class Block:
         if self.tagged: return
 
         # Type definition
+        print("// Block definition")
         print(rust_type_template % \
                         {"type": "usize", \
                          "name": self.name, \
@@ -3090,20 +3125,21 @@ class Block:
                 high_bits = 0
             mask = ((1 << size) - 1) << (offset % self.base)
 
-            subs = {\
-                "block": self.name, \
-                "field": field, \
-                "type": "usize", \
-                "assert": RUST_ASSERTS[options.environment], \
-                "index": index, \
-                "shift": shift, \
-                "r_shift_op": read_shift, \
-                "w_shift_op": write_shift, \
-                "mask": mask, \
-                "suf": self.constant_suffix, \
-                "high_bits": high_bits, \
+            subs = {
+                "block": self.name,
+                "field": field,
+                "type": "usize",
+                "assert": RUST_ASSERTS[options.environment],
+                "index": index,
+                "shift": shift,
+                "r_shift_op": read_shift,
+                "w_shift_op": write_shift,
+                "mask": mask,
+                "suf": self.constant_suffix,
+                "high_bits": high_bits,
                 "sign_extend": self.base_sign_extend and high,
-                "extend_bit": self.base_bits - 1}
+                "extend_bit": self.base_bits - 1
+            }
 
             # Reader
             emit_named("%s_get_%s" % (self.name, field), params,
