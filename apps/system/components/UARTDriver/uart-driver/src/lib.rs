@@ -16,14 +16,12 @@
 #![no_std]
 #![allow(clippy::missing_safety_doc)]
 
-// Include bindings for OpenTitan UART register definition (opentitan/uart.h).
-include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
-
 mod register;
 
 use cantrip_os_common::camkes::Camkes;
 use cantrip_os_common::sel4_sys;
 use core::cmp;
+use reg_constants::uart::*;
 use sel4_sys::seL4_PageBits;
 
 // TODO(chrisphan): Use ringbuf crate instead.

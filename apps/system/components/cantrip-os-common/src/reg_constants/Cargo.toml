@@ -1,0 +1,9 @@
+[package]
+name = "reg_constants"
+version = "0.1.0"
+edition = "2021"
+
+[build-dependencies]
+regtool = { path = "../../../../../../../../../hw/opentitan-upstream/util/regtool" }
+
+[dependencies]

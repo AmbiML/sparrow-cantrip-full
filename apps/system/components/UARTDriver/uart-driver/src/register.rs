@@ -23,12 +23,12 @@ extern "C" {
 
 pub struct Field {
     mask: u32,
-    offset: u32,
+    offset: usize,
     value: Option<u32>,
 }
 
 impl Field {
-    pub fn new(mask: u32, offset: u32, val: Option<u32>) -> Self {
+    pub fn new(mask: u32, offset: usize, val: Option<u32>) -> Self {
         if let Some(value) = val {
             Field {
                 mask,
@@ -54,13 +54,8 @@ impl Deref for Field {
 pub struct Register(u32);
 
 impl Register {
-    pub unsafe fn new(offset: u32) -> Self {
-        Register(
-            mmio_region
-                .cast::<u8>()
-                .offset(offset as isize)
-                .cast::<()>() as u32,
-        )
+    pub unsafe fn new(offset: usize) -> Self {
+        Register(mmio_region.cast::<u8>().add(offset).cast::<()>() as u32)
     }
 
     pub unsafe fn write(&mut self, value: u32) { (self.0 as *mut u32).write_volatile(value); }

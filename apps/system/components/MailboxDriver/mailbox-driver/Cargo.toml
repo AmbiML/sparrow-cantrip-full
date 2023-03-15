@@ -24,8 +24,9 @@ CONFIG_PLAT_SPARROW = []
 
 [dependencies]
 cantrip-os-common = { path = "../../cantrip-os-common" }
-log = { version = "0.4", features = ["release_max_level_info"] }
 cty = "0.2.1"
+log = { version = "0.4", features = ["release_max_level_info"] }
+reg_constants = { path = "../../cantrip-os-common/src/reg_constants" }
 
 [lib]
 name = "mailbox_driver"

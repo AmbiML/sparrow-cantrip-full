@@ -18,6 +18,7 @@
 #![allow(unused)]
 use core::ptr;
 use modular_bitfield::prelude::*;
+use reg_constants::timer::*;
 
 // The intent is to update this file with tock-registers instead.
 // The tock-registers format is displayed here for layout and future purposes.
@@ -78,50 +79,75 @@ extern "C" {
     static csr: *mut u32;
 }
 
-fn get_u32(idx: isize) -> u32 { unsafe { ptr::read_volatile(csr.offset(idx)) } }
+fn get_u32(idx: usize) -> u32 { unsafe { ptr::read_volatile(csr.add(idx)) } }
 
-fn set_u32(idx: isize, val: u32) {
+fn set_u32(idx: usize, val: u32) {
     unsafe {
-        ptr::write_volatile(csr.offset(idx), val);
+        ptr::write_volatile(csr.add(idx), val);
     }
 }
 
-fn get_bytes(idx: isize) -> [u8; 4] { get_u32(idx).to_ne_bytes() }
+fn get_bytes(idx: usize) -> [u8; 4] { get_u32(idx).to_ne_bytes() }
 
-fn set_bytes(idx: isize, bytes: [u8; 4]) { set_u32(idx, u32::from_ne_bytes(bytes)); }
+fn set_bytes(idx: usize, bytes: [u8; 4]) { set_u32(idx, u32::from_ne_bytes(bytes)); }
 
-pub fn get_ctrl() -> Ctrl { Ctrl::from_bytes(get_bytes(1)) }
+const fn u8_to_u32_offset(offset: usize) -> usize {
+    assert!(offset % 4 == 0);
+    offset >> 2
+}
 
-pub fn set_ctrl(ctrl: Ctrl) { set_bytes(1, ctrl.into_bytes()); }
+const CTRL_OFFSET: usize = u8_to_u32_offset(RV_TIMER_CTRL_REG_OFFSET);
 
-pub fn get_config() -> Config { Config::from_bytes(get_bytes(0x40)) }
+pub fn get_ctrl() -> Ctrl { Ctrl::from_bytes(get_bytes(CTRL_OFFSET)) }
 
-pub fn set_config(config: Config) { set_bytes(0x40, config.into_bytes()); }
+pub fn set_ctrl(ctrl: Ctrl) { set_bytes(CTRL_OFFSET, ctrl.into_bytes()); }
 
-pub fn get_value_low() -> u32 { get_u32(0x41) }
+const CONFIG_OFFSET: usize = u8_to_u32_offset(RV_TIMER_CFG0_REG_OFFSET);
 
-pub fn set_value_low(val: u32) { set_u32(0x41, val); }
+pub fn get_config() -> Config { Config::from_bytes(get_bytes(CONFIG_OFFSET)) }
 
-pub fn get_value_high() -> u32 { get_u32(0x42) }
+pub fn set_config(config: Config) { set_bytes(CONFIG_OFFSET, config.into_bytes()); }
 
-pub fn set_value_high(val: u32) { set_u32(0x42, val); }
+const VALUE_LOW_OFFSET: usize = u8_to_u32_offset(RV_TIMER_TIMER_V_LOWER0_REG_OFFSET);
 
-pub fn get_compare_low() -> u32 { get_u32(0x43) }
+pub fn get_value_low() -> u32 { get_u32(VALUE_LOW_OFFSET) }
 
-pub fn set_compare_low(val: u32) { set_u32(0x43, val); }
+pub fn set_value_low(val: u32) { set_u32(VALUE_LOW_OFFSET, val); }
 
-pub fn get_compare_high() -> u32 { get_u32(0x44) }
+const VALUE_HIGH_OFFSET: usize = u8_to_u32_offset(RV_TIMER_TIMER_V_UPPER0_REG_OFFSET);
 
-pub fn set_compare_high(val: u32) { set_u32(0x44, val); }
+pub fn get_value_high() -> u32 { get_u32(VALUE_HIGH_OFFSET) }
 
-pub fn get_intr_enable() -> Intr { Intr::from_bytes(get_bytes(0x45)) }
+pub fn set_value_high(val: u32) { set_u32(VALUE_HIGH_OFFSET, val); }
 
-pub fn set_intr_enable(intr_enable: Intr) { set_bytes(0x45, intr_enable.into_bytes()); }
+const COMPARE_LOW_OFFSET: usize = u8_to_u32_offset(RV_TIMER_COMPARE_LOWER0_0_REG_OFFSET);
 
-pub fn get_intr_state() -> Intr { Intr::from_bytes(get_bytes(0x46)) }
+pub fn get_compare_low() -> u32 { get_u32(COMPARE_LOW_OFFSET) }
 
-pub fn set_intr_state(intr_state: Intr) { set_bytes(0x46, intr_state.into_bytes()); }
+pub fn set_compare_low(val: u32) { set_u32(COMPARE_LOW_OFFSET, val); }
 
-pub fn get_intr_test() -> Intr { Intr::from_bytes(get_bytes(0x47)) }
+const COMPARE_HIGH_OFFSET: usize = u8_to_u32_offset(RV_TIMER_COMPARE_UPPER0_0_REG_OFFSET);
 
-pub fn set_intr_test(intr_test: Intr) { set_bytes(0x47, intr_test.into_bytes()); }
+pub fn get_compare_high() -> u32 { get_u32(COMPARE_HIGH_OFFSET) }
+
+pub fn set_compare_high(val: u32) { set_u32(COMPARE_HIGH_OFFSET, val); }
+
+const INTR_ENABLE_OFFSET: usize = u8_to_u32_offset(RV_TIMER_INTR_ENABLE0_REG_OFFSET);
+
+pub fn get_intr_enable() -> Intr { Intr::from_bytes(get_bytes(INTR_ENABLE_OFFSET)) }
+
+pub fn set_intr_enable(intr_enable: Intr) {
+    set_bytes(INTR_ENABLE_OFFSET, intr_enable.into_bytes());
+}
+
+const INTR_STATE_OFFSET: usize = u8_to_u32_offset(RV_TIMER_INTR_STATE0_REG_OFFSET);
+
+pub fn get_intr_state() -> Intr { Intr::from_bytes(get_bytes(INTR_STATE_OFFSET)) }
+
+pub fn set_intr_state(intr_state: Intr) { set_bytes(INTR_STATE_OFFSET, intr_state.into_bytes()); }
+
+const INTR_TEST_OFFSET: usize = u8_to_u32_offset(RV_TIMER_INTR_TEST0_REG_OFFSET);
+
+pub fn get_intr_test() -> Intr { Intr::from_bytes(get_bytes(INTR_TEST_OFFSET)) }
+
+pub fn set_intr_test(intr_test: Intr) { set_bytes(INTR_TEST_OFFSET, intr_test.into_bytes()); }

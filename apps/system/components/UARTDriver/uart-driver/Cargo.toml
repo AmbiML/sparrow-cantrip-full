@@ -16,11 +16,6 @@
 name = "uart-driver"
 version = "0.1.0"
 edition = "2018"
-build = "build.rs"
-
-[build-dependencies]
-bindgen = "0.61.0"
-sel4-config = { path = "../../cantrip-os-common/src/sel4-config" }
 
 [features]
 CONFIG_PLAT_SPARROW = []
@@ -30,6 +25,7 @@ cantrip-os-common = { path = "../../cantrip-os-common" }
 circular-buffer = { path = "../circular-buffer" }
 cty = "0.2.1"
 log = { version = "0.4", features = ["release_max_level_info"] }
+reg_constants = { path = "../../cantrip-os-common/src/reg_constants" }
 
 [lib]
 name = "uart_driver"

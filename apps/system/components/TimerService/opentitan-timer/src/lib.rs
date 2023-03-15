@@ -20,7 +20,7 @@ mod opentitan_timer;
 
 use cantrip_timer_interface::{HardwareTimer, Ticks};
 use core::time::Duration;
-use opentitan_timer::*;
+use opentitan_timer::{Config, Ctrl, Intr};
 
 // TODO(jesionowski): Grab frequency from top_matcha.h.
 const TIMER_BASE_FREQ: u32 = 24_000_000;
