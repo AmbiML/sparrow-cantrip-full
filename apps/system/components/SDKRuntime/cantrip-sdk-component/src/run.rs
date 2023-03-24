@@ -58,6 +58,7 @@ use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_CapRights;
 use sel4_sys::seL4_EndpointObject;
 use sel4_sys::seL4_FaultTag;
+use sel4_sys::seL4_GetMR;
 use sel4_sys::seL4_MessageInfo;
 use sel4_sys::seL4_PageBits;
 use sel4_sys::seL4_Recv;
@@ -153,6 +154,37 @@ fn delete_path(path: &seL4_CPath) -> seL4_Result {
     unsafe { seL4_CNode_Delete(path.0, path.1, path.2 as u8) }
 }
 
+#[cfg(feature = "CONFIG_DEBUG_BUILD")]
+fn print_fault_debug(app_id: SDKAppId, fault_type: seL4_FaultTag) {
+    match fault_type {
+        seL4_FaultTag::seL4_Fault_NullFault => {
+            let _ = cantrip_sdk().log(app_id, "normal exit or termination");
+        }
+        seL4_FaultTag::seL4_Fault_CapFault => {
+            let _ = cantrip_sdk().log(app_id, "invalid capability");
+        }
+        seL4_FaultTag::seL4_Fault_UnknownSyscall => {
+            let _ = cantrip_sdk().log(app_id, "unknown syscall");
+        }
+        seL4_FaultTag::seL4_Fault_UserException => {
+            let _ = cantrip_sdk().log(app_id, "user exception");
+        }
+        seL4_FaultTag::seL4_Fault_VMFault => {
+            let _ = cantrip_sdk().log(app_id, "virtual-memory fault:");
+            info!(target: "", "IP       {:#010x}", unsafe { seL4_GetMR(0) });
+            info!(target: "", "Addr     {:#010x}", unsafe { seL4_GetMR(1) });
+            info!(target: "", "Prefetch {:#x}", unsafe { seL4_GetMR(2) });
+            info!(target: "", "FSR      {:#x}", unsafe { seL4_GetMR(3) });
+            info!(target: "", "Length   {:#x}", unsafe { seL4_GetMR(4) });
+        }
+
+        #[cfg(feature = "CONFIG_KERNEL_MCS")]
+        seL4_FaultTag::seL4_Fault_Timeout => {
+            let _ = cantrip_sdk().log(app_id, "application timed out");
+        }
+    }
+}
+
 /// Server-side of SDKRuntime request processing.  Note CAmkES does not
 /// participate in the RPC processing we use the control thread instead
 /// of having CAmkES create an interface thread, and pass parameters
@@ -175,33 +207,20 @@ pub unsafe extern "C" fn run() -> ! {
     );
 
     loop {
+        let label = info.get_label();
+        let app_id = sdk_runtime_badge as SDKAppId; // XXX safe?
+
         // Check for a fault condition and handle those specially.
-        if info.get_label() < (SDKRuntimeRequest::Ping as usize) {
-            let app_id = sdk_runtime_badge as SDKAppId;
-            let label = info.get_label() as usize;
-            let fault_tag = seL4_FaultTag::try_from(label);
-
-            // XXX Do something with the fault -- notify ProcessManager about it
-            // so we can clean up that whole thread and mess. Should be as
-            // simple as calling stop.
-
-            match fault_tag {
-                Ok(seL4_FaultTag::seL4_Fault_NullFault) => { info!("app {} faulted ({:?}): normal exit or termination.", app_id, label); }
-                Ok(seL4_FaultTag::seL4_Fault_CapFault) => { info!("app {} faulted ({:?}): invalid capability usage.", app_id, label); }
-                Ok(seL4_FaultTag::seL4_Fault_UnknownSyscall) => { info!("app {} faulted ({:?}): unknown syscall requested.", app_id, label); }
-                Ok(seL4_FaultTag::seL4_Fault_UserException) => { info!("app {} faulted ({:?}): user exception requested.", app_id, label); }
-
-                #[cfg(feature = "CONFIG_KERNEL_MCS")]
-                Ok(seL4_FaultTag::seL4_Fault_Timeout) => { info!("app {} faulted ({:?}): application timed out.", app_id, label); }
-
-                Ok(seL4_FaultTag::seL4_Fault_VMFault) => { info!("app {} faulted ({:?}): virtual-memory fault.", app_id, label); }
-
-                Err(_) => {}
+        if label < (SDKRuntimeRequest::Ping as usize) {
+            match seL4_FaultTag::try_from(label) {
+                Ok(fault_tag) => {
+                    #[cfg(feature = "CONFIG_DEBUG_BUILD")]
+                    print_fault_debug(app_id, fault_tag)
+                },
+                Err(_) => error!("Bad fault tag {} on msg from {}", label, app_id),
             }
 
-            // Clean up any request caps
-            delete_path(recv_path).expect("delete");
-            Camkes::debug_assert_slot_empty("run", recv_path);
+            Camkes::debug_assert_slot_empty("fault", recv_path);
 
             // Can't respond to one of these messages, really, since doing so
             // would unsuspend the faulting thread, leading possibly to another
@@ -238,8 +257,7 @@ pub unsafe extern "C" fn run() -> ! {
                 .split_at_mut(SDKRUNTIME_REQUEST_DATA_SIZE);
             let request_slice = &*request_slice; // NB: immutable alias
 
-            let app_id = sdk_runtime_badge as SDKAppId; // XXX safe?
-            response = match SDKRuntimeRequest::try_from(info.get_label()) {
+            response = match SDKRuntimeRequest::try_from(label) {
                 Ok(SDKRuntimeRequest::Ping) => ping_request(app_id, request_slice, reply_slice),
                 Ok(SDKRuntimeRequest::Log) => log_request(app_id, request_slice, reply_slice),
                 Ok(SDKRuntimeRequest::ReadKey) => {
@@ -283,7 +301,7 @@ pub unsafe extern "C" fn run() -> ! {
                 }
                 Err(_) => {
                     // TODO(b/254286176): possible ddos
-                    error!("Unknown RPC request {}", info.get_label());
+                    error!("Unknown RPC request {}", label);
                     Err(SDKError::UnknownRequest)
                 }
             };
