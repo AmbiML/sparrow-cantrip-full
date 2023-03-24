@@ -57,7 +57,7 @@ use sel4_sys::seL4_CNode_Delete;
 use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_CapRights;
 use sel4_sys::seL4_EndpointObject;
-use sel4_sys::seL4_Fault;
+use sel4_sys::seL4_FaultTag;
 use sel4_sys::seL4_MessageInfo;
 use sel4_sys::seL4_PageBits;
 use sel4_sys::seL4_Recv;
@@ -179,24 +179,22 @@ pub unsafe extern "C" fn run() -> ! {
         if info.get_label() < (SDKRuntimeRequest::Ping as usize) {
             let app_id = sdk_runtime_badge as SDKAppId;
             let label = info.get_label() as usize;
-            let fault_type = seL4_Fault::try_from(label);
+            let fault_tag = seL4_FaultTag::try_from(label);
 
             // XXX Do something with the fault -- notify ProcessManager about it
             // so we can clean up that whole thread and mess. Should be as
             // simple as calling stop.
 
-            match fault_type {
-                Ok(seL4_Fault::seL4_NullFault) => { info!("app {} faulted ({:?}): normal exit or termination.", app_id, fault_type); }
-                Ok(seL4_Fault::seL4_CapFault) => { info!("app {} faulted ({:?}): invalid capability usage.", app_id, label); }
-                Ok(seL4_Fault::seL4_UnknownSyscall) => { info!("app {} faulted ({:?}): unknown syscall requested.", app_id, label); }
-                Ok(seL4_Fault::seL4_UserException) => { info!("app {} faulted ({:?}): user exception requested.", app_id, label); }
-
-                Ok(seL4_Fault::seL4_BogusException) => { error!("Impossible! We received a Bogus Exception! My one weakness! How did you know?!"); }
+            match fault_tag {
+                Ok(seL4_FaultTag::seL4_Fault_NullFault) => { info!("app {} faulted ({:?}): normal exit or termination.", app_id, label); }
+                Ok(seL4_FaultTag::seL4_Fault_CapFault) => { info!("app {} faulted ({:?}): invalid capability usage.", app_id, label); }
+                Ok(seL4_FaultTag::seL4_Fault_UnknownSyscall) => { info!("app {} faulted ({:?}): unknown syscall requested.", app_id, label); }
+                Ok(seL4_FaultTag::seL4_Fault_UserException) => { info!("app {} faulted ({:?}): user exception requested.", app_id, label); }
 
                 #[cfg(feature = "CONFIG_KERNEL_MCS")]
-                Ok(seL4_Fault::seL4_Timeout) => { info!("app {} faulted ({:?}): application timed out.", app_id, label); }
+                Ok(seL4_FaultTag::seL4_Fault_Timeout) => { info!("app {} faulted ({:?}): application timed out.", app_id, label); }
 
-                Ok(seL4_Fault::seL4_VMFault) => { info!("app {} faulted ({:?}): virtual-memory fault.", app_id, label); }
+                Ok(seL4_FaultTag::seL4_Fault_VMFault) => { info!("app {} faulted ({:?}): virtual-memory fault.", app_id, label); }
 
                 Err(_) => {}
             }

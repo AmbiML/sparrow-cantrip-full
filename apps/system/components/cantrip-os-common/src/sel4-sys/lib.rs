@@ -243,6 +243,13 @@ impl From<usize> for seL4_Error {
     }
 }
 
+impl From<usize> for seL4_FaultTag {
+    fn from(val: usize) -> seL4_FaultTag {
+        debug_assert!(val <= 6, "Invalid or unknown seL4_FaultTag");
+        unsafe { ::core::mem::transmute(val) }
+    }
+}
+
 #[repr(C)]
 #[derive(Copy, Debug)]
 /// Buffer used to store received IPC messages
