@@ -33,7 +33,7 @@ use cantrip_security_interface::*;
 use core::mem::size_of;
 use core::ptr;
 use core::slice;
-use cpio::CpioNewcReader;
+use cpio::{CpioNewcReader, Object};
 use hashbrown::HashMap;
 use log::{error, info};
 
@@ -142,7 +142,8 @@ fn get_builtins() -> BundleIdArray {
     let mut builtins = BundleIdArray::new();
     for e in CpioNewcReader::new(cpio_archive_ref) {
         if e.is_err() {
-            error!("cpio read err {:?}", e);
+            let Object { name, .. } = e.unwrap();
+            error!("cpio read err {:?}", name);
             break;
         }
         builtins.push(e.unwrap().name.to_string());
@@ -159,7 +160,8 @@ fn get_bundle_from_builtins(filename: &str) -> Result<BundleData, SecurityReques
         };
         for e in CpioNewcReader::new(cpio_archive_ref) {
             if e.is_err() {
-                error!("cpio read err {:?}", e);
+                let Object { name, .. } = e.unwrap();
+                error!("cpio read err {:?}", name);
                 break;
             }
             let entry = e.unwrap();
