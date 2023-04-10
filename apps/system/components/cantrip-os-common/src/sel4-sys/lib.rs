@@ -101,10 +101,10 @@ pub type seL4_CPtr = usize;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 include!(concat!(env!("OUT_DIR"), "/shared_types_x86.rs"));
 
-#[cfg(any(target_arch = "riscv32", target_arch="riscv64"))]
+#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
 include!(concat!(env!("OUT_DIR"), "/shared_types_riscv.rs"));
 
-#[cfg(target_arch = "arm")]
+#[cfg(any(target_arch = "aarch32", target_arch = "aarch64"))]
 include!(concat!(env!("OUT_DIR"), "/shared_types_arm.rs"));
 
 #[cfg(target_arch = "x86")]
@@ -246,7 +246,9 @@ impl From<usize> for seL4_Error {
 impl From<usize> for seL4_FaultTag {
     fn from(val: usize) -> seL4_FaultTag {
         debug_assert!(val <= 6, "Invalid or unknown seL4_FaultTag");
-        unsafe { ::core::mem::transmute(val) }
+        // TODO(b/1222568): Find a more elegant way of doing this -- hardcoding
+        // u32 here might not work on other platforms.
+        unsafe { ::core::mem::transmute(val as u32) }
     }
 }
 
