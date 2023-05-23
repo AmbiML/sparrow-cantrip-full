@@ -14,70 +14,120 @@
 
 //! Cantrip OS security coordinator seL4 support
 
+#![allow(dead_code)]
+#![allow(unused_variables)]
+
+use alloc::string::String;
 use cantrip_memory_interface::cantrip_frame_alloc;
 use cantrip_memory_interface::cantrip_object_free_toplevel;
+use cantrip_memory_interface::ObjDescBundle;
+use cantrip_os_common::copyregion::CopyRegion;
 use cantrip_os_common::sel4_sys;
 use cantrip_security_interface::*;
+use core::mem::size_of;
+use core::ptr;
 use log::trace;
-
 use sel4_sys::seL4_CPtr;
+use sel4_sys::seL4_PageBits;
 use sel4_sys::seL4_Page_GetAddress;
+use sel4_sys::seL4_Word;
+
+const PAGE_SIZE: usize = 1 << seL4_PageBits;
 
 extern "C" {
     static SECURITY_RECV_SLOT: seL4_CPtr;
+    // Regions for deep_copy work.
+    static mut DEEP_COPY_SRC: [seL4_Word; PAGE_SIZE / size_of::<seL4_Word>()];
+    static mut DEEP_COPY_DEST: [seL4_Word; PAGE_SIZE / size_of::<seL4_Word>()];
 }
 
 pub struct SeL4SecurityCoordinator {
     // TODO(sleffler): mailbox api state
 }
+impl Default for SeL4SecurityCoordinator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl SeL4SecurityCoordinator {
-    pub fn new() -> Self { SeL4SecurityCoordinator {} }
+    pub fn new() -> Self {
+        SeL4SecurityCoordinator {}
+    }
 }
 pub type CantripSecurityCoordinatorInterface = SeL4SecurityCoordinator;
 
-impl SecurityCoordinatorInterface for SeL4SecurityCoordinator {
+impl SecurityCoordinatorInterface for CantripSecurityCoordinatorInterface {
     fn install(&mut self, _pkg_contents: &ObjDescBundle) -> Result<String, SecurityRequestError> {
-        Err(SreInstallFailed)
+        Err(SecurityRequestError::SreInstallFailed)
     }
+
+    fn install_app(
+        &mut self,
+        app_id: &str,
+        pkg_contents: &ObjDescBundle,
+    ) -> Result<(), SecurityRequestError> {
+        Err(SecurityRequestError::SreInstallFailed)
+    }
+
+    fn install_model(
+        &mut self,
+        _app_id: &str,
+        model_id: &str,
+        pkg_contents: &ObjDescBundle,
+    ) -> Result<(), SecurityRequestError> {
+        Err(SecurityRequestError::SreInstallModelFailed)
+    }
+
     fn uninstall(&mut self, _bundle_id: &str) -> Result<(), SecurityRequestError> {
-        Err(SreUninstallFailed)
+        Err(SecurityRequestError::SreUninstallFailed)
     }
+
+    fn get_packages(&self) -> Result<BundleIdArray, SecurityRequestError> {
+        Err(SecurityRequestError::SreGetPackagesFailed)
+    }
+
     fn size_buffer(&self, _bundle_id: &str) -> Result<usize, SecurityRequestError> {
-        Err(SreSizeBufferFailed)
+        Err(SecurityRequestError::SreSizeBufferFailed)
     }
+
     fn get_manifest(&self, _bundle_id: &str) -> Result<String, SecurityRequestError> {
-        Err(SreGetManifestFailed)
+        Err(SecurityRequestError::SreGetManifestFailed)
     }
+
     fn load_application(
         &mut self,
         _bundle_id: &str,
     ) -> Result<ObjDescBundle, SecurityRequestError> {
-        Err(SreLoadApplicationFailed)
+        Err(SecurityRequestError::SreLoadApplicationFailed)
     }
+
     fn load_model(
         &mut self,
         _bundle_id: &str,
         _model_id: &str,
     ) -> Result<ObjDescBundle, SecurityRequestError> {
-        Err(SreLoadModelFailed)
+        Err(SecurityRequestError::SreLoadModelFailed)
     }
+
     fn read_key(
         &self,
         _bundle_id: &str,
         _key: &str,
     ) -> Result<&KeyValueData, SecurityRequestError> {
-        Err(SreReadFailed)
+        Err(SecurityRequestError::SreReadFailed)
     }
+
     fn write_key(
         &mut self,
         _bundle_id: &str,
         _key: &str,
-        _value: &KeyValueData,
+        value: &[u8],
     ) -> Result<(), SecurityRequestError> {
-        Err(SreWriteFailed)
+        Err(SecurityRequestError::SreWriteFailed)
     }
+
     fn delete_key(&mut self, _bundle_id: &str, _key: &str) -> Result<(), SecurityRequestError> {
-        Err(SreDeleteFailed)
+        Err(SecurityRequestError::SreDeleteFailed)
     }
 
     fn test_mailbox(&mut self) -> Result<(), SecurityRequestError> {

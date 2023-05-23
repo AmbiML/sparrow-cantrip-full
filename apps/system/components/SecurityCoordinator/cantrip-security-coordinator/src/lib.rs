@@ -46,9 +46,13 @@ impl<SC: SecurityCoordinatorInterface> CantripSecurityCoordinator<SC> {
         CantripSecurityCoordinator { manager: None }
     }
 
-    pub fn is_empty(&self) -> bool { self.manager.is_none() }
+    pub fn is_empty(&self) -> bool {
+        self.manager.is_none()
+    }
 
-    pub fn init(&mut self, manager: SC) { self.manager = Some(manager); }
+    pub fn init(&mut self, manager: SC) {
+        self.manager = Some(manager);
+    }
 
     pub fn get(&mut self) -> &mut impl SecurityCoordinatorInterface {
         self.manager

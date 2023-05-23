@@ -77,6 +77,8 @@ pub enum SecurityRequestError {
     SreGetManifestFailed,
     SreLoadApplicationFailed,
     SreLoadModelFailed,
+    SreInstallModelFailed,
+    SreGetPackagesFailed,
     SreReadFailed,
     SreWriteFailed,
     SreDeleteFailed,
