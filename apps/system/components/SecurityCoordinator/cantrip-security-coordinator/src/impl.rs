@@ -45,14 +45,10 @@ pub struct SeL4SecurityCoordinator {
     // TODO(sleffler): mailbox api state
 }
 impl Default for SeL4SecurityCoordinator {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
 impl SeL4SecurityCoordinator {
-    pub fn new() -> Self {
-        SeL4SecurityCoordinator {}
-    }
+    pub fn new() -> Self { SeL4SecurityCoordinator {} }
 }
 pub type CantripSecurityCoordinatorInterface = SeL4SecurityCoordinator;
 
