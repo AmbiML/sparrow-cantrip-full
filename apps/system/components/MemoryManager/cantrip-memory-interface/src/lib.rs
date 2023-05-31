@@ -20,13 +20,16 @@ extern crate alloc;
 use alloc::borrow::Cow;
 use alloc::vec;
 use alloc::vec::Vec;
-use cantrip_os_common::camkes::Camkes;
+use cantrip_os_common::camkes;
 use cantrip_os_common::sel4_sys;
 use cantrip_os_common::slot_allocator;
 use core::fmt;
 use log::trace;
+use num_enum::{FromPrimitive, IntoPrimitive};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+
+use camkes::*;
 
 use sel4_sys::seL4_CNode_Move;
 use sel4_sys::seL4_CPtr;
@@ -41,7 +44,7 @@ use sel4_sys::seL4_WordBits;
 
 use slot_allocator::CANTRIP_CSPACE_SLOTS;
 
-extern "C" {
+extern "Rust" {
     // Each CAmkES-generated CNode has a writable self-reference to itself in
     // the slot SELF_CNODE to enable dynamic management of capabilities.
     static SELF_CNODE: seL4_CPtr;
@@ -271,19 +274,32 @@ impl fmt::Display for ObjDescBundle {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
-pub enum MemoryError {
-    ObjCountInvalid = 0, // Too many objects requested
-    ObjTypeInvalid,      // Request with invalid object type
-    ObjCapInvalid,       // Request with invalid cptr XXX
+#[repr(usize)]
+#[derive(Debug, Default, Eq, PartialEq, FromPrimitive, IntoPrimitive)]
+pub enum MemoryManagerError {
+    Success = 0,
+    SerializeFailed,
+    DeserializeFailed,
+    ObjCountInvalid, // Too many objects requested
+    ObjTypeInvalid,  // Request with invalid object type
+    ObjCapInvalid,   // Request with invalid cptr XXX
     CapAllocFailed,
-    UnknownMemoryError,
+    #[default]
+    UnknownError,
     // Generic errors.
     AllocFailed,
     FreeFailed,
 }
+impl From<MemoryManagerError> for Result<(), MemoryManagerError> {
+    fn from(err: MemoryManagerError) -> Result<(), MemoryManagerError> {
+        if err == MemoryManagerError::Success {
+            Ok(())
+        } else {
+            Err(err)
+        }
+    }
+}
 
-#[repr(C)]
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct MemoryManagerStats {
     // Current space committed to allocations.
@@ -330,57 +346,10 @@ pub trait MemoryManagerInterface {
         &mut self,
         bundle: &ObjDescBundle,
         lifetime: MemoryLifetime,
-    ) -> Result<(), MemoryError>;
-    fn free(&mut self, bundle: &ObjDescBundle) -> Result<(), MemoryError>;
-    fn stats(&self) -> Result<MemoryManagerStats, MemoryError>;
-    fn debug(&self) -> Result<(), MemoryError>;
-}
-
-// Public version of MemoryError presented over rpc interface.
-// This is needed because the enum is exported to C users and needs to
-// be unique from other enum's.
-// TODO(sleffler): switch to single generic error space ala absl::StatusCode
-#[repr(C)]
-#[derive(Debug, Eq, PartialEq)]
-pub enum MemoryManagerError {
-    MmeSuccess = 0,
-    MmeObjCountInvalid,
-    MmeObjTypeInvalid,
-    MmeObjCapInvalid,
-    MmeCapAllocFailed,
-    MmeSerializeFailed,
-    MmeDeserializeFailed,
-    MmeUnknownError,
-    // Generic errors.
-    MmeAllocFailed,
-    MmeFreeFailed,
-}
-impl From<MemoryError> for MemoryManagerError {
-    fn from(err: MemoryError) -> MemoryManagerError {
-        match err {
-            MemoryError::ObjCountInvalid => MemoryManagerError::MmeObjCountInvalid,
-            MemoryError::ObjTypeInvalid => MemoryManagerError::MmeObjTypeInvalid,
-            MemoryError::ObjCapInvalid => MemoryManagerError::MmeObjCapInvalid,
-            MemoryError::CapAllocFailed => MemoryManagerError::MmeCapAllocFailed,
-            MemoryError::AllocFailed => MemoryManagerError::MmeAllocFailed,
-            MemoryError::FreeFailed => MemoryManagerError::MmeFreeFailed,
-            _ => MemoryManagerError::MmeUnknownError,
-        }
-    }
-}
-impl From<Result<(), MemoryError>> for MemoryManagerError {
-    fn from(result: Result<(), MemoryError>) -> MemoryManagerError {
-        result.map_or_else(MemoryManagerError::from, |_v| MemoryManagerError::MmeSuccess)
-    }
-}
-impl From<MemoryManagerError> for Result<(), MemoryManagerError> {
-    fn from(err: MemoryManagerError) -> Result<(), MemoryManagerError> {
-        if err == MemoryManagerError::MmeSuccess {
-            Ok(())
-        } else {
-            Err(err)
-        }
-    }
+    ) -> Result<(), MemoryManagerError>;
+    fn free(&mut self, bundle: &ObjDescBundle) -> Result<(), MemoryManagerError>;
+    fn stats(&self) -> Result<MemoryManagerStats, MemoryManagerError>;
+    fn debug(&self) -> Result<(), MemoryManagerError>;
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -416,52 +385,10 @@ impl<'a> MemoryManagerRequest<'a> {
 // NB: @14b per desc this supports ~150 descriptors (depending
 //   on serde overhead), the rpc buffer is actually 4K so we could
 //   raise this
-const MEMORY_REQUEST_DATA_SIZE: usize = 2048;
-pub const MEMORY_RESPONSE_DATA_SIZE: usize = 100;
-pub type MemoryResponseData = [u8; MEMORY_RESPONSE_DATA_SIZE];
+pub const MEMORY_REQUEST_DATA_SIZE: usize = 2048;
+//pub const MEMORY_RESPONSE_DATA_SIZE: usize = 100;
+//pub type MemoryResponseData = [u8; MEMORY_RESPONSE_DATA_SIZE];
 
-#[inline]
-fn cantrip_memory_request_aux(
-    cap: Option<seL4_CPtr>,
-    request_buffer: &[u8],
-    reply_buffer: &mut MemoryResponseData,
-) -> Result<(), MemoryManagerError> {
-    extern "C" {
-        pub fn memory_request(
-            c_request_buffer_len: u32,
-            c_request_buffer: *const u8,
-            c_reply_buffer: *mut MemoryResponseData,
-        ) -> MemoryManagerError;
-    }
-    if let Some(cap) = cap {
-        sel4_sys::debug_assert_slot_cnode!(cap);
-        let _cleanup = Camkes::set_request_cap(cap);
-        unsafe {
-            memory_request(
-                request_buffer.len() as u32,
-                request_buffer.as_ptr(),
-                reply_buffer as *mut _,
-            )
-            .into()
-        }
-    } else {
-        // NB: guard against a received badge being treated as an
-        // outbound capability. This is needed because the code CAmkES
-        // generates for memory_request always enables possible xmit
-        // of 1 capability.
-        Camkes::clear_request_cap();
-        unsafe {
-            memory_request(
-                request_buffer.len() as u32,
-                request_buffer.as_ptr(),
-                reply_buffer as *mut _,
-            )
-            .into()
-        }
-    }
-}
-
-#[inline]
 fn cantrip_memory_request<T: DeserializeOwned>(
     request: &MemoryManagerRequest,
 ) -> Result<T, MemoryManagerError> {
@@ -470,12 +397,18 @@ fn cantrip_memory_request<T: DeserializeOwned>(
         request,
         request.get_container_cap()
     );
-    let mut request_buffer = [0u8; MEMORY_REQUEST_DATA_SIZE];
-    let request_slice = postcard::to_slice(request, &mut request_buffer)
-        .or(Err(MemoryManagerError::MmeSerializeFailed))?;
-    let mut reply_buffer = [0u8; MEMORY_RESPONSE_DATA_SIZE];
-    cantrip_memory_request_aux(request.get_container_cap(), request_slice, &mut reply_buffer)?;
-    postcard::from_bytes(&reply_buffer).or(Err(MemoryManagerError::MmeDeserializeFailed))
+    let (request_slice, reply_slice) =
+        rpc_shared_buffer_mut!(memory).split_at_mut(MEMORY_REQUEST_DATA_SIZE);
+    let _ =
+        postcard::to_slice(request, request_slice).or(Err(MemoryManagerError::SerializeFailed))?;
+    match rpc_shared_send!(memory, request.get_container_cap()).into() {
+        MemoryManagerError::Success => {
+            let reply =
+                postcard::from_bytes(reply_slice).or(Err(MemoryManagerError::DeserializeFailed))?;
+            Ok(reply)
+        }
+        err => Err(err),
+    }
 }
 
 // Allocates the objects specified in |request|. The capabilities are stored
@@ -517,7 +450,7 @@ pub fn cantrip_object_alloc_in_toplevel(
     match request.move_objects_to_toplevel() {
         Err(_) => {
             cantrip_object_free(&request).expect("cantrip_object_alloc_in_toplevel");
-            Err(MemoryManagerError::MmeObjCapInvalid) // TODO(sleffler): e.into
+            Err(MemoryManagerError::ObjCapInvalid) // TODO(sleffler): e.into
         }
         Ok(_) => Ok(request),
     }
@@ -537,7 +470,7 @@ pub fn cantrip_object_alloc_in_toplevel_static(
     match request.move_objects_to_toplevel() {
         Err(_) => {
             cantrip_object_free(&request).expect("cantrip_object_alloc_in_toplevel_static");
-            Err(MemoryManagerError::MmeObjCapInvalid) // TODO(sleffler): e.into
+            Err(MemoryManagerError::ObjCapInvalid) // TODO(sleffler): e.into
         }
         Ok(_) => Ok(request),
     }
@@ -587,7 +520,7 @@ pub fn cantrip_untyped_alloc(space_bytes: usize) -> Result<ObjDescBundle, Memory
     );
     cantrip_object_alloc(&objs)?;
     objs.move_objects_to_toplevel()
-        .or(Err(MemoryManagerError::MmeObjCapInvalid))?;
+        .or(Err(MemoryManagerError::ObjCapInvalid))?;
     Ok(objs)
 }
 
@@ -600,7 +533,7 @@ pub fn cantrip_tcb_alloc() -> Result<ObjDescBundle, MemoryManagerError> {
     );
     cantrip_object_alloc(&objs)?;
     objs.move_objects_to_toplevel()
-        .or(Err(MemoryManagerError::MmeObjCapInvalid))?;
+        .or(Err(MemoryManagerError::ObjCapInvalid))?;
     Ok(objs)
 }
 
@@ -613,7 +546,7 @@ pub fn cantrip_endpoint_alloc() -> Result<ObjDescBundle, MemoryManagerError> {
     );
     cantrip_object_alloc(&objs)?;
     objs.move_objects_to_toplevel()
-        .or(Err(MemoryManagerError::MmeObjCapInvalid))?;
+        .or(Err(MemoryManagerError::ObjCapInvalid))?;
     Ok(objs)
 }
 
@@ -626,7 +559,7 @@ pub fn cantrip_notification_alloc() -> Result<ObjDescBundle, MemoryManagerError>
     );
     cantrip_object_alloc(&objs)?;
     objs.move_objects_to_toplevel()
-        .or(Err(MemoryManagerError::MmeObjCapInvalid))?;
+        .or(Err(MemoryManagerError::ObjCapInvalid))?;
     Ok(objs)
 }
 
@@ -644,7 +577,7 @@ pub fn cantrip_cnode_alloc(size_bits: usize) -> Result<ObjDescBundle, MemoryMana
     );
     cantrip_object_alloc(&objs)?;
     objs.move_objects_to_toplevel()
-        .or(Err(MemoryManagerError::MmeObjCapInvalid))?;
+        .or(Err(MemoryManagerError::ObjCapInvalid))?;
     Ok(objs)
 }
 
@@ -662,7 +595,7 @@ pub fn cantrip_sched_context_alloc(size_bits: usize) -> Result<ObjDescBundle, Me
     );
     cantrip_object_alloc(&objs)?;
     objs.move_objects_to_toplevel()
-        .or(Err(MemoryManagerError::MmeObjCapInvalid))?;
+        .or(Err(MemoryManagerError::ObjCapInvalid))?;
     Ok(objs)
 }
 
@@ -676,7 +609,7 @@ pub fn cantrip_reply_alloc() -> Result<ObjDescBundle, MemoryManagerError> {
     );
     cantrip_object_alloc(&objs)?;
     objs.move_objects_to_toplevel()
-        .or(Err(MemoryManagerError::MmeObjCapInvalid))?;
+        .or(Err(MemoryManagerError::ObjCapInvalid))?;
     Ok(objs)
 }
 
@@ -697,7 +630,7 @@ pub fn cantrip_frame_alloc(space_bytes: usize) -> Result<ObjDescBundle, MemoryMa
     );
     cantrip_object_alloc(&objs)?;
     objs.move_objects_to_toplevel()
-        .or(Err(MemoryManagerError::MmeObjCapInvalid))?;
+        .or(Err(MemoryManagerError::ObjCapInvalid))?;
     Ok(objs)
 }
 
@@ -736,7 +669,7 @@ pub fn cantrip_page_table_alloc() -> Result<ObjDescBundle, MemoryManagerError> {
     );
     cantrip_object_alloc(&objs)?;
     objs.move_objects_to_toplevel()
-        .or(Err(MemoryManagerError::MmeObjCapInvalid))?;
+        .or(Err(MemoryManagerError::ObjCapInvalid))?;
     Ok(objs)
 }
 
@@ -774,7 +707,7 @@ pub fn cantrip_object_free_toplevel(objs: &ObjDescBundle) -> Result<(), MemoryMa
         .move_objects_from_toplevel(unsafe { MEMORY_RECV_CNODE }, unsafe {
             MEMORY_RECV_CNODE_DEPTH
         })
-        .or(Err(MemoryManagerError::MmeObjCapInvalid))?;
+        .or(Err(MemoryManagerError::ObjCapInvalid))?;
     cantrip_object_free(&objs_mut)
 }
 

@@ -20,9 +20,12 @@ use cantrip_ml_shared::Permission;
 use core::ptr;
 use modular_bitfield::prelude::*;
 
-extern "C" {
-    static CSR: *mut [u32; 9];
+extern "Rust" {
+    fn get_csr() -> &'static [u8];
+    fn get_csr_mut() -> &'static mut [u8];
 }
+fn get_csr_word() -> &'static [u32] { unsafe { core::mem::transmute(get_csr()) } }
+fn get_csr_word_mut() -> &'static mut [u32] { unsafe { core::mem::transmute(get_csr_mut()) } }
 
 #[bitfield]
 pub struct IntrState {
@@ -105,91 +108,104 @@ pub struct InitStatus {
     pub _unused0: B30,
 }
 
+// XXX TODO(sleffler): re-check address calculations
+
 pub fn get_intr_state() -> IntrState {
-    unsafe { IntrState::from_bytes(ptr::read_volatile(CSR)[0].to_ne_bytes()) }
+    let ptr = ptr::addr_of!(get_csr_word()[0]);
+    unsafe { IntrState::from_bytes(ptr::read_volatile(ptr).to_ne_bytes()) }
 }
 
 pub fn set_intr_state(intr_state: IntrState) {
     unsafe {
-        (*CSR)[0] = u32::from_ne_bytes(intr_state.into_bytes());
+        get_csr_word_mut()[0] = u32::from_ne_bytes(intr_state.into_bytes());
     }
 }
 
 pub fn get_intr_enable() -> IntrEnable {
-    unsafe { IntrEnable::from_bytes(ptr::read_volatile(CSR)[1].to_ne_bytes()) }
+    let ptr = ptr::addr_of!(get_csr_word()[1]);
+    unsafe { IntrEnable::from_bytes(ptr::read_volatile(ptr).to_ne_bytes()) }
 }
 
 pub fn set_intr_enable(intr_enable: IntrEnable) {
     unsafe {
-        (*CSR)[1] = u32::from_ne_bytes(intr_enable.into_bytes());
+        get_csr_word_mut()[1] = u32::from_ne_bytes(intr_enable.into_bytes());
     }
 }
 
 pub fn get_intr_test() -> IntrTest {
-    unsafe { IntrTest::from_bytes(ptr::read_volatile(CSR)[2].to_ne_bytes()) }
+    let ptr = ptr::addr_of!(get_csr_word()[2]);
+    unsafe { IntrTest::from_bytes(ptr::read_volatile(ptr).to_ne_bytes()) }
 }
 
 pub fn set_intr_test(intr_test: IntrTest) {
     unsafe {
-        (*CSR)[2] = u32::from_ne_bytes(intr_test.into_bytes());
+        get_csr_word_mut()[2] = u32::from_ne_bytes(intr_test.into_bytes());
     }
 }
 
-pub fn get_ctrl() -> Ctrl { unsafe { Ctrl::from_bytes(ptr::read_volatile(CSR)[3].to_ne_bytes()) } }
+pub fn get_ctrl() -> Ctrl {
+    let ptr = ptr::addr_of!(get_csr_word()[3]);
+    unsafe { Ctrl::from_bytes(ptr::read_volatile(ptr).to_ne_bytes()) }
+}
 
 pub fn set_ctrl(ctrl: Ctrl) {
     unsafe {
-        (*CSR)[3] = u32::from_ne_bytes(ctrl.into_bytes());
+        get_csr_word_mut()[3] = u32::from_ne_bytes(ctrl.into_bytes());
     }
 }
 
 pub fn get_memory_bank_ctrl() -> MemoryBankCtrl {
-    unsafe { MemoryBankCtrl::from_bytes(ptr::read_volatile(CSR)[4].to_ne_bytes()) }
+    let ptr = ptr::addr_of!(get_csr_word()[4]);
+    unsafe { MemoryBankCtrl::from_bytes(ptr::read_volatile(ptr).to_ne_bytes()) }
 }
 
 pub fn set_memory_bank_ctrl(memory_bank_ctrl: MemoryBankCtrl) {
     unsafe {
-        (*CSR)[4] = u32::from_ne_bytes(memory_bank_ctrl.into_bytes());
+        get_csr_word_mut()[4] = u32::from_ne_bytes(memory_bank_ctrl.into_bytes());
     }
 }
 
 pub fn get_error_status() -> ErrorStatus {
-    unsafe { ErrorStatus::from_bytes(ptr::read_volatile(CSR)[5].to_ne_bytes()) }
+    let ptr = ptr::addr_of!(get_csr_word()[5]);
+    unsafe { ErrorStatus::from_bytes(ptr::read_volatile(ptr).to_ne_bytes()) }
 }
 
 pub fn set_error_status(error_status: ErrorStatus) {
     unsafe {
-        (*CSR)[5] = u32::from_ne_bytes(error_status.into_bytes());
+        get_csr_word_mut()[5] = u32::from_ne_bytes(error_status.into_bytes());
     }
 }
 
 pub fn get_init_start() -> InitStart {
-    unsafe { InitStart::from_bytes(ptr::read_volatile(CSR)[6].to_ne_bytes()) }
+    let ptr = ptr::addr_of!(get_csr_word()[6]);
+    unsafe { InitStart::from_bytes(ptr::read_volatile(ptr).to_ne_bytes()) }
 }
 
 pub fn set_init_start(init_start: InitStart) {
     unsafe {
-        (*CSR)[6] = u32::from_ne_bytes(init_start.into_bytes());
+        get_csr_word_mut()[6] = u32::from_ne_bytes(init_start.into_bytes());
     }
 }
 
 pub fn get_init_end() -> InitEnd {
-    unsafe { InitEnd::from_bytes(ptr::read_volatile(CSR)[7].to_ne_bytes()) }
+    let ptr = ptr::addr_of!(get_csr_word()[7]);
+    unsafe { InitEnd::from_bytes(ptr::read_volatile(ptr).to_ne_bytes()) }
 }
 
 pub fn set_init_end(init_end: InitEnd) {
     unsafe {
-        (*CSR)[7] = u32::from_ne_bytes(init_end.into_bytes());
+        get_csr_word_mut()[7] = u32::from_ne_bytes(init_end.into_bytes());
     }
 }
 
 pub fn get_init_status() -> InitStatus {
-    unsafe { InitStatus::from_bytes(ptr::read_volatile(CSR)[8].to_ne_bytes()) }
+    let ptr = ptr::addr_of!(get_csr_word()[8]);
+    unsafe { InitStatus::from_bytes(ptr::read_volatile(ptr).to_ne_bytes()) }
 }
 
 pub fn set_init_status(init_status: InitStatus) {
     unsafe {
-        (*CSR)[8] = u32::from_ne_bytes(init_status.into_bytes());
+        get_csr_word_mut()[8] = u32::from_ne_bytes(init_status.into_bytes());
     }
 }
 
@@ -213,30 +229,36 @@ const BYTES_PER_WINDOW: usize = 0x10;
 
 const MAX_WINDOW: usize = 0x40;
 
-fn window_addr(window: usize) -> usize {
+unsafe fn window_ptr_mut(window: usize) -> *mut u8 {
     assert!(window < MAX_WINDOW, "Window out of range of WMMU");
-    let mut addr: usize = unsafe { WMMU_OFFSET + CSR as usize };
-
-    addr + window * BYTES_PER_WINDOW
+    get_csr_mut()
+        .as_mut_ptr()
+        .add(WMMU_OFFSET + (window * BYTES_PER_WINDOW))
 }
 
 pub fn set_mmu_window_offset(window: usize, offset: usize) {
-    let addr = window_addr(window) + OFFSET_ADDR;
     unsafe {
-        core::ptr::write_volatile(addr as *mut usize, offset);
+        window_ptr_mut(window)
+            .add(OFFSET_ADDR)
+            .cast::<usize>()
+            .write_volatile(offset);
     }
 }
 
 pub fn set_mmu_window_length(window: usize, length: usize) {
-    let addr = window_addr(window) + LENGTH_ADDR;
     unsafe {
-        core::ptr::write_volatile(addr as *mut usize, length);
+        window_ptr_mut(window)
+            .add(LENGTH_ADDR)
+            .cast::<usize>()
+            .write_volatile(length);
     }
 }
 
 pub fn set_mmu_window_permission(window: usize, permission: Permission) {
-    let addr = window_addr(window) + PERMISSIONS_ADDR;
     unsafe {
-        core::ptr::write_volatile(addr as *mut usize, permission.bits() as usize);
+        window_ptr_mut(window)
+            .add(PERMISSIONS_ADDR)
+            .cast::<usize>()
+            .write_volatile(permission.bits() as usize);
     }
 }

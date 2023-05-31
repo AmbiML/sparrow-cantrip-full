@@ -25,6 +25,7 @@ pub extern crate copyregion;
 pub extern crate cspace_slot;
 #[cfg(feature = "logger_support")]
 pub extern crate logger;
+pub extern crate math;
 #[cfg(feature = "capdl_support")]
 pub extern crate model;
 pub extern crate panic;

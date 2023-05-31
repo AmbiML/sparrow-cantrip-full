@@ -14,17 +14,20 @@
 
 #![no_std]
 
+use cantrip_os_common::camkes;
 use cantrip_os_common::sel4_sys;
 use core::time::Duration;
 use log::trace;
+use num_enum::{FromPrimitive, IntoPrimitive};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+
+use camkes::rpc_basic_buffer;
+use camkes::rpc_basic_send;
 
 use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_NBWait;
 use sel4_sys::seL4_Wait;
-
-use static_assertions::const_assert_eq;
 
 pub const TIMERS_PER_CLIENT: usize = 32;
 
@@ -63,18 +66,20 @@ pub trait TimerInterface {
 }
 
 /// Return codes from TimerService api's.
-#[repr(C)]
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[repr(usize)]
+#[derive(Debug, Default, Eq, PartialEq, FromPrimitive, IntoPrimitive)]
 pub enum TimerServiceError {
-    TseTimerOk = 0,
-    TseNoSuchTimer,
-    TseTimerAlreadyExists,
-    TseDeserializeFailed,
-    TseSerializeFailed,
+    Success = 0,
+    NoSuchTimer,
+    TimerAlreadyExists,
+    DeserializeFailed,
+    SerializeFailed,
+    #[default]
+    UnknownError,
 }
 impl From<TimerServiceError> for Result<(), TimerServiceError> {
     fn from(err: TimerServiceError) -> Result<(), TimerServiceError> {
-        if err == TimerServiceError::TseTimerOk {
+        if err == TimerServiceError::Success {
             Ok(())
         } else {
             Err(err)
@@ -82,7 +87,7 @@ impl From<TimerServiceError> for Result<(), TimerServiceError> {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub enum TimerServiceRequest {
     // Returns a bit vector, where a 1 in bit N indicates timer N has finished.
     // Outstanding completed timers are reset to 0 during this call.
@@ -106,48 +111,22 @@ pub struct CompletedTimersResponse {
     pub timer_mask: TimerMask,
 }
 
-// Size of the data buffer used to pass a serialized TimerServiceRequest
-// between Rust <> C. The data structure size is bounded by the camkes ipc
-// buffer (120 bytes!) and also by it being allocated on the stack of the rpc
-// glue code.
-const TIMER_REQUEST_DATA_SIZE: usize = core::mem::size_of::<TimerServiceRequest>();
-// Size of the serialized response.
-// NB: has to be 'pub const' for bindgen to pickup; also can't use size_of to
-// compute it, hence the assert after.
-pub const TIMER_RESPONSE_DATA_SIZE: usize = 4;
-const_assert_eq!(
-    TIMER_RESPONSE_DATA_SIZE,
-    core::mem::size_of::<CompletedTimersResponse>()
-);
-pub type TimerServiceResponseData = [u8; TIMER_RESPONSE_DATA_SIZE];
+// Size of the data buffer used to pass a serialized TimerServiceRequest.
+// The size is bounded by the camkes ipc buffer (120 seL4_Word's).
+pub const TIMER_REQUEST_DATA_SIZE: usize = 128; // sufficient for encoded TimerServiceRequest
 
 #[inline]
 fn cantrip_timer_request<T: DeserializeOwned>(
     request: &TimerServiceRequest,
 ) -> Result<T, TimerServiceError> {
-    // NB: this assumes the SecurityCoordinator component is named "security".
-    extern "C" {
-        pub fn timer_request(
-            c_request_buffer_len: u32,
-            c_request_buffer: *const u8,
-            c_reply: *mut TimerServiceResponseData,
-        ) -> TimerServiceError;
-    }
     trace!("cantrip_timer_request {:?}", request);
-    let mut request_buffer = [0u8; TIMER_REQUEST_DATA_SIZE];
-    let request_slice = postcard::to_slice(request, &mut request_buffer)
-        .or(Err(TimerServiceError::TseSerializeFailed))?;
-    let mut reply_buffer = [0u8; TIMER_RESPONSE_DATA_SIZE];
-    match unsafe {
-        timer_request(
-            request_slice.len() as u32,
-            request_slice.as_ptr(),
-            &mut reply_buffer as *mut _,
-        )
-    } {
-        TimerServiceError::TseTimerOk => {
-            let reply = postcard::from_bytes(&reply_buffer)
-                .or(Err(TimerServiceError::TseDeserializeFailed))?;
+    let (request_buffer, reply_slice) = rpc_basic_buffer!().split_at_mut(TIMER_REQUEST_DATA_SIZE);
+    let request_slice =
+        postcard::to_slice(request, request_buffer).or(Err(TimerServiceError::SerializeFailed))?;
+    match rpc_basic_send!(timer, request_slice.len()).0.into() {
+        TimerServiceError::Success => {
+            let reply =
+                postcard::from_bytes(reply_slice).or(Err(TimerServiceError::DeserializeFailed))?;
             Ok(reply)
         }
         err => Err(err),
@@ -201,21 +180,15 @@ pub fn cantrip_timer_cancel(timer_id: TimerId) -> Result<(), TimerServiceError> 
     cantrip_timer_request(&TimerServiceRequest::Cancel(timer_id))
 }
 
-/// Returns the cptr for the notification object used to signal timer events.
-#[inline]
-pub fn cantrip_timer_notification() -> seL4_CPtr {
-    extern "C" {
-        fn timer_notification() -> seL4_CPtr;
-    }
-    unsafe { timer_notification() }
-}
-
 /// Waits for the next pending timer for the client. If a timer completes
 /// the associated timer id is returned.
 #[inline]
 pub fn cantrip_timer_wait() -> Result<TimerMask, TimerServiceError> {
     unsafe {
-        seL4_Wait(cantrip_timer_notification(), core::ptr::null_mut());
+        extern "Rust" {
+            static TIMER_INTERFACE_NOTIFICATION: seL4_CPtr;
+        }
+        seL4_Wait(TIMER_INTERFACE_NOTIFICATION, core::ptr::null_mut());
     }
     cantrip_timer_completed_timers()
 }
@@ -225,7 +198,10 @@ pub fn cantrip_timer_wait() -> Result<TimerMask, TimerServiceError> {
 #[inline]
 pub fn cantrip_timer_poll() -> Result<TimerMask, TimerServiceError> {
     unsafe {
-        seL4_NBWait(cantrip_timer_notification(), core::ptr::null_mut());
+        extern "Rust" {
+            static TIMER_INTERFACE_NOTIFICATION: seL4_CPtr;
+        }
+        seL4_NBWait(TIMER_INTERFACE_NOTIFICATION, core::ptr::null_mut());
     }
     cantrip_timer_completed_timers()
 }

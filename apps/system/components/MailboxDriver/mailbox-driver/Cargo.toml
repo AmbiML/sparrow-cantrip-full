@@ -17,15 +17,20 @@ name = "mailbox-driver"
 version = "0.1.0"
 edition = "2018"
 
+[build-dependencies]
+sel4-config = { path = "../../cantrip-os-common/src/sel4-config" }
+
 [features]
-default = []
 CONFIG_PLAT_BCM2837 = []
 CONFIG_PLAT_SPARROW = []
+CONFIG_DEBUG_BUILD = []
 
 [dependencies]
 cantrip-os-common = { path = "../../cantrip-os-common" }
-cty = "0.2.1"
+cfg-if = "1.0"
 log = { version = "0.4", features = ["release_max_level_info"] }
+mailbox-interface = { path = "../mailbox-interface" }
+postcard = { version = "0.7", features = ["alloc"], default-features = false }
 reg_constants = { path = "../../cantrip-os-common/src/reg_constants" }
 
 [lib]

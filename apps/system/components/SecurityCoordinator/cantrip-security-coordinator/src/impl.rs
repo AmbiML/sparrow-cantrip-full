@@ -14,10 +14,7 @@
 
 //! Cantrip OS security coordinator seL4 support
 
-#![allow(dead_code)]
-#![allow(unused_variables)]
-
-use alloc::string::String;
+use cantrip_mailbox_interface::*;
 use cantrip_memory_interface::cantrip_frame_alloc;
 use cantrip_memory_interface::cantrip_object_free_toplevel;
 use cantrip_memory_interface::ObjDescBundle;
@@ -34,11 +31,8 @@ use sel4_sys::seL4_Word;
 
 const PAGE_SIZE: usize = 1 << seL4_PageBits;
 
-extern "C" {
-    static SECURITY_RECV_SLOT: seL4_CPtr;
-    // Regions for deep_copy work.
-    static mut DEEP_COPY_SRC: [seL4_Word; PAGE_SIZE / size_of::<seL4_Word>()];
-    static mut DEEP_COPY_DEST: [seL4_Word; PAGE_SIZE / size_of::<seL4_Word>()];
+extern "Rust" {
+    fn get_deep_copy_src_mut() -> &'static mut [u8];
 }
 
 pub struct SeL4SecurityCoordinator {
@@ -131,11 +125,6 @@ impl SecurityCoordinatorInterface for CantripSecurityCoordinatorInterface {
 
         const MESSAGE_SIZE_DWORDS: usize = 17; // Just a random message size for testing.
 
-        extern "C" {
-            fn mailbox_api_send(paddr: u32, size: u32);
-            fn mailbox_api_receive(paddr: *mut u32, size: *mut u32);
-        }
-
         // Allocate a 4k page to serve as our message buffer.
         let frame_bundle =
             cantrip_frame_alloc(PAGE_SIZE).or(Err(SecurityRequestError::SreTestFailed))?;
@@ -144,7 +133,7 @@ impl SecurityCoordinatorInterface for CantripSecurityCoordinatorInterface {
         unsafe {
             // Map the message buffer into our copyregion so we can access it.
             // NB: re-use one of the deep_copy copyregions.
-            let mut msg_region = CopyRegion::new(ptr::addr_of_mut!(DEEP_COPY_SRC[0]), PAGE_SIZE);
+            let mut msg_region = CopyRegion::new(get_deep_copy_src_mut());
             msg_region
                 .map(frame_bundle.objs[0].cptr)
                 .or(Err(SecurityRequestError::SreTestFailed))?;
@@ -165,12 +154,12 @@ impl SecurityCoordinatorInterface for CantripSecurityCoordinatorInterface {
             // Send the _physical_ address of the message buffer to the security
             // core.
             let paddr = seL4_Page_GetAddress(frame_bundle.objs[0].cptr);
-            mailbox_api_send(paddr.paddr as u32, (MESSAGE_SIZE_DWORDS * size_of::<u32>()) as u32);
+            mailbox_send(paddr.paddr as u32, (MESSAGE_SIZE_DWORDS * size_of::<u32>()) as u32)
+                .or(Err(SecurityRequestError::SreTestFailed))?;
 
             // Wait for the response to arrive.
-            let mut response_paddr: u32 = 0;
-            let mut response_size: u32 = 0;
-            mailbox_api_receive(&mut response_paddr as *mut u32, &mut response_size as *mut u32);
+            let (response_paddr, response_size) =
+                mailbox_recv().or(Err(SecurityRequestError::SreTestFailed))?;
 
             // The security core should have replaced the first and last dwords
             // with 0x12345678 and 0x87654321.

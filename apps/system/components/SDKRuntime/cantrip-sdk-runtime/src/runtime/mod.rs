@@ -333,7 +333,7 @@ impl SDKManagerInterface for SDKRuntime {
             ),
             badge,
         )
-        .or(Err(SDKManagerError::SmGetEndpointFailed))?;
+        .or(Err(SDKManagerError::GetEndpointFailed))?;
 
         // Create the entry & return the endpoint capability.
         assert!(self
@@ -640,23 +640,25 @@ impl SDKRuntimeInterface for SDKRuntime {
 #[cfg(feature = "timer_support")]
 fn map_timer_err(err: TimerServiceError) -> SDKError {
     match err {
-        TimerServiceError::TseNoSuchTimer => SDKError::NoSuchTimer,
-        TimerServiceError::TseTimerAlreadyExists => SDKError::TimerAlreadyExists,
-        TimerServiceError::TseDeserializeFailed => SDKError::DeserializeFailed,
-        TimerServiceError::TseSerializeFailed => SDKError::SerializeFailed,
-        TimerServiceError::TseTimerOk => unreachable!(),
+        TimerServiceError::NoSuchTimer => SDKError::NoSuchTimer,
+        TimerServiceError::DeserializeFailed => SDKError::DeserializeFailed,
+        TimerServiceError::SerializeFailed => SDKError::SerializeFailed,
+        TimerServiceError::TimerAlreadyExists => SDKError::TimerAlreadyExists,
+        TimerServiceError::UnknownError => unreachable!(),
+        TimerServiceError::Success => unreachable!(),
     }
 }
 
 #[cfg(feature = "ml_support")]
 fn map_ml_err(err: MlCoordError) -> SDKError {
     match err {
-        MlCoordError::MceNoSuchModel | MlCoordError::MceInvalidImage => SDKError::NoSuchModel,
-        MlCoordError::MceInvalidTimer => SDKError::InvalidTimer,
-        MlCoordError::MceLoadModelFailed => SDKError::LoadModelFailed,
-        MlCoordError::MceNoModelSlotsLeft => SDKError::OutOfResources,
-        MlCoordError::MceSerializeFailed => SDKError::SerializeFailed,
-        MlCoordError::MceDeserializeFailed => SDKError::DeserializeFailed,
-        MlCoordError::MceOk => unreachable!(),
+        MlCoordError::NoSuchModel | MlCoordError::InvalidImage => SDKError::NoSuchModel,
+        MlCoordError::InvalidTimer => SDKError::InvalidTimer,
+        MlCoordError::LoadModelFailed => SDKError::LoadModelFailed,
+        MlCoordError::NoModelSlotsLeft => SDKError::OutOfResources,
+        MlCoordError::SerializeError => SDKError::SerializeFailed,
+        MlCoordError::DeserializeError => SDKError::DeserializeFailed,
+        MlCoordError::UnknownError => unreachable!(),
+        MlCoordError::Success => unreachable!(),
     }
 }

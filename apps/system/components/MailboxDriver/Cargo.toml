@@ -16,6 +16,7 @@
 
 members = [
     "mailbox-driver",
+    "mailbox-interface",
 ]
 resolver = "2"
 

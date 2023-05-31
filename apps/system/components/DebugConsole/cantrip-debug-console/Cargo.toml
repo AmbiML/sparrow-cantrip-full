@@ -28,6 +28,7 @@ default = [
     "autostart_support",
 ]
 autostart_support = []
+CONFIG_DEBUG_BUILD = []
 CONFIG_PRINTING = []
 # Target platform support
 CONFIG_PLAT_BCM2837 = []
@@ -37,16 +38,15 @@ LOG_DEBUG = []
 LOG_TRACE = []
 
 [dependencies]
-cpio = { git = "https://github.com/rcore-os/cpio" }
-# Disable default so we don't pull in CString
-cstr_core = { version = "0.2.3", default-features = false }
-cty = "0.2.1"
 cantrip-io = { path = "../cantrip-io" }
 cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-shell = { path = "../cantrip-shell" }
 cantrip-uart-client = { path = "../cantrip-uart-client", optional = true }
+cfg-if = "1.0"
 log = { version = "0.4", features = ["release_max_level_info"] }
-panic-halt = "0.2.0"
+paste = "1.0"
+postcard = { version = "0.7", features = ["alloc"], default-features = false }
+serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
 
 [lib]
 name = "cantrip_debug_console"

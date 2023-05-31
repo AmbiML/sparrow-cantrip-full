@@ -16,6 +16,7 @@
 
 members = [
     "uart-driver",
+    "uart-interface",
     "circular-buffer",
 ]
 resolver = "2"

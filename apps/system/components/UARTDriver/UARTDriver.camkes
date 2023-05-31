@@ -5,23 +5,24 @@
  * Apache License 2.0
  */
 
+import <LoggerInterface.camkes>;
 import <UARTDriverInterface.camkes>;
 
 component UARTDriver {
   dataport Buf mmio_region;
 
   dataport Buf tx_dataport;
-  provides uart_write_inf write_inf;
+  provides uart_write_inf write;
   consumes Interrupt tx_watermark;
   consumes Interrupt tx_empty;
-  has mutex tx_mutex;
 
   dataport Buf rx_dataport;
-  provides uart_read_inf read_inf;
+  provides uart_read_inf read;
   consumes Interrupt rx_watermark;
-  has semaphore rx_nonempty_semaphore;
-  has semaphore rx_empty_semaphore;
-  has mutex rx_mutex;
+  has semaphore rx_nonempty;
+  has semaphore rx_empty;
+
+  maybe uses LoggerInterface logger;
 
   // Enable CantripOS CAmkES support.
   attribute int cantripos = true;

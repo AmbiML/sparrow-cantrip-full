@@ -60,10 +60,10 @@ impl<HT: HardwareTimer> TimerManager<HT> {
     ) -> Result<(), TimerServiceError> {
         if !(0..NUM_CLIENTS).contains(&client_id) {
             error!("client_id {} out of range", client_id);
-            return Err(TimerServiceError::TseNoSuchTimer);
+            return Err(TimerServiceError::NoSuchTimer);
         }
         if timer_id >= TIMERS_PER_CLIENT as _ {
-            return Err(TimerServiceError::TseNoSuchTimer);
+            return Err(TimerServiceError::NoSuchTimer);
         }
 
         if self
@@ -71,7 +71,7 @@ impl<HT: HardwareTimer> TimerManager<HT> {
             .iter()
             .any(|(_, ev)| ev.client_id == client_id && ev.timer_id == timer_id)
         {
-            return Err(TimerServiceError::TseTimerAlreadyExists);
+            return Err(TimerServiceError::TimerAlreadyExists);
         }
         Ok(())
     }
@@ -125,7 +125,7 @@ impl<HT: HardwareTimer> TimerInterface for TimerManager<HT> {
     fn completed_timers(&mut self, client_id: usize) -> Result<u32, TimerServiceError> {
         if !(0..NUM_CLIENTS).contains(&client_id) {
             // NB: no need for a message, the error return should suffice
-            return Err(TimerServiceError::TseNoSuchTimer);
+            return Err(TimerServiceError::NoSuchTimer);
         }
 
         // client_id is 1-indexed by seL4, timer_state is 0-index.
@@ -143,7 +143,7 @@ impl<HT: HardwareTimer> TimerInterface for TimerManager<HT> {
             .iter()
             .find(|(_, ev)| ev.client_id == client_id && ev.timer_id == timer_id)
             .map(|(&key, _)| key)
-            .ok_or(TimerServiceError::TseNoSuchTimer)?;
+            .ok_or(TimerServiceError::NoSuchTimer)?;
         self.events.remove(&key);
 
         Ok(())
@@ -153,7 +153,7 @@ impl<HT: HardwareTimer> TimerInterface for TimerManager<HT> {
     // signal the client and, if periodic, re-queue the timer. If there
     // are still pending timer requests, re-arm the hardware timer.
     fn service_interrupt(&mut self) {
-        extern "C" {
+        extern "Rust" {
             fn timer_emit(badge: seL4_Word);
         }
 

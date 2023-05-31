@@ -37,6 +37,10 @@ set(CAmkESDefaultHeapSize "0" CACHE STRING "CAmkES per-component heap size (byte
 set(CAmkESDefaultStackSize "4096" CACHE STRING "Stack size per thread (bytes)")
 set(Sel4RuntimeStaticTLS "128" CACHE STRING "Size of static TLS area for new processes (bytes)")
 
+if (RELEASE)
+  set(CAmkESFaultHandlers OFF CACHE BOOL "Debugging aid")
+endif()
+
 set(LibUtilsDefaultZfLogLevel 5 CACHE STRING "seL4 internal logging level (0-5).")
 set(SIMULATION OFF CACHE BOOL "Whether to build simulate script")
 set(RELEASE OFF CACHE BOOL "Performance optimized build")

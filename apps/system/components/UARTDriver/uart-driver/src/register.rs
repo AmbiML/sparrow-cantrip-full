@@ -16,11 +16,6 @@
 
 use core::ops::Deref;
 
-extern "C" {
-    // UART0 base register.
-    static mmio_region: *mut u32;
-}
-
 pub struct Field {
     mask: u32,
     offset: usize,
@@ -55,7 +50,14 @@ pub struct Register(u32);
 
 impl Register {
     pub unsafe fn new(offset: usize) -> Self {
-        Register(mmio_region.cast::<u8>().add(offset).cast::<()>() as u32)
+        Register(
+            // XXX could use extern instead but visible in crate
+            crate::MMIO_REGION
+                .data
+                .as_mut_ptr()
+                .add(offset)
+                .cast::<()>() as u32,
+        )
     }
 
     pub unsafe fn write(&mut self, value: u32) { (self.0 as *mut u32).write_volatile(value); }

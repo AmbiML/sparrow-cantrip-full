@@ -30,18 +30,12 @@ use cantrip_os_common::copyregion::CopyRegion;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_os_common::sel4_sys;
 use cantrip_security_interface::*;
-use core::mem::size_of;
-use core::ptr;
-use core::slice;
 use cpio::CpioNewcReader;
 use hashbrown::HashMap;
 use log::{error, info};
 
 use sel4_sys::seL4_Error;
-use sel4_sys::seL4_PageBits;
-use sel4_sys::seL4_Word;
 
-const PAGE_SIZE: usize = 1 << seL4_PageBits;
 const CAPACITY_BUNDLES: usize = 10; // HashMap of bundles
 const CAPACITY_KEYS: usize = 2; // Per-bundle HashMap of key-values
 
@@ -61,12 +55,12 @@ Model=NeuralNetworkName
 Required=1
 "##;
 
-extern "C" {
-    static cpio_archive: *const u8; // CPIO archive of built-in files
+extern "Rust" {
+    fn get_cpio_archive() -> &'static [u8]; // CPIO archive of built-in files
 
     // Regions for deep_copy work.
-    static mut DEEP_COPY_SRC: [seL4_Word; PAGE_SIZE / size_of::<seL4_Word>()];
-    static mut DEEP_COPY_DEST: [seL4_Word; PAGE_SIZE / size_of::<seL4_Word>()];
+    fn get_deep_copy_src_mut() -> &'static mut [u8];
+    fn get_deep_copy_dest_mut() -> &'static mut [u8];
 }
 
 /// Package contents either come from built-in files or dynamically
@@ -135,12 +129,8 @@ impl Drop for BundleData {
 
 // Returns an array of bundle id's from the builtin archive.
 fn get_builtins() -> BundleIdArray {
-    let cpio_archive_ref = unsafe {
-        // XXX want begin-end or begin+size instead of a fixed-size block
-        slice::from_raw_parts(cpio_archive, 16777216)
-    };
     let mut builtins = BundleIdArray::new();
-    for e in CpioNewcReader::new(cpio_archive_ref) {
+    for e in CpioNewcReader::new(unsafe { get_cpio_archive() }) {
         if e.is_err() {
             error!("cpio read err {:?}", e);
             break;
@@ -153,11 +143,7 @@ fn get_builtins() -> BundleIdArray {
 // Returns a bundle backed by builtin data.
 fn get_bundle_from_builtins(filename: &str) -> Result<BundleData, SecurityRequestError> {
     fn builtins_lookup(filename: &str) -> Option<&'static [u8]> {
-        let cpio_archive_ref = unsafe {
-            // XXX want begin-end or begin+size instead of a fixed-size block
-            slice::from_raw_parts(cpio_archive, 16777216)
-        };
-        for e in CpioNewcReader::new(cpio_archive_ref) {
+        for e in CpioNewcReader::new(unsafe { get_cpio_archive() }) {
             if e.is_err() {
                 error!("cpio read err {:?}", e);
                 break;
@@ -178,11 +164,11 @@ fn get_bundle_from_builtins(filename: &str) -> Result<BundleData, SecurityReques
 fn upload_obj_bundle(src: &ObjDescBundle) -> Result<Upload, seL4_Error> {
     // Dest is an upload object that allocates a page at-a-time so
     // the MemoryManager doesn't have to handle a huge memory request.
-    let mut dest = Upload::new(unsafe { ptr::addr_of_mut!(DEEP_COPY_DEST[0]) }, PAGE_SIZE);
+    let mut dest = Upload::new(unsafe { get_deep_copy_dest_mut() });
 
     // Src top-level slot & copy region
     let src_slot = CSpaceSlot::new();
-    let mut src_region = unsafe { CopyRegion::new(ptr::addr_of_mut!(DEEP_COPY_SRC[0]), PAGE_SIZE) };
+    let mut src_region = unsafe { CopyRegion::new(get_deep_copy_src_mut()) };
 
     for src_cptr in src.cptr_iter() {
         // Map src frame and copy data (allocating memory as needed)..
@@ -203,7 +189,7 @@ fn upload_obj_bundle(src: &ObjDescBundle) -> Result<Upload, seL4_Error> {
 fn upload_slice(src: &[u8]) -> Result<Upload, seL4_Error> {
     // Dest is an upload object that allocates a page at-a-time so
     // the MemoryManager doesn't have to handle a huge memory request.
-    let mut dest = Upload::new(unsafe { ptr::addr_of_mut!(DEEP_COPY_DEST[0]) }, PAGE_SIZE);
+    let mut dest = Upload::new(unsafe { get_deep_copy_dest_mut() });
     dest.write(src).or(Err(seL4_Error::seL4_NotEnoughMemory))?;
     dest.finish();
     Ok(dest)

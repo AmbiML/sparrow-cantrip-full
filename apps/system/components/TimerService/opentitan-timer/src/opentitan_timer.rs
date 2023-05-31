@@ -75,16 +75,19 @@ pub struct Intr {
     _unused: B31,
 }
 
-extern "C" {
-    static csr: *mut u32;
+extern "Rust" {
+    fn get_csr() -> &'static [u8];
+    fn get_csr_mut() -> &'static mut [u8];
 }
 
-fn get_u32(idx: usize) -> u32 { unsafe { ptr::read_volatile(csr.add(idx)) } }
+fn get_u32(idx: usize) -> u32 {
+    fn get_csr_word() -> &'static [u32] { unsafe { core::mem::transmute(get_csr()) } }
+    unsafe { get_csr_word().as_ptr().add(idx).read_volatile() }
+}
 
 fn set_u32(idx: usize, val: u32) {
-    unsafe {
-        ptr::write_volatile(csr.add(idx), val);
-    }
+    fn get_csr_word_mut() -> &'static mut [u32] { unsafe { core::mem::transmute(get_csr_mut()) } }
+    unsafe { get_csr_word_mut().as_mut_ptr().add(idx).write_volatile(val) }
 }
 
 fn get_bytes(idx: usize) -> [u8; 4] { get_u32(idx).to_ne_bytes() }

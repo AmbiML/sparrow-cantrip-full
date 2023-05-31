@@ -33,7 +33,9 @@ cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-memory-interface = { path = "../../MemoryManager/cantrip-memory-interface" }
 cantrip-sdk-manager = { path = "../cantrip-sdk-manager" }
 cantrip-sdk-runtime = { path = "../cantrip-sdk-runtime" }
+cfg-if = "1.0"
 log = { version = "0.4", features = ["release_max_level_info"] }
+paste = "1.0"
 postcard = { version = "0.7", features = ["alloc"], default-features = false }
 sdk-interface = { path = "../sdk-interface" }
 static_assertions = "1.1"

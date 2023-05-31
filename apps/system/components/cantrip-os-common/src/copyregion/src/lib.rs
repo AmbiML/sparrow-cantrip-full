@@ -28,12 +28,13 @@ use sel4_sys::seL4_Page_Unmap;
 use sel4_sys::seL4_Result;
 use sel4_sys::seL4_Word;
 
-extern "C" {
+extern "Rust" {
     static SELF_VSPACE_ROOT: seL4_CPtr;
 }
 
 // Sample usage:
-// let mut copy_region = CopyRegion::new(unsafe { ptr::addr_of_mut!(LOAD_APPLICATION[0])}, PAGE_SIZE);
+// has copyregion LOAD_APPLICATION; // in the component's .camkes file
+// let mut copy_region = unsafe { CopyRegion::new(get_load_application_mut()) };
 // copy_region.map(frame.cptr)?;
 // copy_region.as_mut()[..].fill(0);
 // let start = if index > 0 { 0 } else { vaddr - data_range.start };
@@ -54,10 +55,10 @@ pub struct CopyRegion<'a> {
     _region_lifetime: PhantomData<&'a seL4_Word>,
 }
 impl<'a> CopyRegion<'a> {
-    pub unsafe fn new(region: *mut seL4_Word, size: usize) -> Self {
+    pub unsafe fn new(region: &'a mut [u8]) -> Self {
         CopyRegion {
-            region,
-            size,
+            region: region.as_mut_ptr() as _,
+            size: region.len(),
             cur_frame: None,
             _region_lifetime: PhantomData,
         }
