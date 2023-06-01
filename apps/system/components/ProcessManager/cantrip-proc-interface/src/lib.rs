@@ -21,23 +21,18 @@ use alloc::borrow::Cow;
 use alloc::string::String;
 use alloc::vec::Vec;
 use cantrip_memory_interface::ObjDescBundle;
-use cantrip_os_common::camkes;
-use cantrip_os_common::sel4_sys;
+use cantrip_os_common::camkes::Camkes;
+use cantrip_os_common::sel4_sys::seL4_CPtr;
 use cantrip_security_interface::SecurityRequestError;
 use core::str;
 use log::trace;
-use num_enum::{FromPrimitive, IntoPrimitive};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-
-use camkes::*;
-use sel4_sys::seL4_CPtr;
 
 mod bundle_image;
 pub use bundle_image::*;
 
-pub const PROC_CTRL_REQUEST_DATA_SIZE: usize = 128;
-pub const PKG_MGMT_REQUEST_DATA_SIZE: usize = 2048;
+const REQUEST_DATA_SIZE: usize = 128;
 
 pub type BundleIdArray = Vec<String>;
 
@@ -82,8 +77,8 @@ pub trait BundleImplInterface {
     fn capscan(&self) -> Result<(), ProcessManagerError>;
 }
 
-#[repr(usize)]
-#[derive(Debug, Default, Eq, PartialEq, FromPrimitive, IntoPrimitive)]
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ProcessManagerError {
     Success = 0,
     BundleIdInvalid,
@@ -92,7 +87,6 @@ pub enum ProcessManagerError {
     BundleFound,
     BundleRunning,
     BundleNotRunning,
-    #[default]
     UnknownError,
     DeserializeError,
     SerializeError,
@@ -106,15 +100,6 @@ pub enum ProcessManagerError {
     SuspendFailed,
     ResumeFailed,
     CapScanFailed,
-}
-impl From<ProcessManagerError> for Result<(), ProcessManagerError> {
-    fn from(err: ProcessManagerError) -> Result<(), ProcessManagerError> {
-        if err == ProcessManagerError::Success {
-            Ok(())
-        } else {
-            Err(err)
-        }
-    }
 }
 
 // Interface to underlying facilities (StorageManager, seL4); also
@@ -180,6 +165,46 @@ pub struct InstallResponse {
 }
 
 #[inline]
+fn cantrip_pkg_mgmt_request_aux(
+    cap: Option<seL4_CPtr>,
+    request_buffer: &[u8],
+    reply_buffer: &mut RawBundleIdData,
+) -> Result<(), ProcessManagerError> {
+    extern "C" {
+        pub fn pkg_mgmt_request(
+            c_request_buffer_len: u32,
+            c_request_buffer: *const u8,
+            c_reply_buffer: *mut RawBundleIdData,
+        ) -> ProcessManagerError;
+    }
+    if let Some(cap) = cap {
+        let _cleanup = Camkes::set_request_cap(cap);
+        unsafe {
+            pkg_mgmt_request(
+                request_buffer.len() as u32,
+                request_buffer.as_ptr(),
+                reply_buffer as *mut _,
+            )
+            .into()
+        }
+    } else {
+        // NB: guard against a received badge being treated as an
+        // outbound capability. This is needed because the code CAmkES
+        // generates for pkg_mgmt_request always enables possible xmit
+        // of 1 capability.
+        Camkes::clear_request_cap();
+        unsafe {
+            pkg_mgmt_request(
+                request_buffer.len() as u32,
+                request_buffer.as_ptr(),
+                reply_buffer as *mut _,
+            )
+            .into()
+        }
+    }
+}
+
+#[inline]
 fn cantrip_pkg_mgmt_request<T: DeserializeOwned>(
     request: &PackageManagementRequest,
 ) -> Result<T, ProcessManagerError> {
@@ -188,18 +213,101 @@ fn cantrip_pkg_mgmt_request<T: DeserializeOwned>(
         &request,
         request.get_container_cap()
     );
-    let (request_slice, reply_slice) =
-        rpc_shared_buffer_mut!(pkg_mgmt).split_at_mut(PKG_MGMT_REQUEST_DATA_SIZE);
-    let _ =
-        postcard::to_slice(request, request_slice).or(Err(ProcessManagerError::SerializeError))?;
-    match rpc_shared_send!(pkg_mgmt, request.get_container_cap()).into() {
+    let mut request_buffer = [0u8; REQUEST_DATA_SIZE];
+    let request_slice = postcard::to_slice(request, &mut request_buffer)
+        .or(Err(ProcessManagerError::SerializeError))?;
+    let mut reply_buffer = [0u8; RAW_BUNDLE_ID_DATA_SIZE];
+    cantrip_pkg_mgmt_request_aux(request.get_container_cap(), request_slice, &mut reply_buffer)?;
+    postcard::from_bytes(&reply_buffer).or(Err(ProcessManagerError::DeserializeError))
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum ProcessControlRequest<'a> {
+    Start(&'a str),
+    Stop(&'a str),
+    GetRunningBundles, // -> bundle_ids
+
+    CapScan,
+    CapScanBundle(&'a str),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GetRunningBundlesResponse {
+    pub bundle_ids: BundleIdArray,
+}
+
+#[inline]
+fn cantrip_proc_ctrl_request<T: DeserializeOwned>(
+    request: &ProcessControlRequest,
+) -> Result<T, ProcessManagerError> {
+    extern "C" {
+        pub fn proc_ctrl_request(
+            c_request_buffer_len: u32,
+            c_request_buffer: *const u8,
+            c_reply_buffer: *mut RawBundleIdData,
+        ) -> ProcessManagerError;
+    }
+    trace!("cantrip_proc_ctrl_request {:?}", &request,);
+    let mut request_buffer = [0u8; REQUEST_DATA_SIZE];
+    let request_slice = postcard::to_slice(request, &mut request_buffer)
+        .or(Err(ProcessManagerError::SerializeError))?;
+    let mut reply_buffer = [0u8; RAW_BUNDLE_ID_DATA_SIZE];
+    // NB: guard against a received badge being treated as an
+    // outbound capability. This is needed because the code CAmkES
+    // generates for pkg_mgmt_request always enables possible xmit
+    // of 1 capability.
+    Camkes::clear_request_cap();
+    match unsafe {
+        proc_ctrl_request(
+            request_slice.len() as u32,
+            request_slice.as_ptr(),
+            &mut reply_buffer as *mut _,
+        )
+    } {
         ProcessManagerError::Success => {
-            let reply =
-                postcard::from_bytes(reply_slice).or(Err(ProcessManagerError::DeserializeError))?;
-            Ok(reply)
+            postcard::from_bytes(&reply_buffer).or(Err(ProcessManagerError::DeserializeError))
         }
         err => Err(err),
     }
+}
+
+impl From<SecurityRequestError> for ProcessManagerError {
+    fn from(err: SecurityRequestError) -> ProcessManagerError {
+        match err {
+            SecurityRequestError::SreSuccess => ProcessManagerError::Success,
+            SecurityRequestError::SreBundleIdInvalid => ProcessManagerError::BundleIdInvalid,
+            SecurityRequestError::SreBundleNotFound => ProcessManagerError::BundleNotFound,
+            SecurityRequestError::SrePackageBufferLenInvalid => {
+                ProcessManagerError::PackageBufferLenInvalid
+            }
+            SecurityRequestError::SreInstallFailed => ProcessManagerError::InstallFailed,
+            SecurityRequestError::SreUninstallFailed => ProcessManagerError::UninstallFailed,
+            // NB: other errors "cannot happen" so just return something unique
+            _ => ProcessManagerError::UnknownError,
+        }
+    }
+}
+
+impl From<cstr_core::NulError> for ProcessManagerError {
+    fn from(_err: cstr_core::NulError) -> ProcessManagerError {
+        ProcessManagerError::BundleIdInvalid
+    }
+}
+
+impl From<ProcessManagerError> for Result<(), ProcessManagerError> {
+    fn from(err: ProcessManagerError) -> Result<(), ProcessManagerError> {
+        if err == ProcessManagerError::Success {
+            Ok(())
+        } else {
+            Err(err)
+        }
+    }
+}
+
+#[inline]
+pub fn cantrip_proc_ctrl_get_running_bundles() -> Result<BundleIdArray, ProcessManagerError> {
+    cantrip_proc_ctrl_request(&ProcessControlRequest::GetRunningBundles)
+        .map(|reply: GetRunningBundlesResponse| reply.bundle_ids)
 }
 
 #[inline]
@@ -232,75 +340,6 @@ pub fn cantrip_pkg_mgmt_install_app(
 #[inline]
 pub fn cantrip_pkg_mgmt_uninstall(bundle_id: &str) -> Result<(), ProcessManagerError> {
     cantrip_pkg_mgmt_request(&PackageManagementRequest::Uninstall(bundle_id))
-}
-
-impl From<SecurityRequestError> for ProcessManagerError {
-    fn from(err: SecurityRequestError) -> ProcessManagerError {
-        match err {
-            SecurityRequestError::Success => ProcessManagerError::Success,
-            SecurityRequestError::SreBundleIdInvalid => ProcessManagerError::BundleIdInvalid,
-            SecurityRequestError::SreBundleNotFound => ProcessManagerError::BundleNotFound,
-            SecurityRequestError::SrePackageBufferLenInvalid => {
-                ProcessManagerError::PackageBufferLenInvalid
-            }
-            SecurityRequestError::SreInstallFailed => ProcessManagerError::InstallFailed,
-            SecurityRequestError::SreUninstallFailed => ProcessManagerError::UninstallFailed,
-            // NB: other errors "cannot happen" so just return something unique
-            _ => ProcessManagerError::UnknownError,
-        }
-    }
-}
-
-impl From<cstr_core::NulError> for ProcessManagerError {
-    fn from(_err: cstr_core::NulError) -> ProcessManagerError {
-        ProcessManagerError::BundleIdInvalid
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum ProcessControlRequest<'a> {
-    Start(&'a str),
-    Stop(&'a str),
-    GetRunningBundles, // -> bundle_ids
-
-    CapScan,
-    CapScanBundle(&'a str),
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct GetRunningBundlesResponse {
-    pub bundle_ids: BundleIdArray,
-}
-
-#[inline]
-fn cantrip_proc_ctrl_request<T: DeserializeOwned>(
-    request: &ProcessControlRequest,
-) -> Result<T, ProcessManagerError> {
-    trace!("cantrip_proc_ctrl_request {:?}", &request);
-    let (request_buffer, reply_slice) =
-        rpc_basic_buffer!().split_at_mut(PROC_CTRL_REQUEST_DATA_SIZE);
-    let request_slice =
-        postcard::to_slice(request, request_buffer).or(Err(ProcessManagerError::SerializeError))?;
-    // XXX not needed
-    // NB: guard against a received badge being treated as an
-    // outbound capability. This is needed because the code CAmkES
-    // generates for pkg_mgmt_request always enables possible xmit
-    // of 1 capability.
-    Camkes::clear_request_cap();
-    match rpc_basic_send!(proc_ctrl, request_slice.len()).0.into() {
-        ProcessManagerError::Success => {
-            let reply =
-                postcard::from_bytes(reply_slice).or(Err(ProcessManagerError::DeserializeError))?;
-            Ok(reply)
-        }
-        err => Err(err),
-    }
-}
-
-#[inline]
-pub fn cantrip_proc_ctrl_get_running_bundles() -> Result<BundleIdArray, ProcessManagerError> {
-    cantrip_proc_ctrl_request(&ProcessControlRequest::GetRunningBundles)
-        .map(|reply: GetRunningBundlesResponse| reply.bundle_ids)
 }
 
 #[inline]

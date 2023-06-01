@@ -38,9 +38,9 @@ use io::Seek;
 // TODO(sleffler): use ObjDesc::size_bytes and support multiple page sizes
 const PAGE_SIZE: usize = 1 << seL4_PageBits;
 
-extern "Rust" {
+extern "C" {
     static SELF_VSPACE_ROOT: seL4_CPtr;
-    fn get_bundle_image_mut() -> &'static mut [u8];
+    static mut BUNDLE_IMAGE: [u8; PAGE_SIZE];
 }
 
 #[derive(Debug)]
@@ -136,7 +136,7 @@ impl<'a> BundleImage<'a> {
             last_frame: None,
             cur_pos: 0,
             bounce: CSpaceSlot::new(),
-            mapped_page: unsafe { get_bundle_image_mut().as_mut_ptr() },
+            mapped_page: unsafe { ptr::addr_of_mut!(BUNDLE_IMAGE[0]) },
             mapped_bytes: 0,
             bytes_read: 0,
 

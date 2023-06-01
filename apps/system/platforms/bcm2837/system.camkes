@@ -38,32 +38,32 @@ assembly {
         component SDKRuntime sdk_runtime;
 
         // Built-in CPIO archive is visible only to the SecurityCoordinator.
-        connection cantripMMIO cpio_archive(from security_coordinator.cpio_archive,
-                                            to cpio.cpio);
+        connection seL4HardwareMMIO cpio_archive(from security_coordinator.cpio_archive,
+                                                 to cpio.cpio);
 
         // Hookup ProcessManager to DebugConsole for shell commands.
-        connection cantripRPCCall shell_process(from debug_console.proc_ctrl,
+        connection seL4RPCCall shell_process(from debug_console.proc_ctrl,
                                              to process_manager.proc_ctrl);
 
         // ProcessMaanager talks to the SDKManager (the privileged part of
         // the SDKRuntime) to plumb a badged connection between applications
         // and the SDKRuntime.
-        connection cantripRPCCall multi_sdk_manager(
+        connection seL4RPCCall multi_sdk_manager(
             from process_manager.sdk_manager,
             from debug_console.sdk_manager,  // NB: for capscan support
             to sdk_runtime.sdk_manager);
 
-        // NB: requires dynamic_load_support, otherwise only builtins are available
+// NB: requires dynamic_load_support, otherwise only builtins are available
         // Note this allocates a 4KB shared memory region for pkg install
         // to pass an ObjDescArray
-        connection cantripRPCOverMultiSharedData shell_package(
-            from debug_console.pkg_mgmt,
-            to process_manager.pkg_mgmt);
+//        connection seL4RPCOverMultiSharedData shell_package(
+//            from debug_console.pkg_mgmt,
+//            to process_manager.pkg_mgmt);
 
         // Connect the MemoryInterface to each component that needs to allocate
         // global memory. Note this allocates a 4KB shared memory region to each
         // component and copies data between components.
-        connection cantripRPCOverMultiSharedData multi_memory(
+        connection seL4RPCOverMultiSharedData multi_memory(
             from debug_console.memory,
             from process_manager.memory,
             from security_coordinator.memory,
@@ -73,7 +73,7 @@ assembly {
         // Connect the SecurityCoordinatorInterface to each component that needs
         // access to the Security Core. Note this allocates a 4KB shared memory
         // region to each component and copies data between components.
-        connection cantripRPCOverMultiSharedData multi_security(
+        connection seL4RPCOverMultiSharedData multi_security(
             from debug_console.security,   // NB: for debug/test
             from process_manager.security,
             from sdk_runtime.security,     // NB: for key-value store
@@ -82,7 +82,7 @@ assembly {
         // Connect the LoggerInterface to each component that needs to log
         // to the console. Note this allocates a 4KB shared memory region to
         // each component and copies data between components.
-        connection cantripRPCOverMultiSharedData multi_logger(
+        connection seL4RPCOverMultiSharedData multi_logger(
             from process_manager.logger,
             from memory_manager.logger,
             from security_coordinator.logger,

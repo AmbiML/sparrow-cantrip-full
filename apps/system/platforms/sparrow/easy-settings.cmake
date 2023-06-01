@@ -1,5 +1,9 @@
 # Sparrow-specific configuration.
 
+if (RELEASE)
+  set(CAmkESFaultHandlers OFF CACHE BOOL "Debugging aid")
+endif()
+
 # Carefully size the rootserver data. Peak memory use during boot is when
 # the rootserver runs so we tune this and the rootserver's internal data
 # structure sizes to minimize waste.

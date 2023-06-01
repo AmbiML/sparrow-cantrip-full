@@ -439,7 +439,7 @@ pub fn sdk_model_cancel(id: ModelId) -> Result<(), SDKRuntimeError> {
     )
 }
 
-/// Rust client-side wrapper for the model_wait method.
+/// Rust client-side wrapper for the modelk_wait method.
 #[inline]
 pub fn sdk_model_wait() -> Result<ModelMask, SDKRuntimeError> {
     let response = sdk_request::<ModelWaitRequest, ModelWaitResponse>(

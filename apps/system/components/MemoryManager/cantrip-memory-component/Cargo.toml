@@ -17,21 +17,15 @@ name = "cantrip-memory-component"
 version = "0.1.0"
 edition = "2021"
 
-[build-dependencies]
-sel4-config = { path = "../../cantrip-os-common/src/sel4-config" }
-
 [features]
 CONFIG_PLAT_BCM2837 = []
 CONFIG_PLAT_SPARROW = []
-CONFIG_DEBUG_BUILD = []
 
 [dependencies]
 cantrip-memory-interface = { path = "../cantrip-memory-interface" }
 cantrip-memory-manager = { path = "../cantrip-memory-manager" }
 cantrip-os-common = { path = "../../cantrip-os-common" }
-cfg-if = "1.0"
 log = { version = "0.4", features = ["release_max_level_info"] }
-paste = "1.0"
 postcard = { version = "0.7", features = ["alloc"], default-features = false }
 
 [lib]

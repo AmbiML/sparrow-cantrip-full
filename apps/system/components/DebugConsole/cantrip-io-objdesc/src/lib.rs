@@ -24,15 +24,19 @@ use cantrip_os_common::camkes::Camkes;
 use cantrip_os_common::copyregion::CopyRegion;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_os_common::sel4_sys;
+use core::ptr;
 use core2::io::{Cursor, Read};
 
 use sel4_sys::seL4_CPtr;
+use sel4_sys::seL4_PageBits;
 use sel4_sys::seL4_Result;
 
 use cantrip_io as io;
 
-extern "Rust" {
-    fn get_upload_mut() -> &'static mut [u8];
+const PAGE_SIZE: usize = 1 << seL4_PageBits;
+
+extern "C" {
+    static mut UPLOAD: [u8; PAGE_SIZE]; // TODO(sleffler): may need dedicated region
 }
 
 /// Rx io trait that returns data from an ObjDescBundle of page frames.
@@ -51,7 +55,10 @@ impl<'a> Rx<'a> {
             src,
             cptr_iter: Box::new(src.cptr_iter()),
             cur_frame: None,
-            copyregion: unsafe { CopyRegion::new(get_upload_mut()) },
+            copyregion: unsafe {
+                // NB: UPLOAD is page-aligned so safe to cast
+                CopyRegion::new(ptr::addr_of_mut!(UPLOAD[0]) as _, PAGE_SIZE)
+            },
             cursor: Cursor::new(&[]),
             top_slot: CSpaceSlot::new(),
         }

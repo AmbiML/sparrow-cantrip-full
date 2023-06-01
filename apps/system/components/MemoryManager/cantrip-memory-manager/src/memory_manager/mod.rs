@@ -1,8 +1,8 @@
 //! Cantrip OS global memory management support
 
 extern crate alloc;
+use cantrip_memory_interface::MemoryError;
 use cantrip_memory_interface::MemoryLifetime;
-use cantrip_memory_interface::MemoryManagerError;
 use cantrip_memory_interface::MemoryManagerInterface;
 use cantrip_memory_interface::MemoryManagerStats;
 use cantrip_memory_interface::ObjDesc;
@@ -231,7 +231,7 @@ impl MemoryManager {
         Ok(())
     }
 
-    fn alloc_static(&mut self, bundle: &ObjDescBundle) -> Result<(), MemoryManagerError> {
+    fn alloc_static(&mut self, bundle: &ObjDescBundle) -> Result<(), MemoryError> {
         let first_ut = self.cur_static_untyped;
         let mut ut_index = first_ut;
 
@@ -265,7 +265,7 @@ impl MemoryManagerInterface for MemoryManager {
         &mut self,
         bundle: &ObjDescBundle,
         lifetime: MemoryLifetime,
-    ) -> Result<(), MemoryManagerError> {
+    ) -> Result<(), MemoryError> {
         trace!("alloc {:?} {:?}", bundle, lifetime);
 
         if lifetime == MemoryLifetime::Static {
@@ -293,7 +293,7 @@ impl MemoryManagerInterface for MemoryManager {
                     // Should not happen.
                     // TODO(sleffler): reclaim allocations
                     error!("Allocation request failed (retype returned {:?})", e);
-                    return Err(MemoryManagerError::UnknownError);
+                    return Err(MemoryError::UnknownMemoryError);
                 }
                 // This untyped does not have enough available space, try
                 // the next slab until we exhaust all slabs. This is the best
@@ -306,7 +306,7 @@ impl MemoryManagerInterface for MemoryManager {
                     // TODO(sleffler): reclaim allocations
                     self.out_of_memory += 1;
                     debug!("Allocation request failed (out of space)");
-                    return Err(MemoryManagerError::AllocFailed);
+                    return Err(MemoryError::AllocFailed);
                 }
             }
             allocated_objs += od.retype_count();
@@ -323,7 +323,7 @@ impl MemoryManagerInterface for MemoryManager {
 
         Ok(())
     }
-    fn free(&mut self, bundle: &ObjDescBundle) -> Result<(), MemoryManagerError> {
+    fn free(&mut self, bundle: &ObjDescBundle) -> Result<(), MemoryError> {
         trace!("free {:?}", bundle);
 
         for od in &bundle.objs {
@@ -333,7 +333,7 @@ impl MemoryManagerInterface for MemoryManager {
                 // NB: atm we do not do per-untyped bookkeeping so just track
                 //   global stats.
                 // TODO(sleffler): temp workaround for bad bookkeeping / client mis-handling
-                let size_bytes = od.size_bytes().ok_or(MemoryManagerError::ObjTypeInvalid)?;
+                let size_bytes = od.size_bytes().ok_or(MemoryError::ObjTypeInvalid)?;
                 if size_bytes <= self.allocated_bytes {
                     self.allocated_bytes -= size_bytes;
                     self.allocated_objs -= od.retype_count();
@@ -344,7 +344,7 @@ impl MemoryManagerInterface for MemoryManager {
         }
         Ok(())
     }
-    fn stats(&self) -> Result<MemoryManagerStats, MemoryManagerError> {
+    fn stats(&self) -> Result<MemoryManagerStats, MemoryError> {
         Ok(MemoryManagerStats {
             allocated_bytes: self.allocated_space(),
             free_bytes: self.free_space(),
@@ -358,7 +358,7 @@ impl MemoryManagerInterface for MemoryManager {
             out_of_memory: self.out_of_memory(),
         })
     }
-    fn debug(&self) -> Result<(), MemoryManagerError> {
+    fn debug(&self) -> Result<(), MemoryError> {
         // TODO(sleffler): only shows !device slabs
         let cur_cptr = self.untypeds[self.cur_untyped].cptr;
         for ut in &self.untypeds {

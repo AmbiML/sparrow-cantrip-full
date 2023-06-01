@@ -14,7 +14,7 @@
 
 cmake_minimum_required(VERSION 3.7.2)
 
-project(system Rust)
+project(system)
 
 CAmkESAddImportPath(
     components
@@ -39,7 +39,6 @@ RustAddLibrary(
 DeclareCAmkESComponent(DebugConsole
   LIBS cantrip_debug_console
   INCLUDES interfaces
-  LINKER_LANGUAGE Rust
   $ENV{OUT}/cantrip/components
 )
 
@@ -52,7 +51,6 @@ RustAddLibrary(
 DeclareCAmkESComponent(MemoryManager
   LIBS cantrip_memory_manager
   INCLUDES interfaces
-  LINKER_LANGUAGE Rust
   $ENV{OUT}/cantrip/components
 )
 
@@ -65,7 +63,6 @@ RustAddLibrary(
 DeclareCAmkESComponent(ProcessManager
   LIBS cantrip_process_manager
   INCLUDES interfaces
-  LINKER_LANGUAGE Rust
   $ENV{OUT}/cantrip/components
 )
 
@@ -78,7 +75,6 @@ RustAddLibrary(
 DeclareCAmkESComponent(SDKRuntime
   LIBS cantrip_sdk_runtime
   INCLUDES interfaces
-  LINKER_LANGUAGE Rust
   $ENV{OUT}/cantrip/components
 )
 
@@ -91,7 +87,6 @@ RustAddLibrary(
 DeclareCAmkESComponent(SecurityCoordinator
   LIBS cantrip_security_coordinator
   INCLUDES interfaces
-  LINKER_LANGUAGE Rust
   $ENV{OUT}/cantrip/components
 )
 

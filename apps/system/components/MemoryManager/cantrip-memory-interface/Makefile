@@ -12,15 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-[package]
-name = "cantrip-security-interface"
-version = "0.1.0"
-edition = "2021"
+INTERFACES=${OUT}/cantrip/components
 
-[dependencies]
-cantrip-memory-interface = { path = "../../MemoryManager/cantrip-memory-interface" }
-cantrip-os-common = { path = "../../cantrip-os-common" }
-log = { version = "0.4", features = ["release_max_level_info"] }
-postcard = { version = "0.7", features = ["alloc"], default-features = false }
-serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
-serde-big-array = "0.3"
+${INTERFACES}/MemoryManagerBindings.h: src/lib.rs cbindgen.toml
+	mkdir -p ${INTERFACES}
+	cbindgen -c cbindgen.toml src/lib.rs -o $@

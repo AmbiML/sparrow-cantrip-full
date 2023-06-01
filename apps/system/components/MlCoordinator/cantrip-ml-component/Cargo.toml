@@ -18,13 +18,9 @@ version = "0.1.0"
 authors = ["Adam Jesionowski <jesionowski@google.com>"]
 edition = "2021"
 
-[build-dependencies]
-sel4-config = { path = "../../cantrip-os-common/src/sel4-config" }
-
 [features]
 CONFIG_PLAT_BCM2837 = []
 CONFIG_PLAT_SPARROW = []
-CONFIG_DEBUG_BUILD = []
 
 [dependencies]
 cantrip-os-common = { path = "../../cantrip-os-common" }
@@ -33,10 +29,8 @@ cantrip-ml-coordinator = { path = "../cantrip-ml-coordinator" }
 cantrip-ml-interface = { path = "../cantrip-ml-interface" }
 cantrip-ml-shared = { path = "../cantrip-ml-shared" }
 cantrip-timer-interface = { path = "../../TimerService/cantrip-timer-interface" }
-cfg-if = "1.0"
 log = { version = "0.4", features = ["release_max_level_info"] }
 postcard = { version = "0.7", features = ["alloc"], default-features = false }
-paste  = "1.0"
 spin = "0.9"
 
 [lib]

@@ -22,7 +22,6 @@ DeclareCAmkESComponent(
   MlCoordinator
   LIBS cantrip_ml_coordinator
   INCLUDES interfaces
-  LINKER_LANGUAGE Rust
   $ENV{OUT}/cantrip/components
 )
 
@@ -35,7 +34,6 @@ RustAddLibrary(
 DeclareCAmkESComponent(TimerService
   LIBS cantrip_timer_service
   INCLUDES interfaces
-  LINKER_LANGUAGE Rust
   $ENV{OUT}/cantrip/components
 )
 
@@ -49,7 +47,6 @@ DeclareCAmkESComponent(
   MailboxDriver
   LIBS mailbox_driver
   INCLUDES interfaces
-  LINKER_LANGUAGE Rust
   $ENV{OUT}/cantrip/components
 )
 
@@ -64,6 +61,5 @@ DeclareCAmkESComponent(UARTDriver
   INCLUDES
   interfaces
   opentitan-gen/include
-  LINKER_LANGUAGE Rust
   $ENV{OUT}/cantrip/components
 )

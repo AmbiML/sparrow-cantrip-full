@@ -17,22 +17,16 @@ name = "cantrip-timer-component"
 version = "0.1.0"
 edition = "2021"
 
-[build-dependencies]
-sel4-config = { path = "../../cantrip-os-common/src/sel4-config" }
-
 [features]
 CONFIG_PLAT_BCM2837 = []
 CONFIG_PLAT_SPARROW = ["opentitan-timer"]
-CONFIG_DEBUG_BUILD = []
 
 [dependencies]
 cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-timer-interface = { path = "../cantrip-timer-interface" }
 cantrip-timer-service = { path = "../cantrip-timer-service" }
-cfg-if = "1.0"
 log = { version = "0.4", features = ["release_max_level_info"] }
 opentitan-timer = { path = "../opentitan-timer", optional = true }
-paste  = "1.0"
 postcard = { version = "0.7", features = ["alloc"], default-features = false }
 
 [lib]

@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Cantrip OS CAmkES component libc compatibility glue
-//! (this code is deprecated with the switchover to Rust templates).
+//! Cantrip OS CAmkES component libc compatibility glue.
 
 #![allow(clippy::missing_safety_doc)]
 

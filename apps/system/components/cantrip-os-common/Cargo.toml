@@ -19,7 +19,7 @@ edition = "2021"
 
 [features]
 default = ["camkes_support"]
-camkes_support = ["camkes", "copyregion", "cspace-slot", "logger_support", "slot-allocator"]
+camkes_support = ["camkes", "copyregion", "cspace-slot", "logger", "slot-allocator"]
 capdl_support = ["capdl", "model"]
 logger_support = ["logger"]
 
@@ -35,4 +35,3 @@ panic = { path = "src/panic" }
 scheduling = { path = "src/scheduling" }
 sel4-sys = { path = "src/sel4-sys" }
 slot-allocator = { path = "src/slot-allocator", optional = true }
-math = { path = "src/math" }

@@ -6,10 +6,6 @@ edition = "2021"
 [dependencies]
 arrayvec = { version = "0.7", default-features = false }
 core2 = { version = "0.3", default-features = false }
+# Disable default so we don't pull in CString which requires an allocator
+cstr_core = { version = "0.2.3", default-features = false }
 log = { version = "0.4" }
-num_enum = { version = ">=0.6.1", default-features = false }
-paste = "1.0"
-postcard = { version = "0.7", features = ["alloc"], default-features = false }
-sel4-sys = { path = "../sel4-sys", default-features = false }
-serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
-spin = "0.9"

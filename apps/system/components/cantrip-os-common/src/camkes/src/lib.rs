@@ -17,7 +17,6 @@
 #![no_std]
 #![allow(non_camel_case_types)]
 #![feature(c_variadic)]
-#![feature(thread_local)]
 
 #[cfg(feature = "libc_compat")]
 pub mod compat;
@@ -25,8 +24,8 @@ pub mod compat;
 use allocator;
 use core::ops::Deref;
 use log::trace;
+use logger::CantripLogger;
 use slot_allocator::CANTRIP_CSPACE_SLOTS;
-use spin::Mutex;
 
 use sel4_sys::seL4_CNode_Delete;
 use sel4_sys::seL4_CPtr;
@@ -38,40 +37,31 @@ use sel4_sys::seL4_SetCapReceivePath;
 use sel4_sys::seL4_Word;
 use sel4_sys::seL4_WordBits;
 
-pub mod baresema;
-pub mod irq;
-pub use paste::*; // re-export for macros
-pub mod rpc_basic;
-pub mod rpc_shared;
-pub mod semaphore;
-pub mod startup;
-pub use startup::CamkesThread;
-
 pub type seL4_CPath = (seL4_CPtr, seL4_CPtr, seL4_Word);
 
-extern "Rust" {
+extern "C" {
+    // CAmkES components marked with
+    //    attribute integer cantripos = 1;
+    // automatically get a self-reference to their top-level CNode and
+    // the slot #'s of the first & last free slots in the CNode.
     static SELF_CNODE: seL4_CPtr;
     static SELF_CNODE_FIRST_SLOT: seL4_CPtr;
     static SELF_CNODE_LAST_SLOT: seL4_CPtr;
 }
 
+// Flag or'd into reply capability to indicate the cap should be
+// deleted _after_ the reply is done. This depends on CantripOS-specific
+// CAmkES support enabled through build glue (cbindgen processes this
+// crate to generate CamkesBindings.h which exports #define CAP_RELEASE
+// that enables the necessaery #ifdef's).
+pub const CAP_RELEASE: usize = 0x8000_0000;
+
 // RAII wrapper for handling request cap cleanup.
 pub struct RequestCapCleanup {}
 impl Drop for RequestCapCleanup {
-    fn drop(&mut self) { set_cap(0); }
-}
-
-// RAII wrapper for releasing reply cap after use.
-pub struct ReplyCapRelease {
-    cpath: seL4_CPath,
-}
-impl Drop for ReplyCapRelease {
     fn drop(&mut self) {
-        // XXX check cap is unchanged
-        set_cap(0);
         unsafe {
-            CANTRIP_CSPACE_SLOTS.free(self.cpath.1, 1);
-            Camkes::delete_path(&self.cpath).expect("delete");
+            seL4_SetCap(0, 0);
         }
     }
 }
@@ -90,7 +80,8 @@ impl Drop for OwnedCPath {
     fn drop(&mut self) {
         // Clears any capability the cpath points to.
         // Assert since future receives are likely to fail
-        Camkes::delete_path(&self.cpath).expect(self.name);
+        unsafe { seL4_CNode_Delete(self.cpath.0, self.cpath.1, self.cpath.2 as u8) }
+            .expect(self.name);
     }
 }
 
@@ -98,100 +89,88 @@ impl Drop for OwnedCPath {
 // seL4 will copy the capabiltiy.
 // NB: private because the api is unsafe, set_request_cap
 //   and set_reply_cap_release should always be used
-#[inline]
 fn set_cap(cptr: seL4_CPtr) { unsafe { seL4_SetCap(0, cptr) } }
-#[inline]
 fn get_cap() -> seL4_CPtr { unsafe { seL4_GetCap(0) } }
 
-/// Callbacks from startup. This is how services are bound to the
-/// thread model.
-pub trait CamkesThreadInterface {
-    fn pre_init() {} // NB: control thread only
-    fn post_init() {} // NB: control thread only
-    fn init() {}
-    fn run() {} // XXX generate message as thread is unused?
+pub struct Camkes {
+    name: &'static str,    // Component name
+    recv_path: seL4_CPath, // IPCBuffer receive path
 }
 
-pub struct Camkes {
-    name: &'static str, // Component name
-    pre_init: &'static baresema::seL4_BareSema,
-    post_init: &'static baresema::seL4_BareSema,
-    interface_init: &'static baresema::seL4_BareSema,
-    threads: &'static [&'static CamkesThread],
-    recv_path: Mutex<seL4_CPath>, // IPCBuffer receive path
-}
 impl Camkes {
-    pub const fn new(
-        name: &'static str,
-        pre_init: &'static baresema::seL4_BareSema,
-        post_init: &'static baresema::seL4_BareSema,
-        interface_init: &'static baresema::seL4_BareSema,
-        threads: &'static [&CamkesThread],
-    ) -> Self {
-        Self {
+    pub const fn new(name: &'static str) -> Self {
+        Camkes {
             name,
-            pre_init,
-            post_init,
-            interface_init,
-            threads,
-            recv_path: Mutex::new((seL4_CPtr::MAX, seL4_CPtr::MAX, seL4_Word::MAX)),
+            recv_path: (seL4_CPtr::MAX, seL4_CPtr::MAX, seL4_Word::MAX),
         }
     }
-    pub fn thread(&self, thread_id: usize) -> Option<&CamkesThread> {
-        self.threads.iter().find_map(|&t| {
-            if t.thread_id() == thread_id {
-                Some(t)
-            } else {
-                None
-            }
-        })
+
+    pub fn init_logger(self: &Camkes, level: log::LevelFilter) {
+        static CANTRIP_LOGGER: CantripLogger = CantripLogger;
+        log::set_logger(&CANTRIP_LOGGER).unwrap();
+        log::set_max_level(level);
     }
 
-    pub fn init_allocator(&self, heap: &'static mut [u8]) {
+    pub fn init_allocator(self: &Camkes, heap: &'static mut [u8]) {
         unsafe {
             allocator::ALLOCATOR.init(heap.as_mut_ptr(), heap.len());
         }
+        trace!(
+            "{} setup heap: start_addr {:p} size {}",
+            self.name,
+            heap.as_ptr(),
+            heap.len()
+        );
     }
 
-    pub fn init_slot_allocator(&self, first_slot: seL4_CPtr, last_slot: seL4_CPtr) {
+    pub fn init_slot_allocator(self: &Camkes, first_slot: seL4_CPtr, last_slot: seL4_CPtr) {
         unsafe {
             CANTRIP_CSPACE_SLOTS.init(self.name, first_slot, last_slot - first_slot);
+            trace!(
+                "{} setup cspace slots: first slot {} free {}",
+                self.name,
+                CANTRIP_CSPACE_SLOTS.base_slot(),
+                CANTRIP_CSPACE_SLOTS.free_slots()
+            );
         }
     }
 
-    pub fn pre_init(&self, heap: &'static mut [u8]) {
+    pub fn pre_init(self: &Camkes, level: log::LevelFilter, heap: &'static mut [u8]) {
+        self.init_logger(level);
         self.init_allocator(heap);
-        self.init_slot_allocator(unsafe { SELF_CNODE_FIRST_SLOT }, unsafe { SELF_CNODE_LAST_SLOT });
+        unsafe {
+            self.init_slot_allocator(SELF_CNODE_FIRST_SLOT, SELF_CNODE_LAST_SLOT);
+        }
     }
 
-    #[inline]
     pub fn top_level_path(slot: seL4_CPtr) -> seL4_CPath {
-        (unsafe { SELF_CNODE }, slot, seL4_WordBits)
+        unsafe { (SELF_CNODE, slot, seL4_WordBits) }
     }
 
     // Initializes the IPCBuffer receive path with |path|.
-    pub fn init_recv_path(&self, path: &seL4_CPath) {
-        *self.recv_path.lock() = *path;
+    pub fn init_recv_path(self: &mut Camkes, path: &seL4_CPath) {
+        self.recv_path = *path;
         unsafe {
             seL4_SetCapReceivePath(path.0, path.1, path.2);
         }
-        trace!(target: self.name, "cap receive path {:?}", path);
+        trace!("{} cap receive path {:?}", self.name, path);
     }
 
     // Returns the path specified with init_recv_path.
-    pub fn get_recv_path(&self) -> seL4_CPath { *self.recv_path.lock() }
+    pub fn get_recv_path(self: &Camkes) -> seL4_CPath { self.recv_path }
 
     // Returns the component name.
-    #[inline]
-    pub fn get_name(&self) -> &'static str { self.name }
+    pub fn get_name(self: &Camkes) -> &'static str { self.name }
 
     // Returns the current receive path from the IPCBuffer.
-    pub fn get_current_recv_path(&self) -> seL4_CPath { unsafe { seL4_GetCapReceivePath() } }
+    pub fn get_current_recv_path(self: &Camkes) -> seL4_CPath {
+        unsafe { seL4_GetCapReceivePath() }
+    }
 
     // Returns the current receive path from the IPCBuffer; clears any
     // capability the cpath points to when dropped.
     #[must_use]
-    pub fn get_owned_current_recv_path(&self) -> OwnedCPath {
+    pub fn get_owned_current_recv_path(self: &Camkes) -> OwnedCPath {
         // NB: make sure noone clobbers the setup done in init_recv_path
         self.assert_recv_path();
         OwnedCPath {
@@ -202,21 +181,18 @@ impl Camkes {
 
     // Check the current receive path in the IPCBuffer against what was
     // setup with init_recv_path.
-    pub fn check_recv_path(&self) -> bool { self.get_current_recv_path() == self.get_recv_path() }
+    pub fn check_recv_path(self: &Camkes) -> bool {
+        self.get_current_recv_path() == self.get_recv_path()
+    }
 
     // Like check_recv_path but asserts if there is an inconsistency.
-    pub fn assert_recv_path(&self) {
+    pub fn assert_recv_path(self: &Camkes) {
         assert!(
             self.check_recv_path(),
             "Current receive path {:?} does not match init'd path {:?}",
             self.get_current_recv_path(),
             self.recv_path
         );
-    }
-
-    // Deletes the capability at |path|,
-    pub fn delete_path(path: &seL4_CPath) -> seL4_Result {
-        unsafe { seL4_CNode_Delete(path.0, path.1, path.2 as u8) }
     }
 
     // Attaches a capability to a CAmkES RPC request MessageInfo and
@@ -244,17 +220,20 @@ impl Camkes {
     pub fn get_request_cap() -> seL4_CPtr { get_cap() }
 
     // Attaches a capability to a CAmkES RPC reply msg and arranges for
-    // resources to be released after the reply completes.
-    #[must_use]
-    pub fn set_reply_cap_release(cptr: seL4_CPtr) -> ReplyCapRelease {
-        set_cap(cptr);
-        ReplyCapRelease {
-            cpath: Self::top_level_path(cptr),
+    // the capability to be released after the reply completes.
+    pub fn set_reply_cap_release(cptr: seL4_CPtr) {
+        unsafe {
+            // NB: logically this belongs in the CAmkES code where the
+            // cap is deleted but that's not possible so do it here--there
+            // should be no race to re-purpose the slot since everything
+            // is assumed single-threaded (and CAmkES-generated code does
+            // not short-circuit the cap delete).
+            CANTRIP_CSPACE_SLOTS.free(cptr, 1);
+            set_cap(cptr | CAP_RELEASE);
         }
     }
 
     // Clears any capability attached to a CAmkES RPC reply msg.
-    // XXX dangerous
     pub fn clear_reply_cap() { set_cap(0); }
 
     // Returns the capability attached to an seL4 IPC.

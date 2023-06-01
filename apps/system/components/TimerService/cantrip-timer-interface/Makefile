@@ -12,17 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-[package]
-name = "mailbox-interface"
-version = "0.1.0"
-edition = "2021"
+INTERFACES=${OUT}/cantrip/components
 
-[features]
-CONFIG_DEBUG_BUILD = []
-CONFIG_PLAT_SPARROW = []
-
-[dependencies]
-cantrip-os-common = { path = "../../cantrip-os-common" }
-num_enum = { version = ">=0.6.1", default-features = false }
-postcard = { version = "0.7", features = ["alloc"], default-features = false }
-serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
+${INTERFACES}/TimerServiceBindings.h: src/lib.rs cbindgen.toml
+	cbindgen -c cbindgen.toml src/lib.rs -o $@

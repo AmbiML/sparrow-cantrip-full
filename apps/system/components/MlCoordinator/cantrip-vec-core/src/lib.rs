@@ -24,15 +24,16 @@ mod vc_top;
 use cantrip_io::Read;
 use cantrip_ml_shared::{OutputHeader, Permission, WindowId, TCM_PADDR, TCM_SIZE};
 use core::mem::size_of;
-use core::ptr;
+use core::slice;
 use log::{error, trace};
 
-extern "Rust" {
-    fn get_tcm() -> &'static [u8];
-    fn get_tcm_mut() -> &'static mut [u8];
+extern "C" {
+    static TCM: *mut u32;
 }
-fn get_tcm_word() -> &'static [u32] { unsafe { core::mem::transmute(get_tcm()) } }
-fn get_tcm_word_mut() -> &'static mut [u32] { unsafe { core::mem::transmute(get_tcm_mut()) } }
+
+fn get_tcm_slice() -> &'static mut [u32] {
+    unsafe { slice::from_raw_parts_mut(TCM, TCM_SIZE / size_of::<u32>()) }
+}
 
 pub fn enable_interrupts(enable: bool) {
     let intr_enable = vc_top::IntrEnable::new()
@@ -92,8 +93,7 @@ pub fn write_image_part<R: Read>(
         in_memory_size
     );
 
-    //    let tcm_slice = unsafe { slice::from_raw_parts_mut(TCM as *mut u8, TCM_SIZE) };
-    let tcm_slice = unsafe { get_tcm_mut() };
+    let tcm_slice = unsafe { slice::from_raw_parts_mut(TCM as *mut u8, TCM_SIZE) };
 
     if let Err(e) = image.read_exact(&mut tcm_slice[start..start + on_flash_size]) {
         error!("Section read error {:?}", e);
@@ -111,7 +111,7 @@ pub fn write_image_part<R: Read>(
 pub fn tcm_move(src: usize, dest: usize, byte_length: usize) {
     trace!("Moving {:#x} bytes to {:#x} from {:#x}", byte_length, dest, src);
 
-    let tcm_slice = get_tcm_word_mut();
+    let tcm_slice = get_tcm_slice();
     let src_index = (src - TCM_PADDR) / size_of::<u32>();
     let dest_index = (dest - TCM_PADDR) / size_of::<u32>();
     let count: usize = byte_length / size_of::<u32>();
@@ -165,7 +165,7 @@ pub fn clear_tcm(addr: usize, byte_length: usize) {
     let count: usize = byte_length / size_of::<u32>();
 
     // TODO(jesionowski): Use clear_section method when able.
-    let tcm_slice = get_tcm_word_mut();
+    let tcm_slice = get_tcm_slice();
     tcm_slice[start..start + count].fill(0x00);
 }
 
@@ -183,8 +183,7 @@ pub fn get_output_header(addr: usize) -> OutputHeader {
     let offset: isize = (addr - TCM_PADDR).try_into().unwrap();
 
     unsafe {
-        // XXX brutal, cleanup
-        let ptr = ptr::addr_of!(get_tcm_word()[0]).offset(offset) as *const OutputHeader;
+        let ptr = TCM.offset(offset) as *const OutputHeader;
         *ptr
     }
 }

@@ -23,6 +23,7 @@ use crate::sel4bundle::seL4BundleImpl;
 use core::mem::size_of;
 use core::ptr;
 
+use arch::PAGE_SIZE;
 use arch::REG_ARGS;
 use arch::STACK_ALIGNMENT_BYTES;
 
@@ -32,8 +33,8 @@ use sel4_sys::seL4_Word;
 use static_assertions::assert_cfg;
 assert_cfg!(not(feature = "CONFIG_CAPDL_LOADER_CC_REGISTERS"));
 
-extern "Rust" {
-    fn get_load_application_mut() -> &'static mut [u8];
+extern "C" {
+    static mut LOAD_APPLICATION: [seL4_Word; PAGE_SIZE / size_of::<seL4_Word>()];
 }
 
 impl seL4BundleImpl {
@@ -77,7 +78,8 @@ impl seL4BundleImpl {
         // be on a page boundary.
         let frame_obj = self.get_stack_frame_obj(sp - size_of::<seL4_Word>());
 
-        let mut copy_region = unsafe { CopyRegion::new(get_load_application_mut()) };
+        let mut copy_region =
+            unsafe { CopyRegion::new(ptr::addr_of_mut!(LOAD_APPLICATION[0]), PAGE_SIZE) };
         copy_region.map(frame_obj.cptr)?;
 
         // Write spillover arguments to the TCB's stack.

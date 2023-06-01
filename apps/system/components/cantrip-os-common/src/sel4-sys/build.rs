@@ -166,21 +166,19 @@ fn main() {
 
     // Generate fault types from the bitfield files in libsel4
     println!("{}/shared_types_{}.rs", out_dir, archdir);
-    let faultout = File::create(&*format!("{}/shared_types_{}.rs", out_dir, archdir)).unwrap();
+    let faultout =
+        File::create(&*format!("{}/shared_types_{}.rs", out_dir, archdir)).unwrap();
 
     let mut cppcmd = Command::new(cpp_bin);
     cppcmd.args(&[
-        "-E", // preprocess only
-        "-P", // inhibit linemarkers
-        &*format!("-I{}/autoconf", sel4_out_dir),
-        &*format!("-I{}/gen_config", sel4_out_dir),
-        &*format!("-I{}/libsel4/include", sel4_out_dir),
-        &*format!("-I{}/libsel4/arch_include/{}", sel4_dir, archdir),
-        &*format!(
-            "{}/libsel4/sel4_arch_include/{}/sel4/sel4_arch/types.bf",
-            sel4_dir, arch
-        ),
-    ]);
+            "-E",  // preprocess only
+            "-P",  // inhibit linemarkers
+            &*format!("-I{}/autoconf", sel4_out_dir),
+            &*format!("-I{}/gen_config", sel4_out_dir),
+            &*format!("-I{}/libsel4/include", sel4_out_dir),
+            &*format!("-I{}/libsel4/arch_include/{}", sel4_dir, archdir),
+            &*format!("{}/libsel4/sel4_arch_include/{}/sel4/sel4_arch/types.bf", sel4_dir, arch)
+        ]);
 
     println!("Running {:?}", cppcmd);
     let mut cppchild = cppcmd
@@ -190,7 +188,10 @@ fn main() {
         .expect("Failed to start cpp process.");
 
     let mut bfgencmd = Command::new(python_bin);
-    bfgencmd.args(&["tools/bitfield_gen.py", "--language=rust"]);
+    bfgencmd.args(&[
+            "tools/bitfield_gen.py",
+            "--language=rust",
+    ]);
     println!("Running {:?}", bfgencmd);
 
     let cppstdout = cppchild.stdout.take().unwrap();

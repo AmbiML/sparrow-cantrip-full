@@ -22,6 +22,7 @@ use core::cmp;
 use core::ptr;
 
 use sel4_sys::seL4_CPtr;
+use sel4_sys::seL4_Word;
 use sel4_sys::seL4_WordBits;
 
 #[derive(Debug)]
@@ -42,7 +43,7 @@ pub struct Upload<'a> {
 }
 
 impl<'a> Upload<'a> {
-    pub fn new(region: &'a mut [u8]) -> Self {
+    pub fn new(region: *mut seL4_Word, size: usize) -> Self {
         Self {
             frames: ObjDescBundle::new(
                 // Collect frames in the top-level CNode for now
@@ -50,7 +51,7 @@ impl<'a> Upload<'a> {
                 seL4_WordBits as u8,
                 vec![],
             ),
-            copyregion: unsafe { CopyRegion::new(region) },
+            copyregion: unsafe { CopyRegion::new(region, size) },
             next_free: 0,
         }
     }

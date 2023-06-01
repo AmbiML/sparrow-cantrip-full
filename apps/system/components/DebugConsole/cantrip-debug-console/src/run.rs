@@ -24,24 +24,12 @@
 //! * cantrip_debug_console main entry point fn run()
 
 #![no_std]
-// XXX for camkes.rs
-#![feature(const_mut_refs)]
-#![allow(dead_code)]
-#![allow(unused_unsafe)]
-#![allow(unused_imports)]
-#![allow(non_upper_case_globals)]
+#![allow(clippy::missing_safety_doc)]
 
-use cantrip_os_common::camkes;
-use cantrip_os_common::logger;
-use cantrip_os_common::sel4_sys;
-use cfg_if::cfg_if;
+use cantrip_os_common::camkes::Camkes;
 use core::fmt::Write;
+use cstr_core::CStr;
 use log::LevelFilter;
-
-use camkes::*;
-
-use logger::LoggerError;
-use logger::LoggerRequest;
 
 use cantrip_io as io;
 
@@ -54,75 +42,13 @@ const INIT_LOG_LEVEL: LevelFilter = LevelFilter::Trace;
 #[cfg(not(any(feature = "LOG_DEBUG", feature = "LOG_TRACE")))]
 const INIT_LOG_LEVEL: LevelFilter = LevelFilter::Info;
 
-// Generated code...
-include!(concat!(env!("SEL4_OUT_DIR"), "/../debug_console/camkes.rs"));
+static mut CAMKES: Camkes = Camkes::new("DebugConsole");
 
-struct DebugConsoleControlThread;
-impl CamkesThreadInterface for DebugConsoleControlThread {
-    fn pre_init() {
-        const HEAP_SIZE: usize = 12 * 1024;
-        static mut HEAP_MEMORY: [u8; HEAP_SIZE] = [0; HEAP_SIZE];
-        unsafe {
-            CAMKES.pre_init(&mut HEAP_MEMORY);
-        }
-    }
-
-    // Entry point for DebugConsole. Optionally runs an autostart script
-    // after which it runs an interactive shell with UART IO.
-    fn run() {
-        #[cfg(feature = "autostart_support")]
-        run_autostart_shell();
-
-        #[cfg(feature = "CONFIG_PLAT_SPARROW")]
-        run_sparrow_shell();
-    }
-}
-
-cfg_if! {
-    if #[cfg(feature = "CONFIG_DEBUG_BUILD")] {
-        struct DebugConsoleFaultHandlerThread;
-        impl CamkesThreadInterface for DebugConsoleFaultHandlerThread {}
-    }
-}
-
-/// Console logging interface.
-struct LoggerInterfaceThread;
-impl CamkesThreadInterface for LoggerInterfaceThread {
-    fn init() { log::set_max_level(INIT_LOG_LEVEL); }
-    fn run() {
-        rpc_shared_recv!(logger, logger::MAX_MSG_LEN, LoggerError::Success);
-    }
-}
-impl LoggerInterfaceThread {
-    fn dispatch(
-        _client_badge: usize,
-        request_buffer: &[u8],
-        _reply_buffer: &mut [u8],
-    ) -> Result<(), LoggerError> {
-        let request = match postcard::from_bytes::<LoggerRequest>(request_buffer) {
-            Ok(request) => request,
-            Err(_) => return Err(LoggerError::DeserializeFailed),
-        };
-        match request {
-            LoggerRequest::Log { level, msg } => Self::log_request(level, msg),
-        }
-    }
-    fn log_request(level: u8, msg: &str) -> Result<(), LoggerError> {
-        use log::Level;
-        let l = match level {
-            x if x == Level::Error as u8 => Level::Error,
-            x if x == Level::Warn as u8 => Level::Warn,
-            x if x == Level::Info as u8 => Level::Info,
-            x if x == Level::Debug as u8 => Level::Debug,
-            _ => Level::Trace,
-        };
-        if l <= log::max_level() {
-            // TODO(sleffler): is the uart driver ok w/ multiple writers?
-            let output: &mut dyn io::Write = &mut get_tx();
-            let _ = writeln!(output, "{}", msg);
-        }
-        Ok(())
-    }
+#[no_mangle]
+pub unsafe extern "C" fn pre_init() {
+    const HEAP_SIZE: usize = 12 * 1024;
+    static mut HEAP_MEMORY: [u8; HEAP_SIZE] = [0; HEAP_SIZE];
+    CAMKES.pre_init(INIT_LOG_LEVEL, &mut HEAP_MEMORY);
 }
 
 /// Tx io trait that uses the kernel if console output is
@@ -160,6 +86,24 @@ fn get_tx() -> impl io::Write {
     return Tx::new();
 }
 
+/// Console logging interface.
+#[no_mangle]
+pub unsafe extern "C" fn logger_log(level: u8, msg: *const cstr_core::c_char) {
+    use log::Level;
+    let l = match level {
+        x if x == Level::Error as u8 => Level::Error,
+        x if x == Level::Warn as u8 => Level::Warn,
+        x if x == Level::Info as u8 => Level::Info,
+        x if x == Level::Debug as u8 => Level::Debug,
+        _ => Level::Trace,
+    };
+    if l <= log::max_level() {
+        // TODO(sleffler): is the uart driver ok w/ multiple writers?
+        let output: &mut dyn io::Write = &mut get_tx();
+        let _ = writeln!(output, "{}", CStr::from_ptr(msg).to_str().unwrap());
+    }
+}
+
 // Run any "autostart.repl" file in the eFLASH through the shell with output
 // sent either to the console or /dev/null depending on the feature selection.
 #[cfg(feature = "autostart_support")]
@@ -177,4 +121,15 @@ fn run_sparrow_shell() -> ! {
     let mut tx = cantrip_uart_client::Tx::new();
     let mut rx = io::BufReader::new(cantrip_uart_client::Rx::new());
     cantrip_shell::repl(&mut tx, &mut rx);
+}
+
+/// Entry point for DebugConsole. Optionally runs an autostart script
+/// after which it runs an interactive shell with UART IO.
+#[no_mangle]
+pub extern "C" fn run() {
+    #[cfg(feature = "autostart_support")]
+    run_autostart_shell();
+
+    #[cfg(feature = "CONFIG_PLAT_SPARROW")]
+    run_sparrow_shell();
 }

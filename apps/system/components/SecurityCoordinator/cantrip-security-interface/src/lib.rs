@@ -21,16 +21,13 @@ use alloc::borrow::Cow;
 use alloc::string::String;
 use alloc::vec::Vec;
 use cantrip_memory_interface::ObjDescBundle;
-use cantrip_os_common::camkes;
+use cantrip_os_common::camkes::Camkes;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_os_common::sel4_sys;
 use core::str;
 use log::trace;
-use num_enum::{FromPrimitive, IntoPrimitive};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-
-use camkes::*;
 
 use sel4_sys::seL4_CPtr;
 
@@ -44,7 +41,7 @@ big_array! { BigArray; }
 // and also by it being allocated on the stack of the rpc glue code.
 // So we need to balance these against being able to handle all values.
 
-pub const SECURITY_REQUEST_DATA_SIZE: usize = 2048;
+const SECURITY_REQUEST_DATA_SIZE: usize = 2048;
 
 pub const SECURITY_REPLY_DATA_SIZE: usize = 2048;
 pub type SecurityReplyData = [u8; SECURITY_REPLY_DATA_SIZE];
@@ -55,10 +52,10 @@ pub type KeyValueData = [u8; KEY_VALUE_DATA_SIZE];
 
 pub type BundleIdArray = Vec<String>;
 
-#[repr(usize)]
-#[derive(Debug, Default, Eq, PartialEq, FromPrimitive, IntoPrimitive)]
+#[repr(C)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum SecurityRequestError {
-    Success = 0,
+    SreSuccess = 0,
     SreBundleIdInvalid,
     SreBundleDataInvalid,
     SreBundleNotFound,
@@ -72,8 +69,6 @@ pub enum SecurityRequestError {
     SreCapAllocFailed,
     SreCapMoveFailed,
     SreObjCapInvalid,
-    #[default]
-    UnknownError,
     // Generic errors, mostly used in unit tests
     SreEchoFailed,
     SreInstallFailed,
@@ -91,7 +86,7 @@ pub enum SecurityRequestError {
 }
 impl From<SecurityRequestError> for Result<(), SecurityRequestError> {
     fn from(err: SecurityRequestError) -> Result<(), SecurityRequestError> {
-        if err == SecurityRequestError::Success {
+        if err == SecurityRequestError::SreSuccess {
             Ok(())
         } else {
             Err(err)
@@ -270,6 +265,46 @@ pub trait SecurityCoordinatorInterface {
 }
 
 #[inline]
+fn cantrip_security_request_aux(
+    cap: Option<seL4_CPtr>,
+    request_buffer: &[u8],
+    reply_buffer: &mut SecurityReplyData,
+) -> Result<(), SecurityRequestError> {
+    extern "C" {
+        pub fn security_request(
+            c_request_buffer_len: u32,
+            c_request_buffer: *const u8,
+            c_reply_buffer: *mut SecurityReplyData,
+        ) -> SecurityRequestError;
+    }
+    if let Some(cap) = cap {
+        let _cleanup = Camkes::set_request_cap(cap);
+        unsafe {
+            security_request(
+                request_buffer.len() as u32,
+                request_buffer.as_ptr(),
+                reply_buffer as *mut _,
+            )
+            .into()
+        }
+    } else {
+        // NB: guard against a received badge being treated as an
+        // outbound capability. This is needed because the code CAmkES
+        // generates for pkg_mgmt_request always enables possible xmit
+        // of 1 capability.
+        Camkes::clear_request_cap();
+        unsafe {
+            security_request(
+                request_buffer.len() as u32,
+                request_buffer.as_ptr(),
+                reply_buffer as *mut _,
+            )
+            .into()
+        }
+    }
+}
+
+#[inline]
 pub fn cantrip_security_request<T: DeserializeOwned>(
     request: &SecurityRequest,
 ) -> Result<T, SecurityRequestError> {
@@ -278,14 +313,12 @@ pub fn cantrip_security_request<T: DeserializeOwned>(
         &request,
         request.get_container_cap()
     );
-    let (request_slice, reply_slice) =
-        rpc_shared_buffer_mut!(security).split_at_mut(SECURITY_REQUEST_DATA_SIZE);
-    let _ = postcard::to_slice(request, request_slice)
+    let mut request_buffer = [0u8; SECURITY_REQUEST_DATA_SIZE];
+    let request_slice = postcard::to_slice(request, &mut request_buffer)
         .or(Err(SecurityRequestError::SreSerializeFailed))?;
-    match rpc_shared_send!(security, request.get_container_cap()) {
-        0 => postcard::from_bytes(reply_slice).or(Err(SecurityRequestError::SreDeserializeFailed)),
-        err => Err(err.into()),
-    }
+    let mut reply_buffer = [0u8; SECURITY_REPLY_DATA_SIZE];
+    cantrip_security_request_aux(request.get_container_cap(), request_slice, &mut reply_buffer)?;
+    postcard::from_bytes(&reply_buffer).or(Err(SecurityRequestError::SreDeserializeFailed))
 }
 
 #[inline]

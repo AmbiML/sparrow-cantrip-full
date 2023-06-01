@@ -19,7 +19,5 @@ authors = ["Matt Harvey <mattharvey@google.com>"]
 edition = "2021"
 
 [dependencies]
+cty = "0.2.1"
 cantrip-io = { path = "../cantrip-io" }
-uart-interface = { path = "../../UARTDriver/uart-interface" }
-log = "0.4"
-sel4-sys = { path = "../../cantrip-os-common/src/sel4-sys" }

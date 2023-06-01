@@ -38,6 +38,7 @@ use cantrip_sdk_manager::cantrip_sdk_manager_get_endpoint;
 use cantrip_sdk_manager::cantrip_sdk_manager_release_endpoint;
 use core::cmp;
 use core::mem::size_of;
+use core::ptr;
 #[cfg(feature = "CONFIG_CHECK_BUNDLE_IMAGE")]
 use crc::{crc32, Hasher32};
 use log::{debug, error, info, trace};
@@ -69,7 +70,7 @@ use sel4_sys::seL4_WordBits;
 
 use static_assertions::const_assert;
 
-extern "Rust" {
+extern "C" {
     // The rootserver hands-off these caps because we mark our CAmkES
     // component. Well-known C symbols identify the slots where the
     // caps land our CSpace.
@@ -78,11 +79,12 @@ extern "Rust" {
     static DOMAIN_CTRL: seL4_CPtr;
 
     // Our thread's TCB; used in setting up scheduling of new TCB's.
-    static TCB_PROC_CTRL: seL4_CPtr;
+    static SELF_TCB_PROCESS_MANAGER_PROC_CTRL_0000: seL4_CPtr;
 
     // Region for mapping data when loading the contents of a BundleImage.
-    fn get_load_application_mut() -> &'static mut [u8];
+    static mut LOAD_APPLICATION: [seL4_Word; PAGE_SIZE / size_of::<seL4_Word>()];
 }
+use SELF_TCB_PROCESS_MANAGER_PROC_CTRL_0000 as SELF_TCB;
 
 // Setup arch- & feature-specific support.
 
@@ -406,7 +408,8 @@ impl seL4BundleImpl {
         // to fill from the |bundle_frames| and/or zero-fill.
         let mut image = BundleImage::new(bundle_frames);
 
-        let mut copy_region = unsafe { CopyRegion::new(get_load_application_mut()) };
+        let mut copy_region =
+            unsafe { CopyRegion::new(ptr::addr_of_mut!(LOAD_APPLICATION[0]), PAGE_SIZE) };
 
         let mut vaddr_top = 0;
         // Track last allocated page that was mapped to handle gaps between
@@ -617,7 +620,7 @@ impl seL4BundleImpl {
         )?;
         scheduler::TCB_SchedParams(
             cap_tcb,
-            unsafe { TCB_PROC_CTRL }, // XXX maybe lookup with Camkes
+            unsafe { SELF_TCB }, // XXX
             self.tcb_max_priority,
             self.tcb_priority,
             cap_sc,
@@ -724,13 +727,11 @@ impl BundleImplInterface for seL4BundleImpl {
         self.resume() // XXX maybe map_err StartFailed
     }
     fn stop(&mut self) -> Result<(), ProcessManagerError> {
-        fn handle_error<T: core::fmt::Debug>(e: T) -> ProcessManagerError {
-            error!("stop failed: {:?}", e);
-            ProcessManagerError::StopFailed
-        }
         self.suspend()?;
-        cantrip_sdk_manager_release_endpoint(&self.tcb_name).map_err(handle_error)?;
-        cantrip_object_free_in_cnode(&self.bundle_frames).map_err(handle_error)?;
+        cantrip_sdk_manager_release_endpoint(&self.tcb_name)
+            .or(Err(ProcessManagerError::StopFailed))?;
+        cantrip_object_free_in_cnode(&self.bundle_frames)
+            .or(Err(ProcessManagerError::StopFailed))?;
         // NB: must delete the dup reference to the TCB before cleaning
         //    up the application's CNode so the container is treated as
         //    revokable. Otherwise seL4 will defer reclaiming the space
@@ -739,7 +740,8 @@ impl BundleImplInterface for seL4BundleImpl {
         //    the next retype operation. This will not be necessary
         //    when we remove the TCB reference in the CNode.
         self.cap_tcb = CSpaceSlot::new(); // NB: force drop
-        cantrip_object_free_in_cnode(&self.dynamic_objs).map_err(handle_error)?;
+        cantrip_object_free_in_cnode(&self.dynamic_objs)
+            .or(Err(ProcessManagerError::StopFailed))?;
         // XXX delete any other local caps
         Ok(())
     }
