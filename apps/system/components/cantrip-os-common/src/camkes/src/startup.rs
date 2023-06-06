@@ -318,15 +318,12 @@ macro_rules! _static_thread {
                     &[<$irq_name:upper _INTERFACE_TLS>],
                     $camkes,
                 );
-            // TODO(sleffler): move to a static_irq macro?
             impl CamkesThreadInterface for [<$irq_name:camel InterfaceThread>] {
                 fn run() {
-                    loop {
-                        [<$irq_name:upper _IRQ>].wait();
-                        if Self::handler() {
-                            [<$irq_name:upper _IRQ>].acknowledge();
-                        }
-                    }
+                    crate::camkes::irq::irq_loop(
+                        &[<$irq_name:upper _IRQ>],
+                        Self::handler,
+                    )
                 }
             }
         }
