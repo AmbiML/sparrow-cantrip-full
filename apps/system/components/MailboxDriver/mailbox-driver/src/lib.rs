@@ -44,6 +44,14 @@ impl CamkesThreadInterface for MailboxDriverControlThread {
     }
     // XXX HACK: compensate for rtirq not setup
     fn post_init() { RtirqInterfaceThread::post_init(); }
+    fn run() {
+        // NB: do not handle rtirq, it blocks waiting for the api thread
+        shared_irq_loop!(
+            irq,
+            wtirq => WtirqInterfaceThread::handler,
+            eirq => EirqInterfaceThread::handler
+        );
+    }
 }
 
 // IRQ Support.

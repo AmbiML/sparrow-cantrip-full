@@ -95,12 +95,13 @@ assembly {
         // MailboxDriver
         connection cantripMMIO mailbox_driver_mmio(
             from mailbox_driver.mailbox_mmio, to mailbox_hardware.mmio);
-        connection cantripIRQ mailbox_driver_wtirq(
-            from mailbox_hardware.wtirq, to mailbox_driver.wtirq);
+        connection cantripIRQ mailbox_driver_irq(
+            from mailbox_hardware.wtirq,
+            from mailbox_hardware.eirq,
+            to mailbox_driver.irq);
+        // NB: rtirq needs a dedicated thread for now
         connection cantripIRQ mailbox_driver_rtirq(
             from mailbox_hardware.rtirq, to mailbox_driver.rtirq);
-        connection cantripIRQ mailbox_driver_eirq(
-            from mailbox_hardware.eirq, to mailbox_driver.eirq);
         connection cantripRPCCall security_coordinator_to_mailbox_api(
             from security_coordinator.api, to mailbox_driver.api);
 
