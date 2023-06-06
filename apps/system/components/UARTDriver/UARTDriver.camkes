@@ -13,12 +13,9 @@ component UARTDriver {
 
   dataport Buf tx_dataport;
   provides uart_write_inf write;
-  consumes Interrupt tx_watermark;
-  consumes Interrupt tx_empty;
 
   dataport Buf rx_dataport;
   provides uart_read_inf read;
-  consumes Interrupt rx_watermark;
   has semaphore rx_nonempty;
   has semaphore rx_empty;
 
@@ -26,4 +23,11 @@ component UARTDriver {
 
   // Enable CantripOS CAmkES support.
   attribute int cantripos = true;
+
+  // Pseudo interface used to process all IRQ's. The assembly
+  // connects tx_watermark, rx_watermark, and tx_empty interrupts
+  // and we disable the interface thread and take over the control
+  // thread to process interrupt events (to save memory).
+  consumes Interrupt irq;
+  attribute int irq_has_thread = false;
 }

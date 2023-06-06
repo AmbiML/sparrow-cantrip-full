@@ -94,6 +94,17 @@ impl CamkesThreadInterface for UartDriverControlThread {
             set_fifo_watermarks();
         }
     }
+    // NB: use control thread to handle IRQ's. We could put the handlers
+    // here but leave them in interface threads in case we want to split
+    // them back into dedicated handler threads.
+    fn run() {
+        shared_irq_loop!(
+            irq,
+            tx_watermark => TxWatermarkInterfaceThread::handler,
+            rx_watermark => RxWatermarkInterfaceThread::handler,
+            tx_empty => TxEmptyInterfaceThread::handler
+        );
+    }
 }
 
 // Handles a tx_watermark interrupt.
