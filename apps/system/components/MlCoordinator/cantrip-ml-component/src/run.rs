@@ -56,6 +56,27 @@ impl CamkesThreadInterface for MlCoordinatorControlThread {
             CAMKES.pre_init(&mut HEAP_MEMORY);
         }
     }
+    fn run() {
+        shared_irq_loop!(
+            irq,
+            host_req => || {
+                ML_COORD.lock().handle_host_req_interrupt();
+                true
+            },
+            finish => || {
+                ML_COORD.lock().handle_return_interrupt();
+                true
+            },
+            instruction_fault => || {
+                ML_COORD.lock().handle_instruction_fault_interrupt();
+                true
+            },
+            data_fault => || {
+                ML_COORD.lock().handle_data_fault_interrupt();
+                true
+            }
+        );
+    }
 }
 
 struct TimerInterfaceThread;
@@ -77,37 +98,6 @@ impl CamkesThreadInterface for TimerInterfaceThread {
                 }
             }
         }
-    }
-}
-
-// IRQ handlers.
-
-struct HostReqInterfaceThread;
-impl HostReqInterfaceThread {
-    fn handler() -> bool {
-        ML_COORD.lock().handle_host_req_interrupt();
-        true
-    }
-}
-struct FinishInterfaceThread;
-impl FinishInterfaceThread {
-    fn handler() -> bool {
-        ML_COORD.lock().handle_return_interrupt();
-        true
-    }
-}
-struct InstructionFaultInterfaceThread;
-impl InstructionFaultInterfaceThread {
-    fn handler() -> bool {
-        ML_COORD.lock().handle_instruction_fault_interrupt();
-        true
-    }
-}
-struct DataFaultInterfaceThread;
-impl DataFaultInterfaceThread {
-    fn handler() -> bool {
-        ML_COORD.lock().handle_data_fault_interrupt();
-        true
     }
 }
 

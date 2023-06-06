@@ -25,10 +25,9 @@ component MlCoordinator {
 
   uses Timer timer;
 
-  consumes Interrupt host_req;
-  consumes Interrupt finish;
-  consumes Interrupt instruction_fault;
-  consumes Interrupt data_fault;
+  // NB: all IRQ's are processed on the control thread.
+  consumes Interrupt irq;
+  attribute int irq_has_thread = false;
 
   dataport Buf CSR;
   dataport Buf(0x1000000) TCM;

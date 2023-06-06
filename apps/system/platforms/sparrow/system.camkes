@@ -116,14 +116,12 @@ assembly {
         // VectorCoreDriver
         connection cantripMMIO vc_csr(
             from ml_coordinator.CSR, to vctop.CSR);
-        connection cantripIRQ vctop_host_req(
-            from vctop.host_req, to ml_coordinator.host_req);
-        connection cantripIRQ vctop_finish(
-            from vctop.finish, to ml_coordinator.finish);
-        connection cantripIRQ vctop_instruction_fault(
-            from vctop.instruction_fault, to ml_coordinator.instruction_fault);
-        connection cantripIRQ vctop_data_fault(
-            from vctop.data_fault, to ml_coordinator.data_fault);
+        connection cantripIRQ vctop_irq(
+            from vctop.host_req,
+            from vctop.finish,
+            from vctop.instruction_fault,
+            from vctop.data_fault,
+            to ml_coordinator.irq);
         connection cantripMMIO vc_tcm(
             from ml_coordinator.TCM, to vctop.TCM);
 
