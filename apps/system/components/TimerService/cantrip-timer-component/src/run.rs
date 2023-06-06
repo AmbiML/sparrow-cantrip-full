@@ -66,13 +66,11 @@ impl CamkesThreadInterface for TimerServiceControlThread {
             CAMKES.pre_init(&mut HEAP_MEMORY);
         }
     }
-}
-
-struct TimerInterruptInterfaceThread;
-impl TimerInterruptInterfaceThread {
-    fn handler() -> bool {
-        cantrip_timer().service_interrupt();
-        true
+    fn run() {
+        irq_loop(&TIMER_INTERRUPT_IRQ, || {
+            cantrip_timer().service_interrupt();
+            true
+        });
     }
 }
 

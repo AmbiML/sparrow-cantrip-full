@@ -19,6 +19,7 @@ component TimerService {
 
   dataport Buf csr;
   consumes Interrupt timer_interrupt;
+  attribute int timer_interrupt_has_thread = false;
 
   maybe uses LoggerInterface logger;
 
