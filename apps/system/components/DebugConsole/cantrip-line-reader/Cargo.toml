@@ -21,6 +21,7 @@ edition = "2021"
 [features]
 default = []
 simple_support = []
+build_for_ci = ["simple_support"]
 
 [dependencies]
 cantrip-io = { path = "../cantrip-io" }

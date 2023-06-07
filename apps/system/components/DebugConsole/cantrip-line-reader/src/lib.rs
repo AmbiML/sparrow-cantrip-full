@@ -59,7 +59,7 @@ const CONTROL_W: u8 = 23u8; // Delete previous word
 const DELETE: u8 = 127u8; // Doubles for backspace
 
 cfg_if! {
-    if #[cfg(feature = "simple_support")] {
+    if #[cfg(any(feature = "simple_support", build_for_ci))] {
         mod simple;
         pub use simple::LineReader;
     } else {
