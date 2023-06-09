@@ -18,9 +18,9 @@
 //error[E0658]: dereferencing raw mutable pointers in statics is unstable
 #![feature(const_mut_refs)]
 // XXX for camkes.rs
-#![allow(dead_code)]
-#![allow(unused_unsafe)]
-#![allow(non_upper_case_globals)]
+//#![allow(dead_code)]
+//#![allow(unused_unsafe)]
+//#![allow(non_upper_case_globals)]
 
 mod register;
 
@@ -32,6 +32,7 @@ use reg_constants::uart::*;
 use spin::Mutex;
 use uart_interface::*;
 
+use camkes::*;
 use logger::*;
 
 use sel4_sys::seL4_PageBits;
@@ -64,7 +65,10 @@ static RX_BUFFER: Mutex<Buffer> = Mutex::new(Buffer::new());
 static TX_BUFFER: Mutex<Buffer> = Mutex::new(Buffer::new());
 
 // Generated code...
-include!(concat!(env!("SEL4_OUT_DIR"), "/../uart_driver/camkes.rs"));
+mod generated {
+    include!(concat!(env!("SEL4_OUT_DIR"), "/../uart_driver/camkes.rs"));
+}
+use generated::*;
 
 struct UartDriverControlThread;
 impl CamkesThreadInterface for UartDriverControlThread {
@@ -147,13 +151,9 @@ impl RxWatermarkInterfaceThread {
                 // fire again until the RX FIFO level crosses from 0 to 1. Therefore
                 // we unblock any pending reads and wait for enough reads to consume
                 // all of RX_BUFFER.
-                unsafe {
-                    RX_NONEMPTY.post();
-                }
+                RX_NONEMPTY.post();
                 drop(buf);
-                unsafe {
-                    RX_EMPTY.wait();
-                }
+                RX_EMPTY.wait();
                 buf = RX_BUFFER.lock();
                 continue;
             }
@@ -162,9 +162,7 @@ impl RxWatermarkInterfaceThread {
                 let _ = buf.push(uart_getchar());
             }
         }
-        unsafe {
-            RX_NONEMPTY.post();
-        }
+        RX_NONEMPTY.post();
         drop(buf); // XXX drop on block exit?
 
         unsafe {
@@ -276,9 +274,7 @@ impl ReadInterfaceThread {
         let mut buf = RX_BUFFER.lock();
         while buf.is_empty() {
             drop(buf);
-            unsafe {
-                RX_NONEMPTY.wait();
-            }
+            RX_NONEMPTY.wait();
             buf = RX_BUFFER.lock();
         }
 

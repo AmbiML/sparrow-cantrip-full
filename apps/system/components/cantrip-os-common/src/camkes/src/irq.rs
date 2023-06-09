@@ -123,7 +123,7 @@ macro_rules! static_irq {
     };
     ($irq_tag:ident, $irq_mask:expr, $irq_notification:expr) => {
         crate::paste! {
-            static [<$irq_tag:upper _IRQ>]: seL4_IRQ = seL4_IRQ::new(
+            pub static [<$irq_tag:upper _IRQ>]: seL4_IRQ = seL4_IRQ::new(
                 stringify!($irq_tag),
                 [<$irq_tag:upper _NUMBER>],
                 $irq_mask,

@@ -14,22 +14,11 @@
 
 /*!
  * CantripOS SDK Manager CAmkES component support routines.
- *
- * Functions defined here are entrypoints defined by the CAmkES component
- * definition in SDKRuntime.camkes, and bind the C entry points to Rust by
- * calling Rust methods in the SDKRuntimeInterface impl, CANTRIP_SDK.
- *
- * This is the lowest level entry point from C to Rust in CAmkES.
  */
 
 #![no_std]
-//#![allow(clippy::missing_safety_doc)]
-// XXX for camkes.rs
+//error[E0658]: dereferencing raw mutable pointers in statics is unstable
 #![feature(const_mut_refs)]
-#![allow(dead_code)]
-#![allow(unused_unsafe)]
-#![allow(unused_imports)]
-#![allow(non_upper_case_globals)]
 
 use static_assertions::assert_cfg;
 // NB: the RPC implementation uses MCS syscalls
@@ -50,10 +39,7 @@ use cantrip_sdk_manager::SDKManagerInterface;
 use cantrip_sdk_manager::SDKManagerRequest;
 use cantrip_sdk_manager::SDK_MANAGER_REQUEST_DATA_SIZE;
 use cantrip_sdk_runtime::CantripSDKRuntime;
-use core::mem::size_of;
-use core::ptr;
-use log::error;
-use log::info;
+use log::{error, info};
 
 use camkes::*;
 use logger::*;
@@ -65,24 +51,21 @@ use sdk_interface::SDKRuntimeInterface;
 use sdk_interface::SDKRuntimeRequest;
 use sdk_interface::SDKRUNTIME_REQUEST_DATA_SIZE;
 
-use sel4_sys::seL4_CNode_Delete;
 use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_CapRights;
 use sel4_sys::seL4_EndpointObject;
 use sel4_sys::seL4_FaultTag;
-use sel4_sys::seL4_GetMR;
 use sel4_sys::seL4_MessageInfo;
-use sel4_sys::seL4_PageBits;
 use sel4_sys::seL4_Recv;
 use sel4_sys::seL4_ReplyObject;
 use sel4_sys::seL4_ReplyRecv;
-use sel4_sys::seL4_Result;
 use sel4_sys::seL4_Word;
 
-const PAGE_SIZE: usize = 1 << seL4_PageBits;
-
 // Generated code...
-include!(concat!(env!("SEL4_OUT_DIR"), "/../sdk_runtime/camkes.rs"));
+mod generated {
+    include!(concat!(env!("SEL4_OUT_DIR"), "/../sdk_runtime/camkes.rs"));
+}
+use generated::*;
 
 fn cantrip_sdk() -> impl SDKManagerInterface + SDKRuntimeInterface {
     static CANTRIP_SDK: CantripSDKRuntime = CantripSDKRuntime::empty();
@@ -172,9 +155,7 @@ impl CamkesThreadInterface for SdkRuntimeControlThread {
     // through a page frame attached to the IPC buffer.
     fn run() {
         let recv_path = &Camkes::top_level_path(unsafe { SDKRUNTIME_RECV_SLOT });
-        unsafe {
-            CAMKES.init_recv_path(recv_path);
-        }
+        CAMKES.init_recv_path(recv_path);
         Camkes::debug_assert_slot_empty("run", recv_path);
 
         let mut copy_region = unsafe { CopyRegion::new(get_sdk_params_mut()) };
@@ -282,6 +263,7 @@ impl CamkesThreadInterface for SdkRuntimeControlThread {
 
 #[cfg(feature = "CONFIG_DEBUG_BUILD")]
 fn print_fault_debug(app_id: SDKAppId, fault_type: seL4_FaultTag) {
+    use sel4_sys::seL4_GetMR;
     match fault_type {
         seL4_FaultTag::seL4_Fault_NullFault => {
             let _ = cantrip_sdk().log(app_id, "normal exit or termination");

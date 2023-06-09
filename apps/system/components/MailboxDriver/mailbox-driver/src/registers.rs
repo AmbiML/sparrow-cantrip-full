@@ -16,66 +16,68 @@ const REG_WIRQT: usize = u8_to_u32_offset(TLUL_MAILBOX_WIRQT_REG_OFFSET);
 const REG_RIRQT: usize = u8_to_u32_offset(TLUL_MAILBOX_RIRQT_REG_OFFSET);
 const REG_CTRL: usize = u8_to_u32_offset(TLUL_MAILBOX_CTRL_REG_OFFSET);
 
-const INTR_STATE_BIT_WTIRQ: u32 = 0b001;
-const INTR_STATE_BIT_RTIRQ: u32 = 0b010;
-const INTR_STATE_BIT_EIRQ: u32 = 0b100;
-const INTR_STATE_MASK: u32 = 0b111;
+pub const INTR_STATE_BIT_WTIRQ: u32 = 0b001;
+pub const INTR_STATE_BIT_RTIRQ: u32 = 0b010;
+pub const INTR_STATE_BIT_EIRQ: u32 = 0b100;
+pub const INTR_STATE_MASK: u32 = 0b111;
 
-const INTR_ENABLE_BIT_WTIRQ: u32 = 0b001;
-const INTR_ENABLE_BIT_RTIRQ: u32 = 0b010;
-const INTR_ENABLE_BIT_EIRQ: u32 = 0b100;
-const INTR_ENABLE_MASK: u32 = 0b111;
+pub const INTR_ENABLE_BIT_WTIRQ: u32 = 0b001;
+pub const INTR_ENABLE_BIT_RTIRQ: u32 = 0b010;
+pub const INTR_ENABLE_BIT_EIRQ: u32 = 0b100;
+pub const INTR_ENABLE_MASK: u32 = 0b111;
 
-const INTR_TEST_BIT_WTIRQ: u32 = 0b001;
-const INTR_TEST_BIT_RTIRQ: u32 = 0b010;
-const INTR_TEST_BIT_EIRQ: u32 = 0b100;
-const INTR_TEST_MASK: u32 = 0b111;
+pub const INTR_TEST_BIT_WTIRQ: u32 = 0b001;
+pub const INTR_TEST_BIT_RTIRQ: u32 = 0b010;
+pub const INTR_TEST_BIT_EIRQ: u32 = 0b100;
+pub const INTR_TEST_MASK: u32 = 0b111;
 
-const STATUS_BIT_EMPTY: u32 = 0b0001;
-const STATUS_BIT_FULL: u32 = 0b0010;
-const STATUS_BIT_WFIFOL: u32 = 0b0100;
-const STATUS_BIT_RFIFOL: u32 = 0b1000;
-const STATUS_MASK: u32 = 0b1111;
+pub const STATUS_BIT_EMPTY: u32 = 0b0001;
+pub const STATUS_BIT_FULL: u32 = 0b0010;
+pub const STATUS_BIT_WFIFOL: u32 = 0b0100;
+pub const STATUS_BIT_RFIFOL: u32 = 0b1000;
+pub const STATUS_MASK: u32 = 0b1111;
 
-const ERROR_BIT_READ: u32 = 0b01;
-const ERROR_BIT_WRITE: u32 = 0b10;
-const ERROR_MASK: u32 = 0b11;
+pub const ERROR_BIT_READ: u32 = 0b01;
+pub const ERROR_BIT_WRITE: u32 = 0b10;
+pub const ERROR_MASK: u32 = 0b11;
 
-const FIFO_SIZE: u32 = 8;
-const FIFO_MASK: u32 = FIFO_SIZE - 1;
-const WIRQT_MASK: u32 = FIFO_MASK;
-const RIRQT_MASK: u32 = FIFO_MASK;
+pub const FIFO_SIZE: u32 = 8;
+pub const FIFO_MASK: u32 = FIFO_SIZE - 1;
+pub const WIRQT_MASK: u32 = FIFO_MASK;
+pub const RIRQT_MASK: u32 = FIFO_MASK;
 
-const CTRL_BIT_FLUSH_WFIFO: u32 = 0b01;
-const CTRL_BIT_FLUSH_RFIFO: u32 = 0b10;
-const CTRL_MASK: u32 = 0b11;
+pub const CTRL_BIT_FLUSH_WFIFO: u32 = 0b01;
+pub const CTRL_BIT_FLUSH_RFIFO: u32 = 0b10;
+pub const CTRL_MASK: u32 = 0b11;
 
 // The high bit of the message header is used to distinguish between "inline"
 // messages that fit in the mailbox and "long" messages that contain the
 // physical address of a memory page containing the message.
-const HEADER_FLAG_LONG_MESSAGE: u32 = 0x80000000;
+pub const HEADER_FLAG_LONG_MESSAGE: u32 = 0x80000000;
 
 //------------------------------------------------------------------------------
 // Directly manipulate the mailbox registers.
 
-unsafe fn get_intr_state(mbox: *const u32) -> u32 { mbox.add(REG_INTR_STATE).read_volatile() }
-unsafe fn get_INTR_ENABLE(mbox: *const u32) -> u32 { mbox.add(REG_INTR_ENABLE).read_volatile() }
-unsafe fn get_INTR_TEST(mbox: *const u32) -> u32 { mbox.add(REG_INTR_TEST).read_volatile() }
-unsafe fn get_MBOXW(mbox: *const u32) -> u32 { mbox.add(REG_MBOXW).read_volatile() }
-unsafe fn get_MBOXR(mbox: *const u32) -> u32 { mbox.add(REG_MBOXR).read_volatile() }
-unsafe fn get_STATUS(mbox: *const u32) -> u32 { mbox.add(REG_STATUS).read_volatile() }
-unsafe fn get_ERROR(mbox: *const u32) -> u32 { mbox.add(REG_ERROR).read_volatile() }
-unsafe fn get_WIRQT(mbox: *const u32) -> u32 { mbox.add(REG_WIRQT).read_volatile() }
-unsafe fn get_RIRQT(mbox: *const u32) -> u32 { mbox.add(REG_RIRQT).read_volatile() }
-unsafe fn get_CTRL(mbox: *const u32) -> u32 { mbox.add(REG_CTRL).read_volatile() }
+pub unsafe fn get_intr_state(mbox: *const u32) -> u32 { mbox.add(REG_INTR_STATE).read_volatile() }
+pub unsafe fn get_INTR_ENABLE(mbox: *const u32) -> u32 { mbox.add(REG_INTR_ENABLE).read_volatile() }
+pub unsafe fn get_INTR_TEST(mbox: *const u32) -> u32 { mbox.add(REG_INTR_TEST).read_volatile() }
+pub unsafe fn get_MBOXW(mbox: *const u32) -> u32 { mbox.add(REG_MBOXW).read_volatile() }
+pub unsafe fn get_MBOXR(mbox: *const u32) -> u32 { mbox.add(REG_MBOXR).read_volatile() }
+pub unsafe fn get_STATUS(mbox: *const u32) -> u32 { mbox.add(REG_STATUS).read_volatile() }
+pub unsafe fn get_ERROR(mbox: *const u32) -> u32 { mbox.add(REG_ERROR).read_volatile() }
+pub unsafe fn get_WIRQT(mbox: *const u32) -> u32 { mbox.add(REG_WIRQT).read_volatile() }
+pub unsafe fn get_RIRQT(mbox: *const u32) -> u32 { mbox.add(REG_RIRQT).read_volatile() }
+pub unsafe fn get_CTRL(mbox: *const u32) -> u32 { mbox.add(REG_CTRL).read_volatile() }
 
-unsafe fn set_INTR_STATE(mbox: *mut u32, x: u32) { mbox.add(REG_INTR_STATE).write_volatile(x); }
-unsafe fn set_INTR_ENABLE(mbox: *mut u32, x: u32) { mbox.add(REG_INTR_ENABLE).write_volatile(x); }
-unsafe fn set_INTR_TEST(mbox: *mut u32, x: u32) { mbox.add(REG_INTR_TEST).write_volatile(x); }
-unsafe fn set_MBOXW(mbox: *mut u32, x: u32) { mbox.add(REG_MBOXW).write_volatile(x); }
-unsafe fn set_MBOXR(mbox: *mut u32, x: u32) { mbox.add(REG_MBOXR).write_volatile(x); }
-unsafe fn set_STATUS(mbox: *mut u32, x: u32) { mbox.add(REG_STATUS).write_volatile(x); }
-unsafe fn set_ERROR(mbox: *mut u32, x: u32) { mbox.add(REG_ERROR).write_volatile(x); }
-unsafe fn set_WIRQT(mbox: *mut u32, x: u32) { mbox.add(REG_WIRQT).write_volatile(x); }
-unsafe fn set_RIRQT(mbox: *mut u32, x: u32) { mbox.add(REG_RIRQT).write_volatile(x); }
-unsafe fn set_CTRL(mbox: *mut u32, x: u32) { mbox.add(REG_CTRL).write_volatile(x); }
+pub unsafe fn set_INTR_STATE(mbox: *mut u32, x: u32) { mbox.add(REG_INTR_STATE).write_volatile(x); }
+pub unsafe fn set_INTR_ENABLE(mbox: *mut u32, x: u32) {
+    mbox.add(REG_INTR_ENABLE).write_volatile(x);
+}
+pub unsafe fn set_INTR_TEST(mbox: *mut u32, x: u32) { mbox.add(REG_INTR_TEST).write_volatile(x); }
+pub unsafe fn set_MBOXW(mbox: *mut u32, x: u32) { mbox.add(REG_MBOXW).write_volatile(x); }
+pub unsafe fn set_MBOXR(mbox: *mut u32, x: u32) { mbox.add(REG_MBOXR).write_volatile(x); }
+pub unsafe fn set_STATUS(mbox: *mut u32, x: u32) { mbox.add(REG_STATUS).write_volatile(x); }
+pub unsafe fn set_ERROR(mbox: *mut u32, x: u32) { mbox.add(REG_ERROR).write_volatile(x); }
+pub unsafe fn set_WIRQT(mbox: *mut u32, x: u32) { mbox.add(REG_WIRQT).write_volatile(x); }
+pub unsafe fn set_RIRQT(mbox: *mut u32, x: u32) { mbox.add(REG_RIRQT).write_volatile(x); }
+pub unsafe fn set_CTRL(mbox: *mut u32, x: u32) { mbox.add(REG_CTRL).write_volatile(x); }

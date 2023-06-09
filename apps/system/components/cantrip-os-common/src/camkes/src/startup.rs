@@ -296,7 +296,7 @@ macro_rules! _static_thread {
         crate::paste! {
             static [<$name:upper _ $variant:upper _TLS>]: StaticTLS =
                 StaticTLS { data: [0u8; CONFIG_SEL4RUNTIME_STATIC_TLS] };
-            static [<$name:upper _THREAD>]: CamkesThread =
+            pub static [<$name:upper _THREAD>]: CamkesThread =
                 CamkesThread::$variant(
                     $tcb,
                     stringify!($name),
@@ -310,7 +310,7 @@ macro_rules! _static_thread {
         crate::paste! {
             static [<$irq_name:upper _INTERFACE_TLS>]: StaticTLS =
                 StaticTLS { data: [0u8; CONFIG_SEL4RUNTIME_STATIC_TLS] };
-            static [<$irq_name:upper _THREAD>]: CamkesThread =
+            pub static [<$irq_name:upper _THREAD>]: CamkesThread =
                 CamkesThread::Interface(
                     $tcb,
                     stringify!($irq_name),
@@ -318,7 +318,7 @@ macro_rules! _static_thread {
                     &[<$irq_name:upper _INTERFACE_TLS>],
                     $camkes,
                 );
-            impl CamkesThreadInterface for [<$irq_name:camel InterfaceThread>] {
+            impl CamkesThreadInterface for crate::[<$irq_name:camel InterfaceThread>] {
                 fn run() {
                     crate::camkes::irq::irq_loop(
                         &[<$irq_name:upper _IRQ>],
@@ -332,7 +332,7 @@ macro_rules! _static_thread {
         crate::paste! {
             static FAULT_HANDLER_TLS: StaticTLS =
                 StaticTLS { data: [0u8; CONFIG_SEL4RUNTIME_STATIC_TLS] };
-            static FAULT_HANDLER_THREAD: CamkesThread =
+            pub static FAULT_HANDLER_THREAD: CamkesThread =
                 CamkesThread::Interface(
                     $tcb,
                     stringify!([<$name _fault_handler>]),

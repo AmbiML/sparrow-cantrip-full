@@ -28,6 +28,9 @@ use log::trace;
 use slot_allocator::CANTRIP_CSPACE_SLOTS;
 use spin::Mutex;
 
+pub use paste::*; // re-export for macros
+pub use sel4_sys; // re-export for macros & generated code
+
 use sel4_sys::seL4_CNode_Delete;
 use sel4_sys::seL4_CPtr;
 use sel4_sys::seL4_GetCap;
@@ -40,7 +43,6 @@ use sel4_sys::seL4_WordBits;
 
 pub mod baresema;
 pub mod irq;
-pub use paste::*; // re-export for macros
 pub mod rpc_basic;
 pub mod rpc_shared;
 pub mod semaphore;

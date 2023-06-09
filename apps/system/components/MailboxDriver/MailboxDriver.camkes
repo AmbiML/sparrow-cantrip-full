@@ -14,9 +14,6 @@ component MailboxDriver {
   // Mailbox registers
   dataport Buf mailbox_mmio;
 
-  // Global mailbox lock
-  has mutex api_mutex;
-
   // Mailbox arrival semaphore
   has semaphore rx_semaphore;
 

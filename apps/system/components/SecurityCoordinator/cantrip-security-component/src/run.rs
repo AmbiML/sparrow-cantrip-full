@@ -16,12 +16,8 @@
 
 // Code here binds the camkes component to the rust code.
 #![no_std]
-// XXX for camkes.rs
+//error[E0658]: dereferencing raw mutable pointers in statics is unstable
 #![feature(const_mut_refs)]
-#![allow(dead_code)]
-#![allow(unused_unsafe)]
-#![allow(unused_imports)]
-#![allow(non_upper_case_globals)]
 
 extern crate alloc;
 use alloc::string::ToString;
@@ -41,7 +37,10 @@ use logger::*;
 use sel4_sys::seL4_CPtr;
 
 // Generated code...
-include!(concat!(env!("SEL4_OUT_DIR"), "/../security_coordinator/camkes.rs"));
+mod generated {
+    include!(concat!(env!("SEL4_OUT_DIR"), "/../security_coordinator/camkes.rs"));
+}
+use generated::*;
 
 // cantrip_security() is unsafe to use by multiple threads. As we assume the
 // caller/user is single-threaded, the function is not marked unsafe.
@@ -156,7 +155,7 @@ impl SecurityInterfaceThread {
     }
     fn install_request(mut pkg_contents: ObjDescBundle, reply_buffer: &mut [u8]) -> SecurityResult {
         let _cleanup = Camkes::cleanup_request_cap();
-        let recv_path = unsafe { CAMKES.get_current_recv_path() };
+        let recv_path = CAMKES.get_current_recv_path();
         Camkes::debug_assert_slot_cnode("install_request", &recv_path);
 
         // Move the container CNode so it's not clobbered.
@@ -173,7 +172,7 @@ impl SecurityInterfaceThread {
     }
     fn install_app_request(app_id: &str, mut pkg_contents: ObjDescBundle) -> SecurityResult {
         let _cleanup = Camkes::cleanup_request_cap();
-        let recv_path = unsafe { CAMKES.get_current_recv_path() };
+        let recv_path = CAMKES.get_current_recv_path();
         Camkes::debug_assert_slot_cnode("install_application_request", &recv_path);
 
         // Move the container CNode so it's not clobbered.
@@ -193,7 +192,7 @@ impl SecurityInterfaceThread {
         mut pkg_contents: ObjDescBundle,
     ) -> SecurityResult {
         let _cleanup = Camkes::cleanup_request_cap();
-        let recv_path = unsafe { CAMKES.get_current_recv_path() };
+        let recv_path = CAMKES.get_current_recv_path();
         Camkes::debug_assert_slot_cnode("install_model_request", &recv_path);
 
         // Move the container CNode so it's not clobbered.

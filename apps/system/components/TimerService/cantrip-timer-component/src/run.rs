@@ -15,16 +15,11 @@
 //! The Timer Service provides multiplexed access to a hardware timer.
 
 #![no_std]
-// XXX for camkes.rs
+//error[E0658]: dereferencing raw mutable pointers in statics is unstable
 #![feature(const_mut_refs)]
-#![allow(dead_code)]
-#![allow(unused_unsafe)]
-#![allow(unused_imports)]
-#![allow(non_upper_case_globals)]
 
 use cantrip_os_common::camkes;
 use cantrip_os_common::logger;
-use cantrip_os_common::sel4_sys;
 use cantrip_timer_interface::CompletedTimersResponse;
 use cantrip_timer_interface::TimerId;
 use cantrip_timer_interface::TimerInterface;
@@ -34,12 +29,14 @@ use cantrip_timer_interface::TIMER_REQUEST_DATA_SIZE;
 use cantrip_timer_service::CantripTimerService;
 use core::time::Duration;
 
-use camkes::irq::seL4_IRQ;
 use camkes::*;
 use logger::*;
 
 // Generated code...
-include!(concat!(env!("SEL4_OUT_DIR"), "/../timer_service/camkes.rs"));
+mod generated {
+    include!(concat!(env!("SEL4_OUT_DIR"), "/../timer_service/camkes.rs"));
+}
+use generated::*;
 
 fn cantrip_timer() -> impl TimerInterface {
     static CANTRIP_TIMER: CantripTimerService<opentitan_timer::OtTimer> =
@@ -67,7 +64,7 @@ impl CamkesThreadInterface for TimerServiceControlThread {
         }
     }
     fn run() {
-        irq_loop(&TIMER_INTERRUPT_IRQ, || {
+        camkes::irq::irq_loop(&TIMER_INTERRUPT_IRQ, || {
             cantrip_timer().service_interrupt();
             true
         });

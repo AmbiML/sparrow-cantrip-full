@@ -15,10 +15,6 @@
 #![no_std]
 //error[E0658]: dereferencing raw mutable pointers in statics is unstable
 #![feature(const_mut_refs)]
-// XXX for camkes.rs
-#![allow(dead_code)]
-#![allow(unused_unsafe)]
-#![allow(non_upper_case_globals)]
 #![allow(non_snake_case)]
 
 use cantrip_os_common::camkes;
@@ -27,14 +23,22 @@ use cantrip_os_common::sel4_sys;
 use log::{error, trace};
 use mailbox_interface::*;
 
+use camkes::*;
 use logger::*;
 
-include!("registers.rs");
+#[allow(dead_code)]
+mod registers;
+use registers::*;
 
 // Generated code...
-include!(concat!(env!("SEL4_OUT_DIR"), "/../mailbox_driver/camkes.rs"));
-fn get_mbox() -> *const u32 { unsafe { MAILBOX_MMIO.data.as_ptr() as _ } }
-fn get_mbox_mut() -> *mut u32 { unsafe { MAILBOX_MMIO.data.as_mut_ptr() as _ } }
+mod generated {
+    include!(concat!(env!("SEL4_OUT_DIR"), "/../mailbox_driver/camkes.rs"));
+}
+use generated::*;
+
+// Convenience wrappers for word-aligned accesses.
+fn get_mbox() -> *const u32 { unsafe { generated::MAILBOX_MMIO.data.as_ptr() as _ } }
+fn get_mbox_mut() -> *mut u32 { unsafe { generated::MAILBOX_MMIO.data.as_mut_ptr() as _ } }
 
 struct MailboxDriverControlThread;
 impl CamkesThreadInterface for MailboxDriverControlThread {
@@ -60,7 +64,7 @@ impl CamkesThreadInterface for MailboxDriverControlThread {
 struct WtirqInterfaceThread;
 impl WtirqInterfaceThread {
     fn handler() -> bool {
-        trace!("handle {:?}", unsafe { &WTIRQ_IRQ });
+        trace!("handle {:?}", &WTIRQ_IRQ);
         // We don't have anything to do here yet, so just clear the interrupt.
         //        unsafe { set_INTR_STATE(*mbox_mutex.lock(), INTR_STATE_BIT_WTIRQ) };
         let mailbox_mmio = get_mbox_mut();

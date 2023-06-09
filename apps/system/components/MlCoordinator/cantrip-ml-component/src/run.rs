@@ -13,12 +13,8 @@
 // limitations under the License.
 
 #![no_std]
-// XXX for camkes.rs
+//error[E0658]: dereferencing raw mutable pointers in statics is unstable
 #![feature(const_mut_refs)]
-#![allow(dead_code)]
-#![allow(unused_unsafe)]
-#![allow(unused_imports)]
-#![allow(non_upper_case_globals)]
 
 extern crate alloc;
 use alloc::string::ToString;
@@ -36,12 +32,14 @@ use cantrip_timer_interface::*;
 use log::error;
 use spin::Mutex;
 
-use camkes::irq::seL4_IRQ;
 use camkes::*;
 use logger::*;
 
 // Generated code...
-include!(concat!(env!("SEL4_OUT_DIR"), "/../ml_coordinator/camkes.rs"));
+mod generated {
+    include!(concat!(env!("SEL4_OUT_DIR"), "/../ml_coordinator/camkes.rs"));
+}
+use generated::*;
 
 static ML_COORD: Mutex<MLCoordinator> = Mutex::new(MLCoordinator::new());
 

@@ -16,12 +16,8 @@
 
 // Code here binds the camkes component to the rust code.
 #![no_std]
-// XXX for camkes.rs
+//error[E0658]: dereferencing raw mutable pointers in statics is unstable
 #![feature(const_mut_refs)]
-#![allow(dead_code)]
-#![allow(unused_unsafe)]
-#![allow(unused_imports)]
-#![allow(non_upper_case_globals)]
 
 extern crate alloc;
 use alloc::string::String;
@@ -40,7 +36,10 @@ use logger::*;
 use sel4_sys::seL4_CPtr;
 
 // Generated code...
-include!(concat!(env!("SEL4_OUT_DIR"), "/../process_manager/camkes.rs"));
+mod generated {
+    include!(concat!(env!("SEL4_OUT_DIR"), "/../process_manager/camkes.rs"));
+}
+use generated::*;
 
 fn cantrip_proc() -> impl PackageManagementInterface + ProcessControlInterface {
     static CANTRIP_PROC: CantripProcManager = CantripProcManager::empty();
@@ -113,7 +112,7 @@ impl PkgMgmtInterfaceThread {
     fn install_request(mut pkg_contents: ObjDescBundle, reply_buffer: &mut [u8]) -> PkgMgmtResult {
         // NB: make sure noone clobbers the setup done in init(),
         // and clear any capability the path points to when dropped
-        let recv_path = unsafe { CAMKES.get_owned_current_recv_path() };
+        let recv_path = CAMKES.get_owned_current_recv_path();
         Camkes::debug_assert_slot_cnode("install_request", &recv_path);
 
         pkg_contents.cnode = recv_path.1;
@@ -126,7 +125,7 @@ impl PkgMgmtInterfaceThread {
     fn install_app_request(app_id: &str, mut pkg_contents: ObjDescBundle) -> PkgMgmtResult {
         // NB: make sure noone clobbers the setup done in init(),
         // and clear any capability the path points to when dropped
-        let recv_path = unsafe { CAMKES.get_owned_current_recv_path() };
+        let recv_path = CAMKES.get_owned_current_recv_path();
         Camkes::debug_assert_slot_cnode("install_app_request", &recv_path);
 
         pkg_contents.cnode = recv_path.1;
@@ -138,7 +137,7 @@ impl PkgMgmtInterfaceThread {
     fn uninstall_request(bundle_id: &str) -> PkgMgmtResult {
         // NB: make sure noone clobbers the setup done in pkg_mgmt__init,
         // and clear any capability the path points to when dropped
-        let recv_path = unsafe { CAMKES.get_owned_current_recv_path() };
+        let recv_path = CAMKES.get_owned_current_recv_path();
         Camkes::debug_assert_slot_empty("uninstall_request", &recv_path);
 
         cantrip_proc().uninstall(bundle_id)?;

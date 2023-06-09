@@ -19,12 +19,8 @@
 // TODO(sleffler): don't need 2x threads
 
 #![no_std]
-// XXX for camkes.rs
+//error[E0658]: dereferencing raw mutable pointers in statics is unstable
 #![feature(const_mut_refs)]
-#![allow(dead_code)]
-#![allow(unused_unsafe)]
-#![allow(unused_imports)]
-#![allow(non_upper_case_globals)]
 
 use cantrip_memory_interface::MemoryLifetime;
 use cantrip_memory_interface::MemoryManagerError;
@@ -44,11 +40,13 @@ use log::info;
 use camkes::*;
 use logger::*;
 
-use sel4_sys::seL4_BootInfo;
 use sel4_sys::seL4_CPtr;
 
 // Generated code...
-include!(concat!(env!("SEL4_OUT_DIR"), "/../memory_manager/camkes.rs"));
+mod generated {
+    include!(concat!(env!("SEL4_OUT_DIR"), "/../memory_manager/camkes.rs"));
+}
+use generated::*;
 
 fn cantrip_memory() -> impl MemoryManagerInterface {
     static CANTRIP_MEMORY: CantripMemoryManager = CantripMemoryManager::empty();
@@ -93,16 +91,12 @@ impl CamkesThreadInterface for MemoryManagerControlThread {
             );
         }
 
-        unsafe {
-            CAMKES.init_slot_allocator(bootinfo.empty.start, bootinfo.empty.end);
-        }
+        CAMKES.init_slot_allocator(bootinfo.empty.start, bootinfo.empty.end);
 
         // Delete the CNode setup by CAmkES; we're going to reuse the well-known
         // slot once it is empty (see MemoryManagerInterfaceThread::run below).
-        unsafe {
-            let path = &Camkes::top_level_path(MEMORY_RECV_CNODE);
-            Camkes::delete_path(path).expect("recv_node");
-        }
+        let path = &Camkes::top_level_path(MEMORY_RECV_CNODE);
+        Camkes::delete_path(path).expect("recv_node");
     }
 }
 
@@ -146,7 +140,7 @@ impl MemoryInterfaceThread {
     fn alloc_request(bundle: &mut ObjDescBundle, lifetime: MemoryLifetime) -> MemoryManagerResult {
         // NB: make sure noone clobbers the setup done in memory__init;
         // and clear any capability the path points to when dropped, for next request
-        let recv_path = unsafe { CAMKES.get_owned_current_recv_path() };
+        let recv_path = CAMKES.get_owned_current_recv_path();
         // We must have a CNode for returning allocated objects.
         Camkes::debug_assert_slot_cnode("alloc_request", &recv_path);
 
@@ -156,9 +150,9 @@ impl MemoryInterfaceThread {
     }
 
     fn free_request(bundle: &mut ObjDescBundle) -> MemoryManagerResult {
-        // NB: make sure noone clobbers the setup done in memory__init;
+        // NB: make sure noone clobbers the setup done in pre_init;
         // and clear any capability the path points to when dropped, for next request
-        let recv_path = unsafe { CAMKES.get_owned_current_recv_path() };
+        let recv_path = CAMKES.get_owned_current_recv_path();
         // We must have a CNode for returning allocated objects.
         Camkes::debug_assert_slot_cnode("free_request", &recv_path);
 
@@ -168,12 +162,8 @@ impl MemoryInterfaceThread {
     }
 
     fn stats_request(reply_buffer: &mut [u8]) -> MemoryManagerResult {
-        let recv_path = unsafe { CAMKES.get_current_recv_path() };
-        // NB: make sure noone clobbers the setup done in memory__init
-        unsafe {
-            CAMKES.assert_recv_path();
-        }
-        // Verify no cap was received
+        let recv_path = CAMKES.get_current_recv_path();
+        CAMKES.assert_recv_path();
         Camkes::debug_assert_slot_empty("stats_request", &recv_path);
 
         let stats = cantrip_memory().stats()?;
@@ -183,22 +173,16 @@ impl MemoryInterfaceThread {
     }
 
     fn debug_request() -> MemoryManagerResult {
-        let recv_path = unsafe { CAMKES.get_current_recv_path() };
-        // NB: make sure noone clobbers the setup done in memory__init
-        unsafe {
-            CAMKES.assert_recv_path();
-        }
+        let recv_path = CAMKES.get_current_recv_path();
+        CAMKES.assert_recv_path();
         Camkes::debug_assert_slot_empty("debug_request", &recv_path);
 
         cantrip_memory().debug().map(|_| None)
     }
 
     fn capscan_request() -> MemoryManagerResult {
-        let recv_path = unsafe { CAMKES.get_current_recv_path() };
-        // NB: make sure noone clobbers the setup done in memory__init
-        unsafe {
-            CAMKES.assert_recv_path();
-        }
+        let recv_path = CAMKES.get_current_recv_path();
+        CAMKES.assert_recv_path();
         Camkes::debug_assert_slot_empty("capscan_request", &recv_path);
 
         let _ = Camkes::capscan();

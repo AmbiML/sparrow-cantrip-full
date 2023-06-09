@@ -24,16 +24,11 @@
 //! * cantrip_debug_console main entry point fn run()
 
 #![no_std]
-// XXX for camkes.rs
+//error[E0658]: dereferencing raw mutable pointers in statics is unstable
 #![feature(const_mut_refs)]
-#![allow(dead_code)]
-#![allow(unused_unsafe)]
-#![allow(unused_imports)]
-#![allow(non_upper_case_globals)]
 
 use cantrip_os_common::camkes;
 use cantrip_os_common::logger;
-use cantrip_os_common::sel4_sys;
 use core::fmt::Write;
 use log::LevelFilter;
 
@@ -54,7 +49,10 @@ const INIT_LOG_LEVEL: LevelFilter = LevelFilter::Trace;
 const INIT_LOG_LEVEL: LevelFilter = LevelFilter::Info;
 
 // Generated code...
-include!(concat!(env!("SEL4_OUT_DIR"), "/../debug_console/camkes.rs"));
+mod generated {
+    include!(concat!(env!("SEL4_OUT_DIR"), "/../debug_console/camkes.rs"));
+}
+use generated::*;
 
 struct DebugConsoleControlThread;
 impl CamkesThreadInterface for DebugConsoleControlThread {
