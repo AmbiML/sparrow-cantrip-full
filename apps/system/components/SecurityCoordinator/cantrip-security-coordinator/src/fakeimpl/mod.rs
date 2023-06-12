@@ -131,11 +131,13 @@ impl Drop for BundleData {
 fn get_builtins() -> BundleIdArray {
     let mut builtins = BundleIdArray::new();
     for e in CpioNewcReader::new(unsafe { get_cpio_archive() }) {
-        if e.is_err() {
-            error!("cpio read err {:?}", e);
-            break;
+        match e {
+            Err(err) => {
+                error!("cpio read err {:?}", err);
+                break;
+            }
+            Ok(entry) => builtins.push(entry.name.to_string()),
         }
-        builtins.push(e.unwrap().name.to_string());
     }
     builtins
 }
@@ -144,13 +146,16 @@ fn get_builtins() -> BundleIdArray {
 fn get_bundle_from_builtins(filename: &str) -> Result<BundleData, SecurityRequestError> {
     fn builtins_lookup(filename: &str) -> Option<&'static [u8]> {
         for e in CpioNewcReader::new(unsafe { get_cpio_archive() }) {
-            if e.is_err() {
-                error!("cpio read err {:?}", e);
-                break;
-            }
-            let entry = e.unwrap();
-            if entry.name == filename {
-                return Some(entry.data);
+            match e {
+                Err(err) => {
+                    error!("cpio read err {:?}", err);
+                    break;
+                }
+                Ok(entry) => {
+                    if entry.name == filename {
+                        return Some(entry.data);
+                    }
+                }
             }
         }
         None
