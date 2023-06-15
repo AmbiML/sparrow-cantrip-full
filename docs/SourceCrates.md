@@ -4,14 +4,15 @@
 [More software will be published as we deem it ready for sharing until eventually
 all of Sparrow (software and hardware designs) will be available.]
 
-Most of CantripOS is written in Rust. The Rust crates reside in the
+All of CantripOS is written in Rust. The Rust crates reside in the
 *apps/system/components* directory of this git repository.
-CantripOS system services are structured as CAmkES components.
+CantripOS system services are structured as CAmkES components and assembled
+using the stock CAmkES tools together with CantripOS-specific templates.
 Target-platform-dependent services are tagged, e.g. [sparrow-only] for
 services that are only supported on apps/system/platforms/sparrow.:
 
 - *DebugConsole*: a command line interface intended for debug builds that also handles logging to the console
-- *MailboxDriver*: a driver for the Mailbox interface used to communicate betwen the security and management cores [sparow-only]
+- *MailboxDriver*: a driver for the Mailbox hardware used to communicate betwen the security and management cores [sparow-only]
 - *MemoryManager*: the service that supports dynamic memory / object management
 - *MlCoordinator*: a service that manages running ML jobs [requires ML accelerator support that is sparrow-only]
 - *ProcessManager*: the service that creates & manages execution of applications

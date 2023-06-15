@@ -19,7 +19,8 @@ repo init -u https://github.com/AmbiML/sparrow-manifest -m sparrow-manifest.xml
 repo sync -j$(nproc)
 export PLATFORM=rpi3
 source build/setup.sh
-m simulate-debug
+m prereqs
+m simulate
 ```
 
 [Beware that if your repo tool is out of date you may need to supply `-b main`
@@ -38,6 +39,10 @@ and **in your shell's search path**:
 3. The python tempita module.
 4. Whichever simulator seL4 expects for your target architecture; e.g. for aarch64 this
    is qemu-system-aarch64.
+
+The `m prereqs` step installs required python packages (but not tempita, go figure)
+using the `pip` tool. At the moment this mostly sets up a virtual environment for
+the project.
 
 Because Sparrow is a CAmkES project you also need
 [CAmkES dependencies](https://docs.sel4.systems/projects/buildsystem/host-dependencies.html#camkes-build-dependencies).
@@ -68,6 +73,7 @@ $ source build/setup.sh
 ROOTDIR=/<your-directory>/sparrow
 OUT=/<your-directory>/sparrow/out
 PLATFORM=rpi3
+PYTHON_SPARROW_ENV=<your-directory>/sparrow/cache/rpi3-venv
 ========================================
 
 Type 'm [target]' to build.
@@ -79,7 +85,16 @@ cantrip cantrip-build-debug-prepare cantrip-build-release-prepare cantrip-builti
 cantrip-builtins-debug cantrip-builtins-release cantrip-bundle-debug cantrip-bundle-release
 cantrip-clean cantrip-clean-headers cantrip-clippy cantrip-component-headers
 ...
-
+$ m prereqs
+<your-directory>/sparrow/scripts/install-prereqs.sh \
+        -p "<your-directory>/sparrow/scripts/python-requirements.txt \
+                 " \
+        -a ""
+Installing apt package dependencies...
+Installing python package dependencies...
+Creating virtual python environment <your-directory>/sparrow/cache/rpi3-venv
+...
+Installation complete.
 $ m simulate
 ...
 info: component 'rust-std' for target 'aarch64-unknown-none' is up to date
@@ -94,8 +109,8 @@ loading initial cache file <your-directory>/sparrow/cantrip/projects/camkes/sett
 [291/291] Generating images/capdl-loader-image-arm-bcm2837
 ...
 qemu-system-aarch64 -machine raspi3b -nographic -serial null -serial mon:stdio -m size=1024M -s \
--kernel /<your-directory>/sparrow/out/cantrip/aarch64-unknown-elf/debug/capdl-loader-image \
---mem-path /<your-directory>/sparrow/out/cantrip/aarch64-unknown-elf/debug/cantrip.mem
+-kernel /<your-directory>/sparrow/out/cantrip/aarch64-unknown-elf/release/capdl-loader-image \
+--mem-path /<your-directory>/sparrow/out/cantrip/aarch64-unknown-elf/release/cantrip.mem
 
 ELF-loader started on CPU: ARM Ltd. Cortex-A53 r0p4
   paddr=[8bd000..fed0ff]

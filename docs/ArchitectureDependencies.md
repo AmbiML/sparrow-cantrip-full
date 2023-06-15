@@ -4,6 +4,7 @@
 There are various areas in CantripOS where target architecture-specific support is required:
 
 - *sel4-sys*: system call wrappers
+- *cantrip-os-camkes*: support for CAmkES CantripOS/Rust templates
 - *cantrip-os-model*: capDL support for the cantrip-os-rootserver
 - *cantrip-proc-manager/sel4bundle*: application construction
 - *libcantrip*: application runtime support
@@ -49,6 +50,23 @@ To add a new architecture (or fix something like x86) follow the
 patterns for the riscv and aarch architectures. Testing/validation of
 the syscall wrappers is done using the [sel4test system](Testing.md)
 (`m sel4test+wrappers`).
+
+### cantrip-os-camkes
+
+Support for building & running pure-Rust CAmkES components resides in the
+cantrip-os-camkes crate.
+Pure-Rust CAmkES components depend on modifications to the camkes-tool and
+CantripOS-specific templates used with camkes-tool to assemble a bootable
+image.
+This crate replaces the C libraries and templates normally used with CAmkES.
+
+Architecture-dependent support processes the initial parameters passed to
+a thread by the rootserver and sets up the TLS region.
+Like sel4-sys there is an *arch*
+directory with architecture-specific support.
+To add a new architecture (or fix something like x86) follow the pattern
+for a working architecture. Testing/validation is done by booting a system
+image.
 
 ### cantrip-os-model
 
