@@ -55,7 +55,7 @@ pub struct ReadResponse {
 pub enum ReadRequest {
     Read(usize),
 }
-pub const READ_REQUEST_DATA_SIZE: usize = 64;
+pub const READ_REQUEST_DATA_SIZE: usize = 24;
 
 #[inline]
 fn uart_read_request<T: core::fmt::Debug + DeserializeOwned>(
