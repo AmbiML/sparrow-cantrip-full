@@ -30,6 +30,7 @@ cantrip-os-common = { path = "../../cantrip-os-common" }
 cfg-if = "1.0"
 log = { version = "0.4", features = ["release_max_level_info"] }
 mailbox-interface = { path = "../mailbox-interface" }
+modular-bitfield = "0.11.2"
 postcard = { version = "0.7", features = ["alloc"], default-features = false }
 reg_constants = { path = "../../cantrip-os-common/src/reg_constants" }
 
