@@ -1263,7 +1263,7 @@ impl<'a> CantripOsModel<'a> {
                 debug!(
                     "  Populate {:?} slot {} by moving {:?} -> {:?}",
                     target_cap_type,
-                    cnode_slot.slot,
+                    { cnode_slot.slot },
                     (src_root, src_index, src_depth),
                     (dest_root, dest_index, dest_depth),
                 );
@@ -1277,7 +1277,7 @@ impl<'a> CantripOsModel<'a> {
                 debug!(
                     "  Populate {:?} slot {} by mutating {:?} -> {:?}",
                     target_cap_type,
-                    cnode_slot.slot,
+                    { cnode_slot.slot },
                     (src_root, src_index, src_depth),
                     (dest_root, dest_index, dest_depth),
                 );
@@ -1315,7 +1315,7 @@ impl<'a> CantripOsModel<'a> {
                 debug!(
                     "  Map {:?} slot {} by moving {:?} -> {:?}",
                     target_cap_type,
-                    cnode_slot.slot,
+                    { cnode_slot.slot },
                     (src_root, mapped_frame_cap, src_depth),
                     (dest_root, dest_index, dest_depth),
                 );
@@ -1336,7 +1336,7 @@ impl<'a> CantripOsModel<'a> {
                 debug!(
                     "  Populate {:?} slot {} by minting {:?} -> {:?} {:?} data {:#x}",
                     target_cap_type,
-                    cnode_slot.slot,
+                    { cnode_slot.slot },
                     (src_root, src_index, src_depth),
                     (dest_root, dest_index, dest_depth),
                     target_cap_rights,
