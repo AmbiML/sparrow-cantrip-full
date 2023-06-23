@@ -30,9 +30,6 @@ use mailbox_interface::*;
 
 use sel4_sys::seL4_PageBits;
 use sel4_sys::seL4_Page_GetAddress;
-use sel4_sys::seL4_Word;
-
-const PAGE_SIZE: usize = 1 << seL4_PageBits;
 
 const PAGE_SIZE: usize = 1 << seL4_PageBits;
 
