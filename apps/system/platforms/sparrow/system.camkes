@@ -268,5 +268,7 @@ assembly {
 
         sdk_runtime._stack_size = 16*1024;
         sdk_runtime.sdk_manager_stack_size = 16*1024;
+
+        mailbox_driver.rtirq_stack_size = 8*1024; // NB: for debug build
     }
 }
