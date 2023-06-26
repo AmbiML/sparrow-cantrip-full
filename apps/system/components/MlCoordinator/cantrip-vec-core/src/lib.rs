@@ -24,14 +24,12 @@ mod vc_top;
 use cantrip_io::Read;
 use cantrip_ml_shared::{OutputHeader, Permission, WindowId, TCM_PADDR, TCM_SIZE};
 use core::mem::size_of;
-use core::ptr;
 use log::{error, trace};
 
 extern "Rust" {
     fn get_tcm() -> &'static [u8];
     fn get_tcm_mut() -> &'static mut [u8];
 }
-fn get_tcm_word() -> &'static [u32] { unsafe { core::mem::transmute(get_tcm()) } }
 fn get_tcm_word_mut() -> &'static mut [u32] { unsafe { core::mem::transmute(get_tcm_mut()) } }
 
 pub fn enable_interrupts(enable: bool) {
@@ -175,16 +173,17 @@ pub fn clear_tcm(addr: usize, byte_length: usize) {
 #[allow(dead_code)]
 pub fn wait_for_clear_to_finish() { while !vc_top::get_init_status().init_done() {} }
 
-/// Transmutes a copy of the bytes at |addr| into an OutputHeader.
+/// Returns a copy of the OutputHeader at the byte address |addr|.
 pub fn get_output_header(addr: usize) -> OutputHeader {
     assert!(addr >= TCM_PADDR);
     assert!(addr + size_of::<OutputHeader>() <= TCM_PADDR + TCM_SIZE);
-
-    let offset: isize = (addr - TCM_PADDR).try_into().unwrap();
+    assert!(((addr - TCM_PADDR) % size_of::<u32>()) == 0);
 
     unsafe {
-        // XXX brutal, cleanup
-        let ptr = ptr::addr_of!(get_tcm_word()[0]).offset(offset) as *const OutputHeader;
-        *ptr
+        get_tcm()
+            .as_ptr()
+            .add(addr - TCM_PADDR)
+            .cast::<OutputHeader>()
+            .read()
     }
 }
