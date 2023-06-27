@@ -45,7 +45,7 @@ component VectorCoreHw {
     hardware;
     dataport Buf CSR;
     // TODO(jesionowski): Export TCM_SIZE in cbindgen.
-    dataport Buf(0x1000000) TCM;
+    dataport Buf(0x1000000) TCM;  // Springbok
 
     emits Interrupt host_req;
     emits Interrupt finish;
@@ -229,10 +229,11 @@ assembly {
         uart.rx_watermark_irq_number = 2;
         uart.tx_empty_irq_number = 3;
 
-        vctop.CSR_paddr = 0x47000000;
-        vctop.CSR_size = 0x1000;
-        vctop.TCM_paddr = 0x34000000;
-        vctop.TCM_size = 0x1000000;
+        vctop.CSR_paddr = 0x47000000;  // Springbok
+        vctop.CSR_size = 0x1000;       // Springbok
+        vctop.TCM_paddr = 0x34000000;  // Springbok
+        vctop.TCM_size = 0x1000000;    // Springbok
+
         vctop.host_req_irq_number = 13;          // kTopMatchaPlicIrqIdVcTopHostReq @ top_matcha.h
         vctop.finish_irq_number = 14;            // kTopMatchaPlicIrqIdVcTopFinish @ top_matcha.h
         vctop.instruction_fault_irq_number = 15; // kTopMatchaPlicIrqIdVcTopInstructionFault @ top_matcha.h

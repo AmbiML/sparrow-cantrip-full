@@ -14,24 +14,56 @@
 
 #![no_std]
 
-//! cantrip-vec-core is the vector core driver. It is responsible for providing
-//! convenient methods for interacting with the hardware.
+//! springbok-vec-core is the Springbok vector core driver. It is responsible
+//! for providing convenient methods for interacting with the hardware.
 
-extern crate alloc;
-
-#[allow(unused)]
+#[allow(dead_code)]
 mod vc_top;
 
+extern crate alloc;
 use cantrip_io::Read;
-use cantrip_ml_shared::{OutputHeader, Permission, WindowId, TCM_PADDR, TCM_SIZE};
+use cantrip_ml_interface::MlCoordError;
+use cantrip_ml_shared::*;
+use cantrip_proc_interface::BundleImage;
 use core::mem::size_of;
-use log::{error, trace};
+use log::{error, info, trace, warn};
 
 extern "Rust" {
     fn get_tcm() -> &'static [u8];
     fn get_tcm_mut() -> &'static mut [u8];
 }
 fn get_tcm_word_mut() -> &'static mut [u32] { unsafe { core::mem::transmute(get_tcm_mut()) } }
+
+/// The page size of the WMMU.
+pub const WMMU_PAGE_SIZE: usize = 0x1000;
+
+/// The maximum number of models that the MLCoordinator can handle. This is
+/// bounded by timer slots. It's unlikely we'll be anywhere near this due to
+/// memory contstraints.
+pub const MAX_MODELS: usize = 32;
+
+/// The size of the Vector Core's Tightly Coupled Memory (TCM).
+/// NB: this must match the MMIO region size specified to CAmkES by
+///     TCM_size in MlCoordinator.camkes & system.camkes
+pub const TCM_SIZE: usize = 0x1000000;
+
+/// The address of the Vector Core's TCM, viewed from the SMC.
+/// NB: this is only used to calculate offsets into the MMIO region specified
+///     to CAmkES; it is best to match TCM_paddr in MlCoordinator.camkes &
+///     system.camkes but in theory a mismatch should not matter
+pub const TCM_PADDR: usize = 0x34000000;
+
+// The virtualized address of each WMMU section (see: go/sparrow-vc-memory).
+pub const TEXT_VADDR: usize = 0x80000000;
+pub const CONST_DATA_VADDR: usize = 0x81000000;
+pub const MODEL_OUTPUT_VADDR: usize = 0x82000000;
+pub const STATIC_DATA_VADDR: usize = 0x83000000;
+pub const MODEL_INPUT_VADDR: usize = 0x84000000;
+pub const TEMP_DATA_VADDR: usize = 0x85000000;
+
+pub fn debug_state() {
+    info!(target: "SPRINGBOK", "TCM {} @ {:#X}", TCM_SIZE, TCM_PADDR);
+}
 
 pub fn enable_interrupts(enable: bool) {
     vc_top::set_intr_enable(
@@ -75,10 +107,56 @@ pub fn run() {
     );
 }
 
+/// Scan the image for loadable sections and verify the image has a valid
+/// format and fits into the TCM.
+pub fn preprocess_image(id: &ImageId, image: &mut BundleImage) -> Option<(ImageSizes, ImageSizes)> {
+    let mut on_flash_sizes = ImageSizes::default();
+    let mut in_memory_sizes = ImageSizes::default();
+
+    // TODO(sleffler): check magic
+    while let Some(section) = image.next_section() {
+        assert!(section.is_springbok());
+        match section.vaddr {
+            TEXT_VADDR => {
+                on_flash_sizes.text = section.fsize;
+                in_memory_sizes.text = round_up(section.msize, WMMU_PAGE_SIZE);
+            }
+            CONST_DATA_VADDR => {
+                on_flash_sizes.constant_data = section.fsize;
+                in_memory_sizes.constant_data = round_up(section.msize, WMMU_PAGE_SIZE);
+            }
+            MODEL_OUTPUT_VADDR => {
+                on_flash_sizes.model_output = section.fsize;
+                in_memory_sizes.model_output = round_up(section.msize, WMMU_PAGE_SIZE);
+            }
+            STATIC_DATA_VADDR => {
+                on_flash_sizes.static_data = section.fsize;
+                in_memory_sizes.static_data = round_up(section.msize, WMMU_PAGE_SIZE);
+            }
+            TEMP_DATA_VADDR => {
+                on_flash_sizes.temporary_data = section.fsize;
+                in_memory_sizes.temporary_data = round_up(section.msize, WMMU_PAGE_SIZE);
+            }
+            vaddr => {
+                warn!("{}: skipping unexpected section at {:#x}", &id, vaddr);
+            }
+        }
+    }
+    if !in_memory_sizes.is_valid() {
+        error!("{} invalid, section missing: {:?}", id, in_memory_sizes);
+        return None;
+    }
+    if in_memory_sizes.total_size() > TCM_SIZE {
+        error!("{} too big to fit in TCM: {:?}", id, in_memory_sizes);
+        return None;
+    }
+    Some((on_flash_sizes, in_memory_sizes))
+}
+
 /// Writes the section of the image from |start_address| to
 /// |start_address + on_flash_size| into the TCM. Zeroes the section from
 /// |on_flash_size| to |in_memory_size|. Returns None if the write failed.
-pub fn write_image_part<R: Read>(
+fn write_image_part<R: Read>(
     image: &mut R,
     start_address: usize,
     on_flash_size: usize,
@@ -93,7 +171,6 @@ pub fn write_image_part<R: Read>(
         in_memory_size
     );
 
-    //    let tcm_slice = unsafe { slice::from_raw_parts_mut(TCM as *mut u8, TCM_SIZE) };
     let tcm_slice = unsafe { get_tcm_mut() };
 
     if let Err(e) = image.read_exact(&mut tcm_slice[start..start + on_flash_size]) {
@@ -105,6 +182,47 @@ pub fn write_image_part<R: Read>(
     tcm_slice[start + on_flash_size..start + in_memory_size].fill(0x00);
 
     Some(())
+}
+
+pub fn write_image(
+    image: &mut BundleImage,
+    mut temp_top: usize,
+    on_flash_sizes: &ImageSizes,
+    in_memory_sizes: &ImageSizes,
+) -> Result<(), MlCoordError> {
+    while let Some(section) = image.next_section() {
+        // TODO(jesionowski): Ensure these are in order.
+        if section.vaddr == TEXT_VADDR {
+            write_image_part(image, temp_top, on_flash_sizes.text, in_memory_sizes.text)
+                .ok_or(MlCoordError::LoadModelFailed)?;
+
+            temp_top += in_memory_sizes.text;
+        } else if section.vaddr == CONST_DATA_VADDR {
+            write_image_part(
+                image,
+                temp_top,
+                on_flash_sizes.constant_data,
+                in_memory_sizes.constant_data,
+            )
+            .ok_or(MlCoordError::LoadModelFailed)?;
+
+            temp_top += in_memory_sizes.constant_data;
+        } else if section.vaddr == MODEL_OUTPUT_VADDR {
+            // Don't load, but do skip.
+            temp_top += in_memory_sizes.model_output;
+        } else if section.vaddr == STATIC_DATA_VADDR {
+            write_image_part(
+                image,
+                temp_top,
+                on_flash_sizes.static_data,
+                in_memory_sizes.static_data,
+            )
+            .ok_or(MlCoordError::LoadModelFailed)?;
+
+            temp_top += in_memory_sizes.static_data;
+        }
+    }
+    Ok(())
 }
 
 /// Move |src_index..src_index + byte_length| to
@@ -158,8 +276,10 @@ pub fn clear_tcm(addr: usize, byte_length: usize) {
 #[allow(dead_code)]
 pub fn wait_for_clear_to_finish() { while !vc_top::get_init_status().init_done() {} }
 
-/// Returns a copy of the OutputHeader at the byte address |addr|.
-pub fn get_output_header(addr: usize) -> OutputHeader {
+/// Returns a copy of the OutputHeader.
+pub fn get_output_header(data_top_addr: usize, sizes: &ImageSizes) -> OutputHeader {
+    let addr = data_top_addr + sizes.model_output_offset();
+
     assert!(addr >= TCM_PADDR);
     assert!(addr + size_of::<OutputHeader>() <= TCM_PADDR + TCM_SIZE);
     assert!(((addr - TCM_PADDR) % size_of::<u32>()) == 0);

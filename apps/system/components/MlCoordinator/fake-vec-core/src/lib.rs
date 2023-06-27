@@ -14,12 +14,17 @@
 
 #![no_std]
 
-// fake-vec-core is a stubbed out version of cantrip-vec-core.
-extern crate alloc;
+// fake-vec-core is a stubbed out version of springbok-vec-core.
 
+extern crate alloc;
 use alloc::boxed::Box;
 use cantrip_io::Read;
-use cantrip_ml_shared::{OutputHeader, Permission, WindowId};
+use cantrip_ml_shared::*;
+
+pub const WMMU_PAGE_SIZE: usize = 0x1000;
+pub const MAX_MODELS: usize = 32;
+pub const TCM_PADDR: usize = 0x34000000;
+pub const TCM_SIZE: usize = 0x1000000;
 
 pub fn enable_interrupts(_enable: bool) {}
 
@@ -56,4 +61,6 @@ pub fn clear_tcm(_addr: usize, _len: usize) {}
 
 pub fn wait_for_clear_to_finish() {}
 
-pub fn get_output_header(_addr: usize) -> OutputHeader { OutputHeader::default() }
+pub fn get_output_header(_data_top_addr: usize, _sizes: &ImageSizes) -> OutputHeader {
+    OutputHeader::default()
+}

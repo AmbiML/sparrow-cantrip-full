@@ -13,6 +13,8 @@
 // limitations under the License.
 
 /*!
+ * TODO(sleffler): much of this is springbok-specific
+ *
  * The Image Manager is responsible for loading and unloading multiple images
  * into the Vector Core's tightly coupled memory. It tracks which image section
  * is where and evicts images on the core when necessary.
@@ -47,10 +49,15 @@ use cantrip_ml_shared::*;
 use core::cmp;
 use log::{info, trace};
 
-#[cfg(not(test))]
-use cantrip_vec_core as MlCore;
 #[cfg(test)]
 use fake_vec_core as MlCore;
+#[cfg(all(not(test), feature = "springbok_support"))]
+use springbok_vec_core as MlCore;
+
+use MlCore::MAX_MODELS;
+use MlCore::TCM_PADDR;
+use MlCore::TCM_SIZE;
+use MlCore::WMMU_PAGE_SIZE; // XXX
 
 // For each loaded image we need to track where the image's first segment is:
 // data_top ---> +---------------+
@@ -197,7 +204,10 @@ impl ImageManager {
     /// Removes images in FILO order until the top TCM and temp TCM
     /// constraints are satisfied. Returns the address of the freed space.
     pub fn make_space(&mut self, top_tcm_needed: usize, temp_tcm_needed: usize) -> usize {
-        assert!(top_tcm_needed + temp_tcm_needed <= TCM_SIZE);
+        assert!(
+            top_tcm_needed + temp_tcm_needed <= TCM_SIZE,
+            "Too big: {top_tcm_needed} {temp_tcm_needed} {TCM_SIZE}"
+        );
         let mut available_tcm = self.tcm_free_space();
         let mut space_needed_for_temp =
             space_needed(self.required_temporary_data(), temp_tcm_needed);
@@ -231,6 +241,8 @@ impl ImageManager {
             return;
         }
         self.tcm_bottom = TCM_PADDR + TCM_SIZE - temp_data_size;
+
+        #[cfg(feature = "springbok_support")]
         MlCore::set_wmmu_window(
             WindowId::TempData,
             self.tcm_bottom,
@@ -253,9 +265,9 @@ impl ImageManager {
     /// Returns true if the image |id| is currently loaded in the TCM.
     pub fn is_loaded(&mut self, id: &ImageId) -> bool { self.get_image_index(id).is_some() }
 
-    /// Appends an (already written) image to internal book-keeping. This class
-    /// does not handle the write as it requires seL4 references. The
-    /// MlCoordinator must call this function after the write.
+    /// Appends an (already written) image to internal book-keeping. The
+    /// actual write is done in the vector-core-specific support;
+    /// call commit_image must be called after.
     pub fn commit_image(&mut self, id: ImageId, sizes: ImageSizes) {
         let image = Image {
             id,
@@ -267,7 +279,7 @@ impl ImageManager {
         // making this unwrap safe.
         let index = self.images.iter().position(|i| i.is_none()).unwrap();
 
-        trace!("Adding image: {:x?}", image);
+        trace!("Commit image: {:x?}", image);
 
         self.image_queue.push(index);
         self.tcm_top += image.sizes.data_top_size();
@@ -297,6 +309,7 @@ impl ImageManager {
 
     /// Sets the WMMU to match the loaded image |id|. Returns true if that
     /// image exists and the WMMU was set.
+    #[cfg(feature = "springbok_support")]
     pub fn set_wmmu(&self, id: &ImageId) -> bool {
         if let Some(idx) = self.get_image_index(id) {
             let image = &self.images[idx].as_ref().unwrap();
@@ -353,8 +366,7 @@ impl ImageManager {
         match self.get_image_index(id) {
             Some(idx) => {
                 let image = &self.images[idx].as_ref().unwrap();
-                let addr = image.data_top_addr + image.sizes.model_output_offset();
-                Some(MlCore::get_output_header(addr))
+                Some(MlCore::get_output_header(image.data_top_addr, &image.sizes))
             }
             None => None,
         }
@@ -369,20 +381,20 @@ impl ImageManager {
 
     /// Prints local state for debugging.
     pub fn debug_state(&self) {
-        info!("Loaded Images:");
+        info!(target: "", "Loaded Images:");
         for image in self.images.as_ref().iter().flatten() {
-            info!("  {:x?}", image);
+            info!(target: "", "  {:#X?}", image);
         }
 
-        info!("Image Queue:");
+        info!(target: "", "Image Queue:");
         for idx in &self.image_queue {
             let (bundle, model) = self.ids_at(*idx);
-            info!("  {}:{}", bundle, model);
+            info!(target: "", "  {}:{}", bundle, model);
         }
 
-        info!("Sensor Top: 0x{:x}", self.sensor_top);
-        info!("TCM Top: 0x{:x}", self.tcm_top);
-        info!("TCM Bottom: 0x{:x}", self.tcm_bottom);
+        info!(target: "", "Sensor Top: {:#X}", self.sensor_top);
+        info!(target: "", "TCM Top: {:#X}", self.tcm_top);
+        info!(target: "", "TCM Bottom: {:#X}", self.tcm_bottom);
     }
 }
 

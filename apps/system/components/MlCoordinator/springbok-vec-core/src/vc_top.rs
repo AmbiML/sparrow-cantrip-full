@@ -14,7 +14,7 @@
 
 // Setters and getters for the Springbok Vector Core CSRs.
 
-use cantrip_ml_shared::Permission;
+use crate::Permission;
 use modular_bitfield::prelude::*;
 use reg_constants::vc_top::*;
 

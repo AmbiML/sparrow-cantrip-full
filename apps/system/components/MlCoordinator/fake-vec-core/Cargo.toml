@@ -18,5 +18,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-cantrip-io = { path = "../../DebugConsole/cantrip-io" }
-cantrip-ml-shared = { path = "../cantrip-ml-shared" }
+cantrip-io.workspace = true
+cantrip-ml-shared.workspace = true

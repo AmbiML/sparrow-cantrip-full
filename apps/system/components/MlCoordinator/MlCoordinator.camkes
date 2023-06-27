@@ -30,7 +30,7 @@ component MlCoordinator {
   attribute int irq_has_thread = false;
 
   dataport Buf CSR;
-  dataport Buf(0x1000000) TCM;
+  dataport Buf(0x1000000) TCM; // Springbok
 
   maybe uses LoggerInterface logger;
   uses MemoryInterface memory;

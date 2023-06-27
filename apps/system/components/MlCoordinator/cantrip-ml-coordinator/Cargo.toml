@@ -18,17 +18,26 @@ version = "0.1.0"
 authors = ["Adam Jesionowski <jesionowski@google.com>"]
 edition = "2021"
 
+[features]
+default = ["springbok_support"]
+springbok_support = [
+    "springbok-vec-core",
+    "cantrip-ml-support/springbok_support",
+]
+
 [dependencies]
+cantrip-io.workspace = true
+cantrip-os-common.workspace = true
+cantrip-memory-interface.workspace = true
+cantrip-ml-interface.workspace = true
+cantrip-ml-shared.workspace = true
+cantrip-proc-interface.workspace = true
+cantrip-security-interface.workspace = true
+cantrip-timer-interface.workspace = true
+log.workspace = true
+spin.workspace = true
+static_assertions.workspace = true
+
+cantrip-ml-support = { path = "../cantrip-ml-support" }
 cstr_core = { version = "0.2.3", default-features = false }
-cantrip-io = { path = "../../DebugConsole/cantrip-io" }
-cantrip-os-common = { path = "../../cantrip-os-common" }
-cantrip-memory-interface = { path = "../../MemoryManager/cantrip-memory-interface" }
-cantrip-ml-interface = { path = "../cantrip-ml-interface" }
-cantrip-ml-shared = { path = "../cantrip-ml-shared" }
-cantrip-ml-support= { path = "../cantrip-ml-support" }
-cantrip-proc-interface = { path = "../../ProcessManager/cantrip-proc-interface" }
-cantrip-security-interface = { path = "../../SecurityCoordinator/cantrip-security-interface" }
-cantrip-timer-interface = { path = "../../TimerService/cantrip-timer-interface" }
-cantrip-vec-core = { path = "../cantrip-vec-core" }
-log = { version = "0.4", features = ["release_max_level_info"] }
-spin = "0.9"
+springbok-vec-core = { path = "../springbok-vec-core", optional = true }

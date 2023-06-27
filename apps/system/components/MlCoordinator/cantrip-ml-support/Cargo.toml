@@ -17,12 +17,16 @@ name = "cantrip-ml-support"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = []
+springbok_support = ["springbok-vec-core"]
+
 [dependencies]
-log = { version = "0.4", features = ["release_max_level_info"] }
 cantrip-io = { path = "../../DebugConsole/cantrip-io" }
 cantrip-ml-shared = { path = "../cantrip-ml-shared" }
-cantrip-vec-core = { path = "../cantrip-vec-core" }
 fake-vec-core = { path = "../fake-vec-core" }
+log = "0.4"
+springbok-vec-core = { path = "../springbok-vec-core", optional = true }
 
 [dev-dependencies]
 assert_hex = "0.2.2"

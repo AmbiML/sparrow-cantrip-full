@@ -27,17 +27,15 @@ CONFIG_PLAT_SPARROW = []
 CONFIG_DEBUG_BUILD = []
 
 [dependencies]
-cantrip-os-common = { path = "../../cantrip-os-common" }
-cantrip-memory-interface = { path = "../../MemoryManager/cantrip-memory-interface" }
-cantrip-ml-coordinator = { path = "../cantrip-ml-coordinator" }
-cantrip-ml-interface = { path = "../cantrip-ml-interface" }
-cantrip-ml-shared = { path = "../cantrip-ml-shared" }
-cantrip-timer-interface = { path = "../../TimerService/cantrip-timer-interface" }
-cfg-if = "1.0"
-log = { version = "0.4", features = ["release_max_level_info"] }
-postcard = { version = "0.7", features = ["alloc"], default-features = false }
-paste  = "1.0"
-spin = "0.9"
+cantrip-os-common.workspace = true
+cantrip-memory-interface.workspace = true
+cantrip-ml-coordinator.workspace = true
+cantrip-ml-interface.workspace = true
+cantrip-ml-shared.workspace = true
+cantrip-timer-interface.workspace = true
+log.workspace = true
+postcard.workspace = true
+spin.workspace = true
 
 [lib]
 name = "cantrip_ml_component"

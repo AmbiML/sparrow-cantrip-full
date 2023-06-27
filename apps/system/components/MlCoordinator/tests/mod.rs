@@ -25,4 +25,15 @@ static mut CSR: CSR = CSR {
 pub fn get_csr_mut() -> &'static mut [u8] { unsafe { &mut CSR.data[..] } }
 pub fn get_csr() -> &'static [u8] { unsafe { &CSR.data[..] } }
 
-include!("../cantrip-vec-core/src/vc_top.rs");
+bitflags::bitflags! {
+    pub struct Permission: u32 {
+        const READ    = 0b00000001;
+        const WRITE   = 0b00000010;
+        const EXECUTE = 0b00000100;
+        const READ_WRITE = Self::READ.bits | Self::WRITE.bits;
+        const READ_EXECUTE = Self::READ.bits | Self::EXECUTE.bits;
+    }
+}
+mod springbok {
+    include!("../springbok-vec-core/src/vc_top.rs");
+}

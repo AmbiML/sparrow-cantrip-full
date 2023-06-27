@@ -13,13 +13,16 @@
 # limitations under the License.
 
 [package]
-name = "cantrip-vec-core"
+name = "springbok-vec-core"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 cantrip-io = { path = "../../DebugConsole/cantrip-io" }
+cantrip-ml-interface = { path = "../cantrip-ml-interface" }
 cantrip-ml-shared = { path = "../cantrip-ml-shared" }
-modular-bitfield = "0.11.2"
+cantrip-os-common = { path = "../../cantrip-os-common" }
+cantrip-proc-interface = { path = "../../ProcessManager/cantrip-proc-interface" }
 log = { version = "0.4", features = ["release_max_level_info"] }
+modular-bitfield = "0.11.2"
 reg_constants = { path = "../../cantrip-os-common/src/reg_constants" }
