@@ -15,11 +15,13 @@ fn main() {
     println!("cargo:rerun-if-env-changed=MBOX_HJSON");
     build.in_file_path(mbox_hjson).generate("mailbox.rs");
 
-    #[cfg(feature = "springbok_support")]
-    {
-        let vc_top_hjson =
-            env::var("VC_TOP_HJSON").expect("missing environment variable 'VC_TOP_HJSON'");
-        println!("cargo:rerun-if-env-changed=VC_TOP_HJSON");
-        build.in_file_path(vc_top_hjson).generate("vc_top.rs");
-    }
+    let vc_top_hjson =
+        env::var("VC_TOP_HJSON").expect("missing environment variable 'VC_TOP_HJSON'");
+    println!("cargo:rerun-if-env-changed=VC_TOP_HJSON");
+    build.in_file_path(vc_top_hjson).generate("vc_top.rs");
+
+    let ml_top_hjson =
+        env::var("ML_TOP_HJSON").expect("missing environment variable 'ML_TOP_HJSON'");
+    println!("cargo:rerun-if-env-changed=ML_TOP_HJSON");
+    build.in_file_path(ml_top_hjson).generate("ml_top.rs");
 }
