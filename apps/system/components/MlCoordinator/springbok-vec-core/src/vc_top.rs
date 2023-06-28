@@ -305,7 +305,7 @@ pub fn set_mmu_window_permission(window: usize, permission: Permission) {
 }
 
 #[cfg(test)]
-mod tests {
+mod vc_tests {
     use super::*;
 
     // Validate modular_bitfield defs against regotool-generated SOT.

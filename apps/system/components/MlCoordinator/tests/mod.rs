@@ -34,6 +34,9 @@ bitflags::bitflags! {
         const READ_EXECUTE = Self::READ.bits | Self::EXECUTE.bits;
     }
 }
+mod kelvin {
+    include!("../kelvin-vec-core/src/ml_top.rs");
+}
 mod springbok {
     include!("../springbok-vec-core/src/vc_top.rs");
 }
