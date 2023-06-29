@@ -17,18 +17,15 @@
 #![no_std]
 //error[E0658]: dereferencing raw mutable pointers in statics is unstable
 #![feature(const_mut_refs)]
-// XXX for camkes.rs
-//#![allow(dead_code)]
-//#![allow(unused_unsafe)]
-//#![allow(non_upper_case_globals)]
 
-mod register;
+#[allow(dead_code)]
+mod uart;
+use uart::*;
 
 use cantrip_os_common::camkes;
 use cantrip_os_common::logger;
 use cantrip_os_common::sel4_sys;
 use core::cmp;
-use reg_constants::uart::*;
 use spin::Mutex;
 use uart_interface::*;
 
@@ -39,7 +36,6 @@ use sel4_sys::seL4_PageBits;
 
 // TODO(chrisphan): Use ringbuf crate instead.
 use circular_buffer::Buffer;
-use register::{bit, Field, Register};
 
 // Frequency of the primary clock clk_i.
 //
@@ -78,30 +74,28 @@ impl CamkesThreadInterface for UartDriverControlThread {
 
         // Computes NCO value corresponding to baud rate.
         // nco = 2^20 * baud / fclk  (assuming NCO width is 16-bit)
-        debug_assert_eq!(UART_CTRL_NCO_MASK, 0xffff);
         let ctrl_nco: u64 = (BAUD_RATE << 20) / CLK_FIXED_FREQ_HZ;
-        debug_assert!(ctrl_nco < 0xffff);
+        debug_assert!(ctrl_nco <= reg_constants::uart::UART_CTRL_NCO_MASK as u64);
 
-        unsafe {
-            // Sets baud rate and enables TX and RX.
-            let baud_rate =
-                Field::new(UART_CTRL_NCO_MASK, UART_CTRL_NCO_OFFSET, Some(ctrl_nco as u32));
-            Register::new(UART_CTRL_REG_OFFSET)
-                .write(*baud_rate | bit(UART_CTRL_TX_BIT) | bit(UART_CTRL_RX_BIT));
+        // Set baud rate and enable TX and RX.
+        set_ctrl(
+            Ctrl::new()
+                .with_nco(ctrl_nco as u16)
+                .with_tx(true)
+                .with_rx(true),
+        );
 
-            // Resets TX and RX FIFOs.
-            let mut fifo_ctrl = Register::new(UART_FIFO_CTRL_REG_OFFSET);
-            fifo_ctrl.write(
-                fifo_ctrl.get() | bit(UART_FIFO_CTRL_RXRST_BIT) | bit(UART_FIFO_CTRL_TXRST_BIT),
-            );
+        // Reset TX and RX FIFOs.
+        set_fifo_ctrl(get_fifo_ctrl().with_rxrst(true).with_txrst(true));
 
-            set_fifo_watermarks();
-        }
+        set_fifo_watermarks();
     }
     // NB: use control thread to handle IRQ's. We could put the handlers
     // here but leave them in interface threads in case we want to split
     // them back into dedicated handler threads.
     fn run() {
+        // TODO(sleffler): split rx_watermark to a separate thread as it
+        //   block if the RX_BUFFER is full
         shared_irq_loop!(
             irq,
             tx_watermark => TxWatermarkInterfaceThread::handler,
@@ -125,9 +119,7 @@ impl TxWatermarkInterfaceThread {
         // similar check to the one in tx_empty_handle is necessary here, since
         // tx_empty will eventually assert and cause anything left in TX_BUFFER
         // to be flushed out.
-        unsafe {
-            Register::new(UART_INTR_STATE_REG_OFFSET).write(bit(UART_INTR_STATE_TX_WATERMARK_BIT));
-        }
+        set_intr_state(IntrState::new().with_tx_watermark(true));
         true
     }
 }
@@ -165,9 +157,7 @@ impl RxWatermarkInterfaceThread {
         RX_NONEMPTY.post();
         drop(buf); // XXX drop on block exit?
 
-        unsafe {
-            Register::new(UART_INTR_STATE_REG_OFFSET).write(bit(UART_INTR_STATE_RX_WATERMARK_BIT));
-        }
+        set_intr_state(IntrState::new().with_rx_watermark(true));
         true
     }
 }
@@ -188,9 +178,7 @@ impl TxEmptyInterfaceThread {
             // become empty in the time from fill_tx_fifo having sent the last
             // character until here. In that case, we want the interrupt to
             // reassert.
-            unsafe {
-                Register::new(UART_INTR_STATE_REG_OFFSET).write(bit(UART_INTR_STATE_TX_EMPTY_BIT));
-            }
+            set_intr_state(IntrState::new().with_tx_empty(true));
         }
         drop(buf); // XXX drop on block exit?
         true
@@ -198,45 +186,35 @@ impl TxEmptyInterfaceThread {
 }
 
 /// Initializes watermarks.
-unsafe fn set_fifo_watermarks() {
-    let mut fifo_ctrl = Register::new(UART_FIFO_CTRL_REG_OFFSET);
-    // Clears old values of both watermarks.
-    let mut fifo_ctrl_watermark = fifo_ctrl.get()
-        & (!(UART_FIFO_CTRL_RXILVL_MASK << UART_FIFO_CTRL_RXILVL_OFFSET))
-        & (!(UART_FIFO_CTRL_TXILVL_MASK << UART_FIFO_CTRL_TXILVL_OFFSET));
-
+fn set_fifo_watermarks() {
+    // Set FIFO watermarks:
+    //
     // RX watermark to 1.
+    //   This enables calls that block on a single byte at a time, like the one
+    //   the shell does when reading a line of input, to return immediately when
+    //   that byte is received.
     //
-    // This enables calls that block on a single byte at a time, like the one
-    // the shell does when reading a line of input, to return immediately when
-    // that byte is received.
+    //   Note that this high watermark is only a threshold for when to be informed
+    //   that bytes have been received. The FIFO can still fill to its full
+    //   capacity (32) independent of how this is set.
     //
-    // Note that this high watermark is only a threshold for when to be informed
-    // that bytes have been received. The FIFO can still fill to its full
-    // capacity (32) independent of how this is set.
+    //   Although a higher watermark in combination with rx_timeout might be
+    //   preferable, Renode simulation does not yet support the rx_timeout
+    //   interrupt.
     //
-    // Although a higher watermark in combination with rx_timeout might be
-    // preferable, Renode simulation does not yet support the rx_timeout
-    // interrupt.
-    fifo_ctrl_watermark |= *Field::new(
-        UART_FIFO_CTRL_RXILVL_MASK,
-        UART_FIFO_CTRL_RXILVL_OFFSET,
-        Some(UART_FIFO_CTRL_RXILVL_VALUE_RXLVL1),
-    );
-
     // TX watermark to 16 (half full).
-    fifo_ctrl_watermark |= *Field::new(
-        UART_FIFO_CTRL_TXILVL_MASK,
-        UART_FIFO_CTRL_TXILVL_OFFSET,
-        Some(UART_FIFO_CTRL_TXILVL_VALUE_TXLVL16),
+    set_fifo_ctrl(
+        get_fifo_ctrl()
+            .with_rxilvl(RxILvl::Level1)
+            .with_txilvl(TxILvl::Level16),
     );
-    fifo_ctrl.write(fifo_ctrl_watermark);
 
     // Enables interrupts.
-    Register::new(UART_INTR_ENABLE_REG_OFFSET).write(
-        bit(UART_INTR_COMMON_TX_WATERMARK_BIT)
-            | bit(UART_INTR_COMMON_RX_WATERMARK_BIT)
-            | bit(UART_INTR_COMMON_TX_EMPTY_BIT),
+    set_intr_enable(
+        IntrEnable::new()
+            .with_tx_watermark(true)
+            .with_rx_watermark(true)
+            .with_tx_empty(true),
     );
 }
 
@@ -359,10 +337,7 @@ impl WriteInterfaceThread {
 ///
 /// This stops when the transmit FIFO is full or when TX_BUFFER is empty,
 /// whichever comes first.
-fn tx_fifo_level() -> u32 {
-    let field = Field::new(UART_FIFO_STATUS_TXLVL_MASK, UART_FIFO_STATUS_TXLVL_OFFSET, None);
-    unsafe { Register::new(UART_FIFO_STATUS_REG_OFFSET).read(field) }
-}
+fn tx_fifo_level() -> u32 { get_fifo_status().txlvl().into() }
 
 /// Copies from TX_BUFFER into the transmit FIFO.
 ///
@@ -372,11 +347,7 @@ fn fill_tx_fifo() {
     let mut buf = TX_BUFFER.lock();
     while tx_fifo_level() < UART_FIFO_CAPACITY {
         if let Some(result) = buf.pop() {
-            let field =
-                Field::new(UART_WDATA_WDATA_MASK, UART_WDATA_WDATA_OFFSET, Some(result as u32));
-            unsafe {
-                Register::new(UART_WDATA_REG_OFFSET).write(*field);
-            }
+            set_wdata(result);
         } else {
             break;
         }
@@ -388,21 +359,13 @@ fn fill_tx_fifo() {
 ///
 /// Prefer this to FIFO_STATUS.RXLVL, which the simulation has sometimes
 /// reported as zero even when "not STATUS.RXEMPTY."
-fn rx_is_empty() -> bool {
-    unsafe { Register::new(UART_STATUS_REG_OFFSET).get() & bit(UART_STATUS_RXEMPTY_BIT) != 0 }
-}
+fn rx_is_empty() -> bool { get_status().rxempty() }
 
 /// Gets the number of unread bytes in the RX FIFO from hardware MMIO.
-fn rx_fifo_level() -> u32 {
-    let field = Field::new(UART_FIFO_STATUS_RXLVL_MASK, UART_FIFO_STATUS_RXLVL_OFFSET, None);
-    unsafe { Register::new(UART_FIFO_STATUS_REG_OFFSET).read(field) }
-}
+fn rx_fifo_level() -> u32 { get_fifo_status().rxlvl().into() }
 
 /// Reads one byte from the hardware read data register.
 ///
 /// Callers should first ensure the receive FIFO is not empty rather than rely
 /// on any particular magic value to indicate that.
-fn uart_getchar() -> u8 {
-    let field = Field::new(UART_RDATA_RDATA_MASK, UART_RDATA_RDATA_OFFSET, None);
-    unsafe { Register::new(UART_RDATA_REG_OFFSET).read(field) as u8 }
-}
+fn uart_getchar() -> u8 { get_rdata() }
