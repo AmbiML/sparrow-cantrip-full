@@ -236,3 +236,126 @@ pub fn set_ctrl(ctrl: Ctrl) {
             .write_volatile(u32::from_ne_bytes(ctrl.into_bytes()))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Validate modular_bitfield defs against regotool-generated SOT.
+
+    fn bit(x: u32) -> u32 { 1 << x }
+    fn field(v: u32, mask: u32, shift: usize) -> u32 { (v & mask) << shift }
+
+    #[test]
+    fn intr_state() {
+        assert_eq!(
+            u32::from_ne_bytes(IntrState::new().with_wtirq(true).into_bytes()),
+            bit(TLUL_MAILBOX_INTR_STATE_WTIRQ_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(IntrState::new().with_rtirq(true).into_bytes()),
+            bit(TLUL_MAILBOX_INTR_STATE_RTIRQ_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(IntrState::new().with_eirq(true).into_bytes()),
+            bit(TLUL_MAILBOX_INTR_STATE_EIRQ_BIT)
+        );
+    }
+    #[test]
+    fn intr_enable() {
+        assert_eq!(
+            u32::from_ne_bytes(IntrEnable::new().with_wtirq(true).into_bytes()),
+            bit(TLUL_MAILBOX_INTR_ENABLE_WTIRQ_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(IntrEnable::new().with_rtirq(true).into_bytes()),
+            bit(TLUL_MAILBOX_INTR_ENABLE_RTIRQ_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(IntrEnable::new().with_eirq(true).into_bytes()),
+            bit(TLUL_MAILBOX_INTR_ENABLE_EIRQ_BIT)
+        );
+    }
+    #[test]
+    fn intr_test() {
+        assert_eq!(
+            u32::from_ne_bytes(IntrTest::new().with_wtirq(true).into_bytes()),
+            bit(TLUL_MAILBOX_INTR_TEST_WTIRQ_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(IntrTest::new().with_rtirq(true).into_bytes()),
+            bit(TLUL_MAILBOX_INTR_TEST_RTIRQ_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(IntrTest::new().with_eirq(true).into_bytes()),
+            bit(TLUL_MAILBOX_INTR_TEST_EIRQ_BIT)
+        );
+    }
+    #[test]
+    fn status() {
+        assert_eq!(
+            u32::from_ne_bytes(Status::new().with_empty(true).into_bytes()),
+            bit(TLUL_MAILBOX_STATUS_EMPTY_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(Status::new().with_full(true).into_bytes()),
+            bit(TLUL_MAILBOX_STATUS_FULL_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(Status::new().with_wfifol(true).into_bytes()),
+            bit(TLUL_MAILBOX_STATUS_WFIFOL_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(Status::new().with_rfifol(true).into_bytes()),
+            bit(TLUL_MAILBOX_STATUS_RFIFOL_BIT)
+        );
+    }
+    #[test]
+    fn error() {
+        assert_eq!(
+            u32::from_ne_bytes(Error::new().with_read(true).into_bytes()),
+            bit(TLUL_MAILBOX_ERROR_READ_ERROR_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(Error::new().with_write(true).into_bytes()),
+            bit(TLUL_MAILBOX_ERROR_WRITE_ERROR_BIT)
+        );
+    }
+    #[test]
+    fn wirq_threshold() {
+        for th in 1..TLUL_MAILBOX_WIRQT_WR_IRQ_TH_MASK {
+            assert_eq!(
+                u32::from_ne_bytes(WirqThreshold::new().with_th(th as u8).into_bytes()),
+                field(
+                    th,
+                    TLUL_MAILBOX_WIRQT_WR_IRQ_TH_MASK,
+                    TLUL_MAILBOX_WIRQT_WR_IRQ_TH_OFFSET
+                )
+            );
+        }
+    }
+    #[test]
+    fn rirq_threshold() {
+        for th in 1..TLUL_MAILBOX_RIRQT_RD_IRQ_TH_MASK {
+            assert_eq!(
+                u32::from_ne_bytes(RirqThreshold::new().with_th(th as u8).into_bytes()),
+                field(
+                    th,
+                    TLUL_MAILBOX_RIRQT_RD_IRQ_TH_MASK,
+                    TLUL_MAILBOX_RIRQT_RD_IRQ_TH_OFFSET
+                )
+            );
+        }
+    }
+    #[test]
+    fn ctrl() {
+        assert_eq!(
+            u32::from_ne_bytes(Ctrl::new().with_flush_rfifo(true).into_bytes()),
+            bit(TLUL_MAILBOX_CTRL_FLUSH_RFIFO_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(Ctrl::new().with_flush_wfifo(true).into_bytes()),
+            bit(TLUL_MAILBOX_CTRL_FLUSH_WFIFO_BIT)
+        );
+    }
+}
