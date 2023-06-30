@@ -301,3 +301,358 @@ pub fn set_timeout_ctrl(timeout_ctrl: TimeoutCtrl) {
             .write_volatile(u32::from_ne_bytes(timeout_ctrl.into_bytes()))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Validate modular_bitfield defs against regotool-generated SOT.
+
+    fn bit(x: u32) -> u32 { 1 << x }
+    fn field(v: u32, mask: u32, shift: usize) -> u32 { (v & mask) << shift }
+
+    #[test]
+    fn intr_state() {
+        assert_eq!(
+            u32::from_ne_bytes(IntrState::new().with_tx_watermark(true).into_bytes()),
+            bit(UART_INTR_STATE_TX_WATERMARK_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(IntrState::new().with_rx_watermark(true).into_bytes()),
+            bit(UART_INTR_STATE_RX_WATERMARK_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(IntrState::new().with_tx_empty(true).into_bytes()),
+            bit(UART_INTR_STATE_TX_EMPTY_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(IntrState::new().with_rx_overflow(true).into_bytes()),
+            bit(UART_INTR_STATE_RX_OVERFLOW_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(IntrState::new().with_rx_frame_err(true).into_bytes()),
+            bit(UART_INTR_STATE_RX_FRAME_ERR_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(IntrState::new().with_rx_break_err(true).into_bytes()),
+            bit(UART_INTR_STATE_RX_BREAK_ERR_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(IntrState::new().with_rx_timeout(true).into_bytes()),
+            bit(UART_INTR_STATE_RX_TIMEOUT_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(IntrState::new().with_rx_parity_err(true).into_bytes()),
+            bit(UART_INTR_STATE_RX_PARITY_ERR_BIT)
+        );
+    }
+    #[test]
+    fn intr_enable() {
+        assert_eq!(
+            u32::from_ne_bytes(IntrEnable::new().with_tx_watermark(true).into_bytes()),
+            bit(UART_INTR_ENABLE_TX_WATERMARK_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(IntrEnable::new().with_rx_watermark(true).into_bytes()),
+            bit(UART_INTR_ENABLE_RX_WATERMARK_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(IntrEnable::new().with_tx_empty(true).into_bytes()),
+            bit(UART_INTR_ENABLE_TX_EMPTY_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(IntrEnable::new().with_rx_overflow(true).into_bytes()),
+            bit(UART_INTR_ENABLE_RX_OVERFLOW_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(IntrEnable::new().with_rx_frame_err(true).into_bytes()),
+            bit(UART_INTR_ENABLE_RX_FRAME_ERR_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(IntrEnable::new().with_rx_break_err(true).into_bytes()),
+            bit(UART_INTR_ENABLE_RX_BREAK_ERR_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(IntrEnable::new().with_rx_timeout(true).into_bytes()),
+            bit(UART_INTR_ENABLE_RX_TIMEOUT_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(IntrEnable::new().with_rx_parity_err(true).into_bytes()),
+            bit(UART_INTR_ENABLE_RX_PARITY_ERR_BIT)
+        );
+    }
+    #[test]
+    fn intr_test() {
+        assert_eq!(
+            u32::from_ne_bytes(IntrTest::new().with_tx_watermark(true).into_bytes()),
+            bit(UART_INTR_TEST_TX_WATERMARK_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(IntrTest::new().with_rx_watermark(true).into_bytes()),
+            bit(UART_INTR_TEST_RX_WATERMARK_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(IntrTest::new().with_tx_empty(true).into_bytes()),
+            bit(UART_INTR_TEST_TX_EMPTY_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(IntrTest::new().with_rx_overflow(true).into_bytes()),
+            bit(UART_INTR_TEST_RX_OVERFLOW_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(IntrTest::new().with_rx_frame_err(true).into_bytes()),
+            bit(UART_INTR_TEST_RX_FRAME_ERR_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(IntrTest::new().with_rx_break_err(true).into_bytes()),
+            bit(UART_INTR_TEST_RX_BREAK_ERR_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(IntrTest::new().with_rx_timeout(true).into_bytes()),
+            bit(UART_INTR_TEST_RX_TIMEOUT_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(IntrTest::new().with_rx_parity_err(true).into_bytes()),
+            bit(UART_INTR_TEST_RX_PARITY_ERR_BIT)
+        );
+    }
+    #[test]
+    fn ctrl() {
+        assert_eq!(
+            u32::from_ne_bytes(Ctrl::new().with_tx(true).into_bytes()),
+            bit(UART_CTRL_TX_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(Ctrl::new().with_rx(true).into_bytes()),
+            bit(UART_CTRL_RX_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(Ctrl::new().with_nf(true).into_bytes()),
+            bit(UART_CTRL_NF_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(Ctrl::new().with_slpbk(true).into_bytes()),
+            bit(UART_CTRL_SLPBK_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(Ctrl::new().with_llpbk(true).into_bytes()),
+            bit(UART_CTRL_LLPBK_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(Ctrl::new().with_parity_en(true).into_bytes()),
+            bit(UART_CTRL_PARITY_EN_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(Ctrl::new().with_parity_odd(true).into_bytes()),
+            bit(UART_CTRL_PARITY_ODD_BIT)
+        );
+
+        assert_eq!(
+            u32::from_ne_bytes(Ctrl::new().with_rxblvl(RxBLvl::Break2).into_bytes()),
+            field(
+                UART_CTRL_RXBLVL_VALUE_BREAK2,
+                UART_CTRL_RXBLVL_MASK,
+                UART_CTRL_RXBLVL_OFFSET
+            )
+        );
+        assert_eq!(
+            u32::from_ne_bytes(Ctrl::new().with_rxblvl(RxBLvl::Break4).into_bytes()),
+            field(
+                UART_CTRL_RXBLVL_VALUE_BREAK4,
+                UART_CTRL_RXBLVL_MASK,
+                UART_CTRL_RXBLVL_OFFSET
+            )
+        );
+        assert_eq!(
+            u32::from_ne_bytes(Ctrl::new().with_rxblvl(RxBLvl::Break8).into_bytes()),
+            field(
+                UART_CTRL_RXBLVL_VALUE_BREAK8,
+                UART_CTRL_RXBLVL_MASK,
+                UART_CTRL_RXBLVL_OFFSET
+            )
+        );
+        assert_eq!(
+            u32::from_ne_bytes(Ctrl::new().with_rxblvl(RxBLvl::Break16).into_bytes()),
+            field(
+                UART_CTRL_RXBLVL_VALUE_BREAK16,
+                UART_CTRL_RXBLVL_MASK,
+                UART_CTRL_RXBLVL_OFFSET
+            )
+        );
+
+        assert_eq!(UART_CTRL_NCO_MASK, u16::MAX as u32); // Verify field width
+        for nco in 1..UART_CTRL_NCO_MASK {
+            assert_eq!(
+                u32::from_ne_bytes(Ctrl::new().with_nco(nco as u16).into_bytes()),
+                field(nco, UART_CTRL_NCO_MASK, UART_CTRL_NCO_OFFSET)
+            );
+        }
+    }
+    #[test]
+    fn status() {
+        assert_eq!(
+            u32::from_ne_bytes(Status::new().with_txfull(true).into_bytes()),
+            bit(UART_STATUS_TXFULL_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(Status::new().with_rxfull(true).into_bytes()),
+            bit(UART_STATUS_RXFULL_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(Status::new().with_txempty(true).into_bytes()),
+            bit(UART_STATUS_TXEMPTY_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(Status::new().with_txidle(true).into_bytes()),
+            bit(UART_STATUS_TXIDLE_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(Status::new().with_rxidle(true).into_bytes()),
+            bit(UART_STATUS_RXIDLE_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(Status::new().with_rxempty(true).into_bytes()),
+            bit(UART_STATUS_RXEMPTY_BIT)
+        );
+    }
+    #[test]
+    fn rdata() {
+        assert_eq!(UART_RDATA_RDATA_MASK, u8::MAX as u32); // Verify field width
+        for rdata in 1..UART_RDATA_RDATA_MASK {
+            assert_eq!(
+                u32::from_ne_bytes(RData::new().with_rdata(rdata as u8).into_bytes()),
+                field(rdata, UART_RDATA_RDATA_MASK, UART_RDATA_RDATA_OFFSET)
+            );
+        }
+    }
+    #[test]
+    fn wdata() {
+        assert_eq!(UART_WDATA_WDATA_MASK, u8::MAX as u32); // Verify field width
+        for wdata in 1..UART_WDATA_WDATA_MASK {
+            assert_eq!(
+                u32::from_ne_bytes(WData::new().with_wdata(wdata as u8).into_bytes()),
+                field(wdata, UART_WDATA_WDATA_MASK, UART_WDATA_WDATA_OFFSET)
+            );
+        }
+    }
+    #[test]
+    fn fifo_ctrl() {
+        assert_eq!(
+            u32::from_ne_bytes(FifoCtrl::new().with_rxrst(true).into_bytes()),
+            bit(UART_FIFO_CTRL_RXRST_BIT)
+        );
+        assert_eq!(
+            u32::from_ne_bytes(FifoCtrl::new().with_txrst(true).into_bytes()),
+            bit(UART_FIFO_CTRL_TXRST_BIT)
+        );
+
+        assert_eq!(
+            u32::from_ne_bytes(FifoCtrl::new().with_rxilvl(RxILvl::Level1).into_bytes()),
+            field(
+                UART_FIFO_CTRL_RXILVL_VALUE_RXLVL1,
+                UART_FIFO_CTRL_RXILVL_MASK,
+                UART_FIFO_CTRL_RXILVL_OFFSET
+            )
+        );
+        assert_eq!(
+            u32::from_ne_bytes(FifoCtrl::new().with_rxilvl(RxILvl::Level4).into_bytes()),
+            field(
+                UART_FIFO_CTRL_RXILVL_VALUE_RXLVL4,
+                UART_FIFO_CTRL_RXILVL_MASK,
+                UART_FIFO_CTRL_RXILVL_OFFSET
+            )
+        );
+        assert_eq!(
+            u32::from_ne_bytes(FifoCtrl::new().with_rxilvl(RxILvl::Level8).into_bytes()),
+            field(
+                UART_FIFO_CTRL_RXILVL_VALUE_RXLVL8,
+                UART_FIFO_CTRL_RXILVL_MASK,
+                UART_FIFO_CTRL_RXILVL_OFFSET
+            )
+        );
+        assert_eq!(
+            u32::from_ne_bytes(FifoCtrl::new().with_rxilvl(RxILvl::Level16).into_bytes()),
+            field(
+                UART_FIFO_CTRL_RXILVL_VALUE_RXLVL16,
+                UART_FIFO_CTRL_RXILVL_MASK,
+                UART_FIFO_CTRL_RXILVL_OFFSET
+            )
+        );
+        assert_eq!(
+            u32::from_ne_bytes(FifoCtrl::new().with_rxilvl(RxILvl::Level30).into_bytes()),
+            field(
+                UART_FIFO_CTRL_RXILVL_VALUE_RXLVL30,
+                UART_FIFO_CTRL_RXILVL_MASK,
+                UART_FIFO_CTRL_RXILVL_OFFSET
+            )
+        );
+
+        assert_eq!(
+            u32::from_ne_bytes(FifoCtrl::new().with_txilvl(TxILvl::Level1).into_bytes()),
+            field(
+                UART_FIFO_CTRL_TXILVL_VALUE_TXLVL1,
+                UART_FIFO_CTRL_TXILVL_MASK,
+                UART_FIFO_CTRL_TXILVL_OFFSET
+            )
+        );
+        assert_eq!(
+            u32::from_ne_bytes(FifoCtrl::new().with_txilvl(TxILvl::Level4).into_bytes()),
+            field(
+                UART_FIFO_CTRL_TXILVL_VALUE_TXLVL4,
+                UART_FIFO_CTRL_TXILVL_MASK,
+                UART_FIFO_CTRL_TXILVL_OFFSET
+            )
+        );
+        assert_eq!(
+            u32::from_ne_bytes(FifoCtrl::new().with_txilvl(TxILvl::Level8).into_bytes()),
+            field(
+                UART_FIFO_CTRL_TXILVL_VALUE_TXLVL8,
+                UART_FIFO_CTRL_TXILVL_MASK,
+                UART_FIFO_CTRL_TXILVL_OFFSET
+            )
+        );
+        assert_eq!(
+            u32::from_ne_bytes(FifoCtrl::new().with_txilvl(TxILvl::Level16).into_bytes()),
+            field(
+                UART_FIFO_CTRL_TXILVL_VALUE_TXLVL16,
+                UART_FIFO_CTRL_TXILVL_MASK,
+                UART_FIFO_CTRL_TXILVL_OFFSET
+            )
+        );
+    }
+    #[test]
+    fn fifo_status() {
+        assert_eq!(UART_FIFO_STATUS_TXLVL_MASK, (1 << 6) - 1); // Verify field width
+        for txlvl in 1..UART_FIFO_STATUS_TXLVL_MASK {
+            assert_eq!(
+                u32::from_ne_bytes(FifoStatus::new().with_txlvl(txlvl as u8).into_bytes()),
+                field(txlvl, UART_FIFO_STATUS_TXLVL_MASK, UART_FIFO_STATUS_TXLVL_OFFSET)
+            );
+        }
+
+        assert_eq!(UART_FIFO_STATUS_RXLVL_MASK, (1 << 6) - 1); // Verify field width
+        for rxlvl in 1..UART_FIFO_STATUS_RXLVL_MASK {
+            assert_eq!(
+                u32::from_ne_bytes(FifoStatus::new().with_rxlvl(rxlvl as u8).into_bytes()),
+                field(rxlvl, UART_FIFO_STATUS_RXLVL_MASK, UART_FIFO_STATUS_RXLVL_OFFSET)
+            );
+        }
+    }
+    #[test]
+    fn timeout_ctrl() {
+        assert_eq!(UART_TIMEOUT_CTRL_VAL_MASK, (1 << 24) - 1); // Verify field width
+
+        // NB: checking all 24-bit values takes too long; reduce the range
+        //   since this register isn't used
+        for val in 1..(UART_TIMEOUT_CTRL_VAL_MASK >> 8) {
+            assert_eq!(
+                u32::from_ne_bytes(TimeoutCtrl::new().with_val(val as u32).into_bytes()),
+                field(val, UART_TIMEOUT_CTRL_VAL_MASK, UART_TIMEOUT_CTRL_VAL_OFFSET)
+            );
+        }
+        assert_eq!(
+            u32::from_ne_bytes(TimeoutCtrl::new().with_en(true).into_bytes()),
+            bit(UART_TIMEOUT_CTRL_EN_BIT)
+        );
+    }
+}
