@@ -12,13 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Hardware structs for OpenTitan timers.
+// Hardware structs for OpenTitan timers.
 // https://docs.opentitan.org/hw/ip/rv_timer/doc/
 
-#![allow(unused)]
-use core::ptr;
 use modular_bitfield::prelude::*;
 use reg_constants::timer::*;
+
+unsafe fn get_timer(offset: usize) -> *const u32 {
+    extern "Rust" {
+        fn get_csr() -> &'static [u8];
+    }
+    get_csr().as_ptr().add(offset).cast::<u32>()
+}
+unsafe fn get_timer_mut(offset: usize) -> *mut u32 {
+    extern "Rust" {
+        fn get_csr_mut() -> &'static mut [u8];
+    }
+    get_csr_mut().as_mut_ptr().add(offset).cast::<u32>()
+}
 
 // The intent is to update this file with tock-registers instead.
 // The tock-registers format is displayed here for layout and future purposes.
@@ -51,106 +62,208 @@ use reg_constants::timer::*;
 //     ]
 // ];
 
+// Control register
 #[bitfield]
 pub struct Ctrl {
-    pub enable: bool,
+    pub active: bool,
     #[skip]
-    _unused: B31,
+    __: B31,
+}
+pub fn get_ctrl() -> Ctrl {
+    unsafe {
+        Ctrl::from_bytes(
+            get_timer(RV_TIMER_CTRL_REG_OFFSET)
+                .read_volatile()
+                .to_ne_bytes(),
+        )
+    }
+}
+pub fn set_ctrl(ctrl: Ctrl) {
+    unsafe {
+        get_timer_mut(RV_TIMER_CTRL_REG_OFFSET)
+            .write_volatile(u32::from_ne_bytes(ctrl.into_bytes()))
+    }
 }
 
+// Interrupt Enable
+#[bitfield]
+pub struct IntrEnable {
+    pub timer0: bool,
+    #[skip]
+    __: B31,
+}
+pub fn get_intr_enable() -> IntrEnable {
+    unsafe {
+        IntrEnable::from_bytes(
+            get_timer(RV_TIMER_INTR_ENABLE0_REG_OFFSET)
+                .read_volatile()
+                .to_ne_bytes(),
+        )
+    }
+}
+pub fn set_intr_enable(intr_enable: IntrEnable) {
+    unsafe {
+        get_timer_mut(RV_TIMER_INTR_ENABLE0_REG_OFFSET)
+            .write_volatile(u32::from_ne_bytes(intr_enable.into_bytes()))
+    }
+}
+
+// Interrupt Status
+#[bitfield]
+pub struct IntrStatus {
+    pub timer0: bool,
+    #[skip]
+    __: B31,
+}
+pub fn get_intr_status() -> IntrStatus {
+    unsafe {
+        IntrStatus::from_bytes(
+            get_timer(RV_TIMER_INTR_STATE0_REG_OFFSET)
+                .read_volatile()
+                .to_ne_bytes(),
+        )
+    }
+}
+pub fn set_intr_status(intr_status: IntrStatus) {
+    unsafe {
+        get_timer_mut(RV_TIMER_INTR_STATE0_REG_OFFSET)
+            .write_volatile(u32::from_ne_bytes(intr_status.into_bytes()))
+    }
+}
+
+// Interrupt test register
+#[bitfield]
+pub struct IntrTest {
+    pub timer0: bool,
+    #[skip]
+    __: B31,
+}
+pub fn get_intr_test() -> IntrTest {
+    unsafe {
+        IntrTest::from_bytes(
+            get_timer(RV_TIMER_INTR_TEST0_REG_OFFSET)
+                .read_volatile()
+                .to_ne_bytes(),
+        )
+    }
+}
+pub fn set_intr_test(intr_test: IntrTest) {
+    unsafe {
+        get_timer_mut(RV_TIMER_INTR_TEST0_REG_OFFSET)
+            .write_volatile(u32::from_ne_bytes(intr_test.into_bytes()))
+    }
+}
+
+// Configuration for Hart 0
 #[bitfield]
 pub struct Config {
     pub prescale: B12,
     #[skip]
-    _unused0: B4,
-    pub step: B8,
+    __: B4,
+    pub step: u8,
     #[skip]
-    _unused1: B8,
+    __: B8,
+}
+pub fn get_config() -> Config {
+    unsafe {
+        Config::from_bytes(
+            get_timer(RV_TIMER_CFG0_REG_OFFSET)
+                .read_volatile()
+                .to_ne_bytes(),
+        )
+    }
+}
+pub fn set_config(config: Config) {
+    unsafe {
+        get_timer_mut(RV_TIMER_CFG0_REG_OFFSET)
+            .write_volatile(u32::from_ne_bytes(config.into_bytes()))
+    }
 }
 
-#[bitfield]
-pub struct Intr {
-    pub timer0: bool,
-    #[skip]
-    _unused: B31,
+// Timer value Lower
+pub fn get_value_low() -> u32 {
+    unsafe { get_timer(RV_TIMER_TIMER_V_LOWER0_REG_OFFSET).read_volatile() }
+}
+pub fn set_value_low(value: u32) {
+    unsafe { get_timer_mut(RV_TIMER_TIMER_V_LOWER0_REG_OFFSET).write_volatile(value) }
 }
 
-extern "Rust" {
-    fn get_csr() -> &'static [u8];
-    fn get_csr_mut() -> &'static mut [u8];
+// Timer value Upper
+pub fn get_value_high() -> u32 {
+    unsafe { get_timer(RV_TIMER_TIMER_V_UPPER0_REG_OFFSET).read_volatile() }
+}
+pub fn set_value_high(value: u32) {
+    unsafe { get_timer_mut(RV_TIMER_TIMER_V_UPPER0_REG_OFFSET).write_volatile(value) }
 }
 
-fn get_u32(idx: usize) -> u32 {
-    fn get_csr_word() -> &'static [u32] { unsafe { core::mem::transmute(get_csr()) } }
-    unsafe { get_csr_word().as_ptr().add(idx).read_volatile() }
+// Timer compare value Lower
+pub fn get_compare_low() -> u32 {
+    unsafe { get_timer(RV_TIMER_COMPARE_LOWER0_0_REG_OFFSET).read_volatile() }
+}
+pub fn set_compare_low(value: u32) {
+    unsafe { get_timer_mut(RV_TIMER_COMPARE_LOWER0_0_REG_OFFSET).write_volatile(value) }
 }
 
-fn set_u32(idx: usize, val: u32) {
-    fn get_csr_word_mut() -> &'static mut [u32] { unsafe { core::mem::transmute(get_csr_mut()) } }
-    unsafe { get_csr_word_mut().as_mut_ptr().add(idx).write_volatile(val) }
+// Timer compare value Upper
+pub fn get_compare_high() -> u32 {
+    unsafe { get_timer(RV_TIMER_COMPARE_UPPER0_0_REG_OFFSET).read_volatile() }
+}
+pub fn set_compare_high(value: u32) {
+    unsafe { get_timer_mut(RV_TIMER_COMPARE_UPPER0_0_REG_OFFSET).write_volatile(value) }
 }
 
-fn get_bytes(idx: usize) -> [u8; 4] { get_u32(idx).to_ne_bytes() }
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-fn set_bytes(idx: usize, bytes: [u8; 4]) { set_u32(idx, u32::from_ne_bytes(bytes)); }
+    // Validate modular_bitfield defs against regotool-generated SOT.
 
-const fn u8_to_u32_offset(offset: usize) -> usize {
-    assert!(offset % 4 == 0);
-    offset >> 2
+    fn bit(x: u32) -> u32 { 1 << x }
+    fn field(v: u32, mask: u32, shift: usize) -> u32 { (v & mask) << shift }
+
+    #[test]
+    fn ctrl() {
+        assert_eq!(
+            u32::from_ne_bytes(Ctrl::new().with_active(true).into_bytes()),
+            bit(RV_TIMER_CTRL_ACTIVE_0_BIT)
+        );
+    }
+    #[test]
+    fn intr_status() {
+        assert_eq!(
+            u32::from_ne_bytes(IntrStatus::new().with_timer0(true).into_bytes()),
+            bit(RV_TIMER_INTR_ENABLE0_IE_0_BIT)
+        );
+    }
+    #[test]
+    fn intr_enable() {
+        assert_eq!(
+            u32::from_ne_bytes(IntrEnable::new().with_timer0(true).into_bytes()),
+            bit(RV_TIMER_INTR_ENABLE0_IE_0_BIT)
+        );
+    }
+    #[test]
+    fn intr_test() {
+        assert_eq!(
+            u32::from_ne_bytes(IntrTest::new().with_timer0(true).into_bytes()),
+            bit(RV_TIMER_INTR_TEST0_T_0_BIT)
+        );
+    }
+    #[test]
+    fn config() {
+        assert_eq!(RV_TIMER_CFG0_PRESCALE_MASK, (1 << 12) - 1);
+        for prescale in 1..RV_TIMER_CFG0_PRESCALE_MASK {
+            assert_eq!(
+                u32::from_ne_bytes(Config::new().with_prescale(prescale as u16).into_bytes()),
+                field(prescale, RV_TIMER_CFG0_PRESCALE_MASK, RV_TIMER_CFG0_PRESCALE_OFFSET)
+            );
+        }
+        assert_eq!(RV_TIMER_CFG0_STEP_MASK, u8::MAX as u32);
+        for step in 1..RV_TIMER_CFG0_STEP_MASK {
+            assert_eq!(
+                u32::from_ne_bytes(Config::new().with_step(step as u8).into_bytes()),
+                field(step, RV_TIMER_CFG0_STEP_MASK, RV_TIMER_CFG0_STEP_OFFSET)
+            );
+        }
+    }
 }
-
-const CTRL_OFFSET: usize = u8_to_u32_offset(RV_TIMER_CTRL_REG_OFFSET);
-
-pub fn get_ctrl() -> Ctrl { Ctrl::from_bytes(get_bytes(CTRL_OFFSET)) }
-
-pub fn set_ctrl(ctrl: Ctrl) { set_bytes(CTRL_OFFSET, ctrl.into_bytes()); }
-
-const CONFIG_OFFSET: usize = u8_to_u32_offset(RV_TIMER_CFG0_REG_OFFSET);
-
-pub fn get_config() -> Config { Config::from_bytes(get_bytes(CONFIG_OFFSET)) }
-
-pub fn set_config(config: Config) { set_bytes(CONFIG_OFFSET, config.into_bytes()); }
-
-const VALUE_LOW_OFFSET: usize = u8_to_u32_offset(RV_TIMER_TIMER_V_LOWER0_REG_OFFSET);
-
-pub fn get_value_low() -> u32 { get_u32(VALUE_LOW_OFFSET) }
-
-pub fn set_value_low(val: u32) { set_u32(VALUE_LOW_OFFSET, val); }
-
-const VALUE_HIGH_OFFSET: usize = u8_to_u32_offset(RV_TIMER_TIMER_V_UPPER0_REG_OFFSET);
-
-pub fn get_value_high() -> u32 { get_u32(VALUE_HIGH_OFFSET) }
-
-pub fn set_value_high(val: u32) { set_u32(VALUE_HIGH_OFFSET, val); }
-
-const COMPARE_LOW_OFFSET: usize = u8_to_u32_offset(RV_TIMER_COMPARE_LOWER0_0_REG_OFFSET);
-
-pub fn get_compare_low() -> u32 { get_u32(COMPARE_LOW_OFFSET) }
-
-pub fn set_compare_low(val: u32) { set_u32(COMPARE_LOW_OFFSET, val); }
-
-const COMPARE_HIGH_OFFSET: usize = u8_to_u32_offset(RV_TIMER_COMPARE_UPPER0_0_REG_OFFSET);
-
-pub fn get_compare_high() -> u32 { get_u32(COMPARE_HIGH_OFFSET) }
-
-pub fn set_compare_high(val: u32) { set_u32(COMPARE_HIGH_OFFSET, val); }
-
-const INTR_ENABLE_OFFSET: usize = u8_to_u32_offset(RV_TIMER_INTR_ENABLE0_REG_OFFSET);
-
-pub fn get_intr_enable() -> Intr { Intr::from_bytes(get_bytes(INTR_ENABLE_OFFSET)) }
-
-pub fn set_intr_enable(intr_enable: Intr) {
-    set_bytes(INTR_ENABLE_OFFSET, intr_enable.into_bytes());
-}
-
-const INTR_STATE_OFFSET: usize = u8_to_u32_offset(RV_TIMER_INTR_STATE0_REG_OFFSET);
-
-pub fn get_intr_state() -> Intr { Intr::from_bytes(get_bytes(INTR_STATE_OFFSET)) }
-
-pub fn set_intr_state(intr_state: Intr) { set_bytes(INTR_STATE_OFFSET, intr_state.into_bytes()); }
-
-const INTR_TEST_OFFSET: usize = u8_to_u32_offset(RV_TIMER_INTR_TEST0_REG_OFFSET);
-
-pub fn get_intr_test() -> Intr { Intr::from_bytes(get_bytes(INTR_TEST_OFFSET)) }
-
-pub fn set_intr_test(intr_test: Intr) { set_bytes(INTR_TEST_OFFSET, intr_test.into_bytes()); }

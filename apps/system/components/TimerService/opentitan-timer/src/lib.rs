@@ -16,11 +16,12 @@
 //! HardwareTimer interface.
 #![no_std]
 
+#[allow(dead_code)]
 mod opentitan_timer;
+use opentitan_timer::*;
 
 use cantrip_timer_interface::{HardwareTimer, Ticks};
 use core::time::Duration;
-use opentitan_timer::{Config, Ctrl, Intr};
 
 // TODO(jesionowski): Grab frequency from top_matcha.h.
 const TIMER_BASE_FREQ: u32 = 24_000_000;
@@ -31,22 +32,22 @@ pub struct OtTimer;
 
 impl HardwareTimer for OtTimer {
     fn setup(&self) {
-        opentitan_timer::set_config(Config::new().with_prescale(PRESCALE).with_step(1));
-        opentitan_timer::set_compare_high(0);
-        opentitan_timer::set_value_low(0xFFFF_0000);
-        opentitan_timer::set_intr_state(Intr::new().with_timer0(true)); // w1c
-        opentitan_timer::set_intr_enable(Intr::new().with_timer0(false));
-        opentitan_timer::set_ctrl(Ctrl::new().with_enable(true));
+        set_config(Config::new().with_prescale(PRESCALE).with_step(1));
+        set_compare_high(0);
+        set_value_low(0xFFFF_0000);
+        set_intr_status(IntrStatus::new().with_timer0(true)); // w1c
+        set_intr_enable(IntrEnable::new().with_timer0(false));
+        set_ctrl(Ctrl::new().with_active(true));
     }
 
     fn ack_interrupt(&self) {
-        opentitan_timer::set_intr_state(Intr::new().with_timer0(true));
-        opentitan_timer::set_intr_enable(Intr::new().with_timer0(false));
+        set_intr_status(IntrStatus::new().with_timer0(true));
+        set_intr_enable(IntrEnable::new().with_timer0(false));
     }
 
     fn now(&self) -> Ticks {
-        let low: u32 = opentitan_timer::get_value_low();
-        let high: u32 = opentitan_timer::get_value_high();
+        let low: u32 = get_value_low();
+        let high: u32 = get_value_high();
 
         ((high as u64) << 32) | low as u64
     }
@@ -62,10 +63,10 @@ impl HardwareTimer for OtTimer {
 
         // Recommended approach for setting the two compare registers
         // (RISC-V Privileged Architectures 3.1.15)
-        opentitan_timer::set_compare_low(0xffffffff);
-        opentitan_timer::set_compare_high(high);
-        opentitan_timer::set_compare_low(low);
+        set_compare_low(0xffffffff);
+        set_compare_high(high);
+        set_compare_low(low);
 
-        opentitan_timer::set_intr_enable(Intr::new().with_timer0(true));
+        set_intr_enable(IntrEnable::new().with_timer0(true));
     }
 }

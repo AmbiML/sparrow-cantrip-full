@@ -12,32 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-[workspace]
+[package]
+name = "opentitan-timer-unit-tests"
+version = "0.1.0"
+edition = "2018"
 
-resolver = "2"
-members = [
-    "cantrip-timer-component",
-    "cantrip-timer-interface",
-    "cantrip-timer-service",
-    "opentitan-timer"
-]
-exclude = [
-    "tests",
-]
+[dependencies]
+modular-bitfield = "0.11.2"
+reg_constants = { path = "../../cantrip-os-common/src/reg_constants" }
 
-[profile.dev]
-opt-level = 0
-debug = true
-# TODO(b/223253186): workaround gdb DIE errors
-lto = false
-codegen-units = 1
-
-[profile.release]
-opt-level = "z"
-lto = "fat"
-codegen-units = 1
-split-debuginfo = "unpacked"
-
-[profile.release.build-override]
-opt-level = "z"
-codegen-units = 1
+[lib]
+path = "mod.rs"
