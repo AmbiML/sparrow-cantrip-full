@@ -14,4 +14,12 @@ fn main() {
     let mbox_hjson = env::var("MBOX_HJSON").expect("missing environment variable 'MBOX_HJSON'");
     println!("cargo:rerun-if-env-changed=MBOX_HJSON");
     build.in_file_path(mbox_hjson).generate("mailbox.rs");
+
+    #[cfg(feature = "springbok_support")]
+    {
+        let vc_top_hjson =
+            env::var("VC_TOP_HJSON").expect("missing environment variable 'VC_TOP_HJSON'");
+        println!("cargo:rerun-if-env-changed=VC_TOP_HJSON");
+        build.in_file_path(vc_top_hjson).generate("vc_top.rs");
+    }
 }

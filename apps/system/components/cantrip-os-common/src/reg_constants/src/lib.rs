@@ -11,3 +11,8 @@ pub mod timer {
 pub mod uart {
     include!(concat!(env!("OUT_DIR"), "/uart.rs"));
 }
+
+#[cfg(feature = "springbok_support")]
+pub mod vc_top {
+    include!(concat!(env!("OUT_DIR"), "/vc_top.rs"));
+}
