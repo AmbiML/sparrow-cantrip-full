@@ -19,6 +19,7 @@
 
 extern crate alloc;
 
+#[allow(unused)]
 mod vc_top;
 
 use cantrip_io::Read;
@@ -33,12 +34,13 @@ extern "Rust" {
 fn get_tcm_word_mut() -> &'static mut [u32] { unsafe { core::mem::transmute(get_tcm_mut()) } }
 
 pub fn enable_interrupts(enable: bool) {
-    let intr_enable = vc_top::IntrEnable::new()
-        .with_host_req(enable)
-        .with_finish(enable)
-        .with_instruction_fault(enable)
-        .with_data_fault(enable);
-    vc_top::set_intr_enable(intr_enable);
+    vc_top::set_intr_enable(
+        vc_top::IntrEnable::new()
+            .with_host_req(enable)
+            .with_finish(enable)
+            .with_instruction_fault(enable)
+            .with_data_fault(enable),
+    );
 }
 
 pub fn set_wmmu_window(
@@ -65,11 +67,12 @@ pub fn set_wmmu_window(
 
 /// Start the core at the default PC.
 pub fn run() {
-    let ctrl = vc_top::Ctrl::new()
-        .with_freeze(false)
-        .with_vc_reset(false)
-        .with_pc_start(0);
-    vc_top::set_ctrl(ctrl);
+    vc_top::set_ctrl(
+        vc_top::Ctrl::new()
+            .with_freeze(false)
+            .with_vc_reset(false)
+            .with_pc_start(0),
+    );
 }
 
 /// Writes the section of the image from |start_address| to
@@ -118,38 +121,20 @@ pub fn tcm_move(src: usize, dest: usize, byte_length: usize) {
 }
 
 // Interrupts are write 1 to clear.
-pub fn clear_host_req() {
-    let mut intr_state = vc_top::get_intr_state();
-    intr_state.set_host_req(true);
-    vc_top::set_intr_state(intr_state);
-}
-
-pub fn clear_finish() {
-    let mut intr_state = vc_top::get_intr_state();
-    intr_state.set_finish(true);
-    vc_top::set_intr_state(intr_state);
-}
-
+pub fn clear_host_req() { vc_top::set_intr_state(vc_top::get_intr_state().with_host_req(true)); }
+pub fn clear_finish() { vc_top::set_intr_state(vc_top::get_intr_state().with_finish(true)); }
 pub fn clear_instruction_fault() {
-    let mut intr_state = vc_top::get_intr_state();
-    intr_state.set_instruction_fault(true);
-    vc_top::set_intr_state(intr_state);
+    vc_top::set_intr_state(vc_top::get_intr_state().with_instruction_fault(true));
 }
-
 pub fn clear_data_fault() {
-    let mut intr_state = vc_top::get_intr_state();
-    intr_state.set_data_fault(true);
-    vc_top::set_intr_state(intr_state);
+    vc_top::set_intr_state(vc_top::get_intr_state().with_data_fault(true));
 }
 
 // TODO(jesionowski): Use when TCM_SIZE fits into INIT_END.
 #[allow(dead_code)]
 fn clear_section(start: u32, end: u32) {
-    let init_start = vc_top::InitStart::new().with_address(start);
-    vc_top::set_init_start(init_start);
-
-    let init_end = vc_top::InitEnd::new().with_address(end).with_valid(true);
-    vc_top::set_init_end(init_end);
+    vc_top::set_init_start(vc_top::InitStart::new().with_address(start));
+    vc_top::set_init_end(vc_top::InitEnd::new().with_address(end).with_valid(true));
 }
 
 /// Zeroes out |byte_length| bytes starting at |addr|.
