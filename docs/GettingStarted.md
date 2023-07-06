@@ -36,13 +36,12 @@ and **in your shell's search path**:
    script or export `CANTRIP_RUST_VERSION` in each shell where you work.
    Beware that we use various nightly-only features that are not supported by stable
    versions of Rust (e.g. to override the default TLS model).
-3. The python tempita module.
-4. Whichever simulator seL4 expects for your target architecture; e.g. for aarch64 this
+3. Whichever simulator seL4 expects for your target architecture; e.g. for aarch64 this
    is qemu-system-aarch64.
 
-The `m prereqs` step installs required python packages (but not tempita, go figure)
-using the `pip` tool. At the moment this mostly sets up a virtual environment for
-the project.
+The `m prereqs` step installs required python packages using the `pip`
+tool. At the moment this mostly sets up a virtual environment for the
+project.
 
 Because Sparrow is a CAmkES project you also need
 [CAmkES dependencies](https://docs.sel4.systems/projects/buildsystem/host-dependencies.html#camkes-build-dependencies).
