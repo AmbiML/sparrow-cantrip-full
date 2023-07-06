@@ -16,9 +16,12 @@
 import argparse
 import sys
 from itertools import chain
-# install tempita using sudo apt-get install python-tempita or similar for your distro
-import tempita
 import xml.dom.minidom
+import pkg_resources
+# We require jinja2 to be at least version 2.10 as we use the 'namespace' feature from
+# that version
+pkg_resources.require("jinja2>=2.10")
+from jinja2 import Environment, BaseLoader
 
 COMMON_HEADER = """
 /* @LICENSE(NICTA) */
@@ -33,18 +36,18 @@ INVOCATION_TEMPLATE = COMMON_HEADER + """
 #[repr(C)]
 pub enum InvocationLabel {
     InvalidInvocation = 0,
-    {{for loop, list in looper(invocations)}}
-      {{py:label, condition = list}}
-    {{if condition}}
+    {%- for label, condition in invocations %}
+    {%- if condition %}
     #[cfg({{condition}})]
-    {{endif}}
+    {%- endif %}
     {{label}},
-    {{endfor}}
+    {%- endfor %}
 }
 """
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Generate seL4 invocation API \
+    parser = argparse.ArgumentParser(
+        description='Generate seL4 invocation API \
         constants and header files')
     parser.add_argument('--dest', type=argparse.FileType('w'),
             help='Name of file to create', required=True)
@@ -86,15 +89,12 @@ def parse_xml(xml_file):
     return invocation_labels
 
 def generate(args, invocations):
-
-    header_title = "LIBRUSTSEL4"
-
-    template = tempita.Template(INVOCATION_TEMPLATE)
-
-    args.dest.write(template.substitute(header_title=header_title,
-        invocations=invocations))
-
-    args.dest.close()
+    template = Environment(loader=BaseLoader).from_string(INVOCATION_TEMPLATE)
+    data = template.render({
+        'header_title': "LIBRUSTSEL4",
+        'invocations': invocations
+    })
+    args.dest.write(data)
 
 if __name__ == "__main__":
     args = parse_args()
@@ -102,4 +102,4 @@ if __name__ == "__main__":
     invocations = chain.from_iterable(parse_xml(xml) for xml in args.files)
 
     generate(args, invocations)
-
+    args.dest.close()

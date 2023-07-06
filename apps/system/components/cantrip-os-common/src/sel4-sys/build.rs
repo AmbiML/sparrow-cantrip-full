@@ -105,7 +105,6 @@ fn main() {
     println!("Running: {:?}", cmd);
     assert!(cmd.status().unwrap().success());
 
-    // TODO(sleffler): requires pip install tempita
     let xml_arch_file = &*format!(
         "{}/libsel4/arch_include/{}/interfaces/sel4arch.xml",
         sel4_dir, archdir
@@ -126,7 +125,6 @@ fn main() {
     println!("Running {:?}", cmd);
     assert!(cmd.status().unwrap().success());
 
-    // TODO(sleffler): requires pip install tempita
     let mut cmd = Command::new("/usr/bin/env");
     cmd.arg(&python_bin).arg("tools/syscall_header_gen.py");
     if has_mcs {
