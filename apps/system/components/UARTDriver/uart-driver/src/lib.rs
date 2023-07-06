@@ -94,12 +94,9 @@ impl CamkesThreadInterface for UartDriverControlThread {
     // here but leave them in interface threads in case we want to split
     // them back into dedicated handler threads.
     fn run() {
-        // TODO(sleffler): split rx_watermark to a separate thread as it
-        //   block if the RX_BUFFER is full
         shared_irq_loop!(
             irq,
             tx_watermark => TxWatermarkInterfaceThread::handler,
-            rx_watermark => RxWatermarkInterfaceThread::handler,
             tx_empty => TxEmptyInterfaceThread::handler
         );
     }

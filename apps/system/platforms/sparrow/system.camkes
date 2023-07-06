@@ -108,9 +108,11 @@ assembly {
         // OpenTitanUARTDriver
         connection cantripMMIO uart_mem(
             from uart_driver.mmio_region, to uart.mmio_region);
+        connection cantripIRQ uart_rx_watermark(
+            from uart.rx_watermark,
+            to uart_driver.rx_watermark);
         connection cantripIRQ uart_irq(
             from uart.tx_watermark,
-            from uart.rx_watermark,
             from uart.tx_empty,
             to uart_driver.irq);
 

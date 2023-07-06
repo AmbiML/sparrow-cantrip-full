@@ -24,8 +24,11 @@ component UARTDriver {
   // Enable CantripOS CAmkES support.
   attribute int cantripos = true;
 
-  // Pseudo interface used to process all IRQ's. The assembly
-  // connects tx_watermark, rx_watermark, and tx_empty interrupts
+  // rx_watermark irq is handled in its own thread because it may block.
+  consumes Interrupt rx_watermark;
+
+  // Pseudo interface used to process IRQ's other than rx_watermark.
+  // The assembly connects tx_watermark and tx_empty interrupts
   // and we disable the interface thread and take over the control
   // thread to process interrupt events (to save memory).
   consumes Interrupt irq;
