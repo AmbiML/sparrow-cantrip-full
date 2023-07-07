@@ -56,7 +56,7 @@ function(RustAddLibrary lib_name)
             ${CMAKE_COMMAND} -E env RUSTFLAGS=${RUSTFLAGS}
             cargo "+$ENV{CANTRIP_RUST_VERSION}" build
             --target ${RUST_TARGET}
-            --features ${RUST_GLOBAL_FEATURES}
+            --features "${RUST_GLOBAL_FEATURES}"
             ${CARGO_OPTIONS} ${CARGO_RELEASE}
             --target-dir ${RUST_BUILD_DIR}
             --out-dir ${RUST_BUILD_DIR}
