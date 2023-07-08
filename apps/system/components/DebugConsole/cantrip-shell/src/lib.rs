@@ -140,7 +140,7 @@ fn get_cmds() -> HashMap<&'static str, CmdFn> {
         ("stop", stop_command as CmdFn),
     ]);
     #[cfg(feature = "ml_support")]
-    cmds.extend([("state_mlcoord", state_mlcoord_command as CmdFn)]);
+    cmds.extend([("mldebug", state_mlcoord_command as CmdFn)]);
     #[cfg(feature = "dynamic_load_support")]
     dynamic_load::add_cmds(&mut cmds);
     #[cfg(all(feature = "CONFIG_DEBUG_BUILD", feature = "FRINGE_CMDS"))]
