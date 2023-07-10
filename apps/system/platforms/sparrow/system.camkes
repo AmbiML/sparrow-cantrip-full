@@ -46,6 +46,7 @@ component VectorCoreHw {
     dataport Buf CSR;
     // TODO(jesionowski): Export TCM_SIZE in cbindgen.
     dataport Buf(0x1000000) TCM;  // Springbok
+//    dataport Buf(0x400000) TCM;  // Kelvin
 
     emits Interrupt host_req;
     emits Interrupt finish;
@@ -228,6 +229,11 @@ assembly {
         uart.tx_watermark_irq_number = 1;
         uart.rx_watermark_irq_number = 2;
         uart.tx_empty_irq_number = 3;
+
+//        vctop.CSR_paddr = 0x5C000000;  // Kelvin
+//        vctop.CSR_size = 0x1000;       // Kelvin
+//        vctop.TCM_paddr = 0x5A000000;  // Kelvin
+//        vctop.TCM_size = 0x400000;     // Kelvin
 
         vctop.CSR_paddr = 0x47000000;  // Springbok
         vctop.CSR_size = 0x1000;       // Springbok

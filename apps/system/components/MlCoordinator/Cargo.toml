@@ -23,6 +23,7 @@ members = [
 ]
 exclude = [
     "cantrip-ml-support",
+    "kelvin-vec-core",
     "springbok-vec-core",
     "tests",
 ]

@@ -24,6 +24,10 @@ springbok_support = [
     "springbok-vec-core",
     "cantrip-ml-support/springbok_support",
 ]
+kelvin_support = [
+    "kelvin-vec-core",
+    "cantrip-ml-support/kelvin_support",
+]
 
 [dependencies]
 cantrip-io.workspace = true
@@ -40,4 +44,5 @@ static_assertions.workspace = true
 
 cantrip-ml-support = { path = "../cantrip-ml-support" }
 cstr_core = { version = "0.2.3", default-features = false }
+kelvin-vec-core = { path = "../kelvin-vec-core", optional = true }
 springbok-vec-core = { path = "../springbok-vec-core", optional = true }

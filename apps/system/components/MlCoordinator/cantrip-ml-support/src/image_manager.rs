@@ -51,6 +51,8 @@ use log::{info, trace};
 
 #[cfg(test)]
 use fake_vec_core as MlCore;
+#[cfg(all(not(test), feature = "kelvin_support"))]
+use kelvin_vec_core as MlCore;
 #[cfg(all(not(test), feature = "springbok_support"))]
 use springbok_vec_core as MlCore;
 

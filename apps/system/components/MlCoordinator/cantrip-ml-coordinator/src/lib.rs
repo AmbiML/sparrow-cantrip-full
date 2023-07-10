@@ -17,7 +17,14 @@
 // ML Coordinator Design Doc: go/sparrow-ml-doc
 
 use static_assertions::assert_cfg;
-assert_cfg!(any(feature = "springbok_support"), "No vector core configured");
+assert_cfg!(
+    any(feature = "springbok_support", feature = "kelvin_support"),
+    "No vector core configured"
+);
+assert_cfg!(
+    not(all(feature = "springbok_support", feature = "kelvin_support")),
+    "Only one vector core may be specified"
+);
 
 extern crate alloc;
 use alloc::vec::Vec;
@@ -32,6 +39,8 @@ use cantrip_security_interface::*;
 use cantrip_timer_interface::*;
 use log::{error, info, warn};
 
+#[cfg(feature = "kelvin_support")]
+use kelvin_vec_core as MlCore;
 #[cfg(feature = "springbok_support")]
 use springbok_vec_core as MlCore;
 
