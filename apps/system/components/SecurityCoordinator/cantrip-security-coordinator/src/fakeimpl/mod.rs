@@ -41,6 +41,7 @@ const CAPACITY_KEYS: usize = 2; // Per-bundle HashMap of key-values
 
 const APP_SUFFIX: &str = ".app";
 const MODEL_SUFFIX: &str = ".model";
+const KELVIN_SUFFIX: &str = ".kelvin";
 
 const FAKE_APP_MANIFEST: &str = r##"
 # Comments like this
@@ -201,12 +202,13 @@ fn upload_slice(src: &[u8]) -> Result<Upload, seL4_Error> {
 }
 
 // Returns |key| or |key|+|suffix| if |key| does not end with |suffix|.
-fn promote_key(key: &str, suffix: &str) -> String {
-    if key.ends_with(suffix) {
-        key.to_string()
-    } else {
-        key.to_string() + suffix
+fn promote_key(key: &str, suffixes: &[&str]) -> String {
+    for suf in suffixes {
+        if key.ends_with(suf) {
+            return key.to_string();
+        }
     }
+    key.to_string() + suffixes[0]
 }
 
 pub struct FakeSecurityCoordinator {
@@ -229,6 +231,11 @@ impl FakeSecurityCoordinator {
             Some(key.to_string())
         } else if self.bundles.contains_key(&(key.to_string() + APP_SUFFIX)) {
             Some(key.to_string() + APP_SUFFIX)
+        } else if self
+            .bundles
+            .contains_key(&(key.to_string() + KELVIN_SUFFIX))
+        {
+            Some(key.to_string() + KELVIN_SUFFIX)
         } else if self.bundles.contains_key(&(key.to_string() + MODEL_SUFFIX)) {
             Some(key.to_string() + MODEL_SUFFIX)
         } else {
@@ -261,7 +268,7 @@ impl FakeSecurityCoordinator {
     fn get_bundle_or_builtin(
         &mut self,
         bundle_id: &str,
-        suffix: &str,
+        suffixes: &[&str],
     ) -> Result<&BundleData, SecurityRequestError> {
         if self.bundles.contains_key(bundle_id) {
             return self.get_bundle(bundle_id);
@@ -270,7 +277,7 @@ impl FakeSecurityCoordinator {
             assert!(self.bundles.insert(bundle_id.to_string(), bd).is_none());
             return self.get_bundle(bundle_id);
         }
-        let key = promote_key(bundle_id, suffix);
+        let key = promote_key(bundle_id, suffixes);
         if !self.bundles.contains_key(&key) {
             let bd = get_bundle_from_builtins(&key)?;
             assert!(self.bundles.insert(key.clone(), bd).is_none());
@@ -299,7 +306,7 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinator {
         app_id: &str,
         pkg_contents: &ObjDescBundle,
     ) -> Result<(), SecurityRequestError> {
-        let key = promote_key(app_id, APP_SUFFIX);
+        let key = promote_key(app_id, &[APP_SUFFIX]);
         if self.bundles.contains_key(&key) {
             return Err(SecurityRequestError::DeleteFirst);
         }
@@ -315,7 +322,8 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinator {
         model_id: &str,
         pkg_contents: &ObjDescBundle,
     ) -> Result<(), SecurityRequestError> {
-        let key = promote_key(model_id, MODEL_SUFFIX);
+        // NB: no key promotion, model name must be fully specified
+        let key = promote_key(model_id, &[""]);
         if self.bundles.contains_key(&key) {
             return Err(SecurityRequestError::DeleteFirst);
         }
@@ -353,7 +361,7 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinator {
 
     // NB: loading may promote a bundle from the built-ins archive to the hashmap
     fn load_application(&mut self, bundle_id: &str) -> Result<ObjDescBundle, SecurityRequestError> {
-        let bundle_data = self.get_bundle_or_builtin(bundle_id, APP_SUFFIX)?;
+        let bundle_data = self.get_bundle_or_builtin(bundle_id, &[APP_SUFFIX])?;
         // Clone everything (struct + associated seL4 objects) so the
         // return is as though it was newly instantiated from flash.
         // XXX just return the package for now
@@ -366,7 +374,8 @@ impl SecurityCoordinatorInterface for FakeSecurityCoordinator {
         _bundle_id: &str, // TODO(sleffler): models are meant to be associated with bundle_id
         model_id: &str,
     ) -> Result<ObjDescBundle, SecurityRequestError> {
-        let model_data = self.get_bundle_or_builtin(model_id, MODEL_SUFFIX)?;
+        // NB: no key promotion, model name must be fully specified
+        let model_data = self.get_bundle_or_builtin(model_id, &[""])?;
         // Clone everything (struct + associated seL4 objects) so the
         // return is as though it was newly instantiated from flash.
         model_data

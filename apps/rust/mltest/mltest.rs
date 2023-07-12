@@ -15,7 +15,7 @@ pub fn main() {
     static mut HEAP: [u8; 4096] = [0; 4096];
     sdk_init(unsafe { &mut HEAP });
 
-    const MODEL_ID: &str = "mobilenet_v1_emitc_static";
+    const MODEL_ID: &str = "mobilenet_v1_emitc_static.model";
     const NONEXISTENT_ID: &str = "nonexistent";
     //    info!(
     //        "sdk_model_cancel returned {:?} with nothing running",
