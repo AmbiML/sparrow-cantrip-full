@@ -69,7 +69,7 @@ struct SectionHeader {
     fsize: u32, // Length of data that follows (bytes)
     msize: u32, // Size of memory region (bytes)
     align: u32, // Section data alignment (bytes)
-    pad: u32,   // <ignore, reserved for future use>
+    ftype: u32, // File type
     crc32: u32, // CRC32 of the data that follows
 }
 const SECTION_MAGIC: u64 = 0x0405_1957_1014_1955;
@@ -79,9 +79,15 @@ const SECTION_WRITE: u32 = 0x2; // Data are writeable
 const SECTION_EXEC: u32 = 0x4; // Data are executable
 const SECTION_ENTRYPOINT: u32 = 0x8; // Entry point valid
 
+// Only the best (hand-picked) magic #'s.
+const FTYPE_APPLICATION: u32 = 0x0405_1957;
+const FTYPE_SPRINGBOK: u32 = 0x1014_1955;
+const FTYPE_KELVIN: u32 = 0x0124_1998;
+
 // In-memory (parsed) section format.
 #[derive(Debug)]
 pub struct BundleImageSection {
+    ftype: u32,
     flags: u32,
     pub fsize: usize,
     pub msize: usize,
@@ -104,6 +110,10 @@ impl BundleImageSection {
     }
     pub fn data_range(&self) -> Range<usize> { 0..self.fsize }
     pub fn zero_range(&self) -> Range<usize> { self.fsize..self.msize }
+
+    pub fn is_application(&self) -> bool { self.ftype == FTYPE_APPLICATION }
+    pub fn is_springbok(&self) -> bool { self.ftype == FTYPE_SPRINGBOK }
+    pub fn is_kelvin(&self) -> bool { self.ftype == FTYPE_KELVIN }
 }
 
 // BundleImage is a loadable image that backs a Bundle. There are images
@@ -161,7 +171,7 @@ impl<'a> BundleImage<'a> {
             //   check magic as a hack to detect this
             if magic != 0 {
                 error!(
-                    "Invalid magic number at offset {} expected 0x{:x} got 0x{:x}",
+                    "Invalid magic number at offset {} expected {:#x} got {:#x}",
                     self.next_section, SECTION_MAGIC, magic
                 );
             }
@@ -174,7 +184,7 @@ impl<'a> BundleImage<'a> {
             fsize: u32::from_be_bytes(raw_data[28..32].try_into().unwrap()) as usize,
             msize: u32::from_be_bytes(raw_data[32..36].try_into().unwrap()) as usize,
             align: u32::from_be_bytes(raw_data[36..40].try_into().unwrap()) as usize,
-            // pad [40..44]
+            ftype: u32::from_be_bytes(raw_data[40..44].try_into().unwrap()),
             crc32: u32::from_be_bytes(raw_data[44..48].try_into().unwrap()) as usize,
         };
         if (hdr.flags & SECTION_ENTRYPOINT) != 0 {

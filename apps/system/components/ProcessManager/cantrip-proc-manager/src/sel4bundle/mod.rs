@@ -371,6 +371,7 @@ impl seL4BundleImpl {
         let mut image = BundleImage::new(bundle_frames);
         while let Some(section) = image.next_section() {
             trace!("preprocess {:?}", &section);
+            assert!(section.is_application());
             let vaddr = section.vaddr;
             if vaddr < first_vaddr {
                 first_vaddr = vaddr;
