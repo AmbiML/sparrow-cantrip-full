@@ -92,6 +92,11 @@ assembly {
     }
 
     configuration {
+        // Physical address where the cpio archive of builtin applications
+        // is to be found. The archive is blindly "splat" into the qemu
+        // memory image by build/platforms/rpi3/sim.mk using this address.
+        // Any unused memory block can be used (beware of conflicting with
+        // memory-mapped devices).
         cpio.cpio_paddr = CPIO_BASE_ADDR;
         cpio.cpio_size = CPIO_SIZE_BYTES;
 

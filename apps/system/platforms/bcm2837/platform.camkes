@@ -19,5 +19,6 @@
 
 // CPIO archive of builtin objects; this is present on platforms
 // where the Security Core does not control access to the flash.
-#define CPIO_BASE_ADDR   0x20000000    // Physical base address of archive
-#define CPIO_SIZE_BYTES  0x1000000     // Size (bytes) reserved for archive
+#define CPIO_BASE_ADDR   0x20000000    // 512M for raspi3b
+//#define CPIO_BASE_ADDR   0x10000000    // 256M for raspi3pa
+#define CPIO_SIZE_BYTES  0x1000000     // 16M
