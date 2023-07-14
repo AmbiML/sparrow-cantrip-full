@@ -16,13 +16,17 @@ cmake_minimum_required(VERSION 3.7.2)
 
 project(system Rust)
 
+# NB: enable platform-specific components (for now they are all global)
 CAmkESAddImportPath(
     components
     platforms/${KernelPlatform}/components
     interfaces
     platforms/${KernelPlatform}/interfaces
 )
+# Set cpp include path to find platform configuration
+CAmkESAddCPPInclude(${CMAKE_CURRENT_LIST_DIR}/platforms/${KernelPlatform})
 
+# TODO(sleffler): can remove once cantripRPCCallSignal stops using global-endpoint
 includeGlobalComponents()
 include(${CMAKE_CURRENT_LIST_DIR}/rust.cmake)
 

@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "platform.camkes"
+
 import <std_connector.camkes>;
-import <global-connectors.camkes>;
 
 import <DebugConsole/DebugConsole.camkes>;
 import <ProcessManager/ProcessManager.camkes>;
@@ -23,7 +24,7 @@ import <SDKRuntime/SDKRuntime.camkes>;
 
 component BuiltinCpioArchive {
     hardware;
-    dataport Buf(0x1000000) cpio;
+    dataport Buf(CPIO_SIZE_BYTES) cpio;
 }
 
 assembly {
@@ -91,8 +92,8 @@ assembly {
     }
 
     configuration {
-        cpio.cpio_paddr = 0x20000000; // 512M
-        cpio.cpio_size = 0x1000000;
+        cpio.cpio_paddr = CPIO_BASE_ADDR;
+        cpio.cpio_size = CPIO_SIZE_BYTES;
 
         // TODO(sleffler): temp stack bumps until code is fixed
         memory_manager._stack_size = 32*1024; // 2x stack for pre_init work

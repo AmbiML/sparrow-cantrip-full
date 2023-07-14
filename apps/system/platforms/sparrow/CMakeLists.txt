@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# NB: needed so platform.camkes can include top_matcha_memory.h  & co
+CAmkESAddCPPInclude(../top_matcha)
+
 RustAddLibrary(
   cantrip_ml_coordinator
   SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/../../components/MlCoordinator

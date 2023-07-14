@@ -12,14 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "platform.camkes"
+
 import <std_connector.camkes>;
-import <global-connectors.camkes>;
 
 import <UARTDriver/UARTDriver.camkes>;
 import <DebugConsole/DebugConsole.camkes>;
 import <ProcessManager/ProcessManager.camkes>;
-import <MlCoordinator/MlCoordinator.camkes>;
 import <MemoryManager/MemoryManager.camkes>;
+import <MlCoordinator/MlCoordinator.camkes>;
 import <SecurityCoordinator/SecurityCoordinator.camkes>;
 import <TimerService/TimerService.camkes>;
 import <MailboxDriver/MailboxDriver.camkes>;
@@ -44,9 +45,7 @@ component OpenTitanTimer {
 component VectorCoreHw {
     hardware;
     dataport Buf CSR;
-    // TODO(jesionowski): Export TCM_SIZE in cbindgen.
-    dataport Buf(0x1000000) TCM;  // Springbok
-//    dataport Buf(0x400000) TCM;  // Kelvin
+    dataport Buf(TOP_MATCHA_ML_TOP_DMEM_SIZE_BYTES) TCM;
 
     emits Interrupt host_req;
     emits Interrupt finish;
@@ -56,8 +55,7 @@ component VectorCoreHw {
 
 component BuiltinCpioArchive {
     hardware;
-    // NB: should match cpio.cpio_size below
-    dataport Buf(0x1000000) cpio;
+    dataport Buf(CPIO_SIZE_BYTES) cpio;
 }
 
 component MailboxHardware {
@@ -213,43 +211,36 @@ assembly {
         // (likely with a different filesystem format).
         // TODO(sleffler): SC eFLASH is @0x20000000 and not visible in SMC
         //    address space so does it matter where we place this?
-        cpio.cpio_paddr = 0x46000000;
-        cpio.cpio_size = 0x1000000;
+        cpio.cpio_paddr = CPIO_BASE_ADDR;
+        cpio.cpio_size = CPIO_SIZE_BYTES;
 
-        mailbox_hardware.mmio_paddr = 0x540F1000;
-        mailbox_hardware.mmio_size  = 0x00001000;
-        mailbox_hardware.wtirq_irq_number = 10; // kTopMatchaPlicIrqIdMailboxSmcWtirq
-        mailbox_hardware.rtirq_irq_number = 11; // kTopMatchaPlicIrqIdMailboxSmcRtirq
-        mailbox_hardware.eirq_irq_number = 12;  // kTopMatchaPlicIrqIdMailboxSmcEirq
+        mailbox_hardware.mmio_paddr = TOP_MATCHA_TLUL_MAILBOX_SMC_BASE_ADDR;
+        mailbox_hardware.mmio_size = TOP_MATCHA_TLUL_MAILBOX_SMC_SIZE_BYTES;
+        mailbox_hardware.wtirq_irq_number = TOP_MATCHA_PLIC_IRQ_ID_TLUL_MAILBOX_SMC_WTIRQ;
+        mailbox_hardware.rtirq_irq_number = TOP_MATCHA_PLIC_IRQ_ID_TLUL_MAILBOX_SMC_RTIRQ;
+        mailbox_hardware.eirq_irq_number = TOP_MATCHA_PLIC_IRQ_ID_TLUL_MAILBOX_SMC_EIRQ;
 
         mailbox_driver.rx_semaphore_value = 0;
 
-        uart.mmio_region_paddr = 0x50000000;
-        uart.mmio_region_size = 0x1000;
-        uart.tx_watermark_irq_number = 1;
-        uart.rx_watermark_irq_number = 2;
-        uart.tx_empty_irq_number = 3;
+        uart.mmio_region_paddr = TOP_MATCHA_SMC_UART_BASE_ADDR;
+        uart.mmio_region_size = TOP_MATCHA_SMC_UART_SIZE_BYTES;
+        uart.tx_watermark_irq_number = TOP_MATCHA_PLIC_IRQ_ID_SMC_UART_TX_WATERMARK;
+        uart.rx_watermark_irq_number = TOP_MATCHA_PLIC_IRQ_ID_SMC_UART_RX_WATERMARK;
+        uart.tx_empty_irq_number = TOP_MATCHA_PLIC_IRQ_ID_SMC_UART_TX_EMPTY;
 
-//        vctop.CSR_paddr = 0x5C000000;  // Kelvin
-//        vctop.CSR_size = 0x1000;       // Kelvin
-//        vctop.TCM_paddr = 0x5A000000;  // Kelvin
-//        vctop.TCM_size = 0x400000;     // Kelvin
+        vctop.CSR_paddr = TOP_MATCHA_ML_TOP_CORE_BASE_ADDR;
+        vctop.CSR_size = TOP_MATCHA_ML_TOP_CORE_SIZE_BYTES;
+        vctop.TCM_paddr = TOP_MATCHA_ML_TOP_DMEM_BASE_ADDR;
+        vctop.TCM_size = TOP_MATCHA_ML_TOP_DMEM_SIZE_BYTES;
 
-        vctop.CSR_paddr = 0x47000000;  // Springbok
-        vctop.CSR_size = 0x1000;       // Springbok
-        vctop.TCM_paddr = 0x34000000;  // Springbok
-        vctop.TCM_size = 0x1000000;    // Springbok
+        vctop.host_req_irq_number = TOP_MATCHA_PLIC_IRQ_ID_ML_TOP_HOST_REQ;
+        vctop.finish_irq_number = TOP_MATCHA_PLIC_IRQ_ID_ML_TOP_FINISH;
+        vctop.instruction_fault_irq_number = TOP_MATCHA_PLIC_IRQ_ID_ML_TOP_FAULT;
+        vctop.data_fault_irq_number = TOP_MATCHA_PLIC_IRQ_ID_ML_TOP_DATA_FAULT;
 
-        vctop.host_req_irq_number = 13;          // kTopMatchaPlicIrqIdVcTopHostReq @ top_matcha.h
-        vctop.finish_irq_number = 14;            // kTopMatchaPlicIrqIdVcTopFinish @ top_matcha.h
-        vctop.instruction_fault_irq_number = 15; // kTopMatchaPlicIrqIdVcTopInstructionFault @ top_matcha.h
-        vctop.data_fault_irq_number = 16;        // kTopMatchaPlicIrqIdVcTopDataFault @ top_matcha.h
-
-        timer.csr_paddr = 0x50030000;
-        timer.csr_size = 0x1000;
-
-        // Placeholder interrupt number, not represented in top_matcha.h.
-        timer.timer_interrupt_irq_number = 31;
+        timer.csr_paddr = TOP_MATCHA_RV_TIMER_SMC2_BASE_ADDR;
+        timer.csr_size = TOP_MATCHA_RV_TIMER_SMC2_SIZE_BYTES;
+        timer.timer_interrupt_irq_number = TOP_MATCHA_PLIC_IRQ_ID_RV_TIMER_SMC2_TIMER_EXPIRED_HART0_TIMER0;
 
         random.ID = 1;
 

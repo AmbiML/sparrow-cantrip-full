@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "platform.camkes"
+
 import <LoggerInterface.camkes>;
 import <MemoryInterface.camkes>;
 import <MlCoordinatorInterface.camkes>;
@@ -30,8 +32,7 @@ component MlCoordinator {
   attribute int irq_has_thread = false;
 
   dataport Buf CSR;
-  dataport Buf(0x1000000) TCM; // Springbok
-//  dataport Buf(0x400000) TCM; // Kelvin
+  dataport Buf(TOP_MATCHA_ML_TOP_DMEM_SIZE_BYTES) TCM;
 
   maybe uses LoggerInterface logger;
   uses MemoryInterface memory;

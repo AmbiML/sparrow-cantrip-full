@@ -1,0 +1,56 @@
+// Copyright 2022 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Platform definitions shared across multiple camkes specifications.
+// This file is #include'd by cpp so must include only cpp constructs
+// that will be elided--in practice this means: comments, #define's,
+// and #conditionals.
+
+#define __ASSEMBLER__
+//NB:  pre-Nexus settings hardcode below so no reason to include top_matcha_smc_irq.h
+#include "sw/autogen/top_matcha_memory.h"
+
+// CPIO archive of builtin objects; this is present on platforms
+// where the Security Core does not control access to the flash.
+#define CPIO_BASE_ADDR   0x46000000    // Physical base address of archive
+#define CPIO_SIZE_BYTES  0x1000000     // Size (bytes) reserved for archive
+
+// Springbok Vector Core (override Kelvin defs in top_matcha_memory.h)
+#undef TOP_MATCHA_ML_TOP_CORE_BASE_ADDR
+#define TOP_MATCHA_ML_TOP_CORE_BASE_ADDR 0x47000000
+#undef TOP_MATCHA_ML_TOP_DMEM_BASE_ADDR
+#define TOP_MATCHA_ML_TOP_DMEM_BASE_ADDR 0x34000000
+#undef TOP_MATCHA_ML_TOP_DMEM_SIZE_BYTES
+#define TOP_MATCHA_ML_TOP_DMEM_SIZE_BYTES 0x1000000 // 16MB
+
+// User space timer (override Nexus defs in top_matcha_memory.h)
+#undef TOP_MATCHA_RV_TIMER_SMC2_BASE_ADDR
+#define TOP_MATCHA_RV_TIMER_SMC2_BASE_ADDR 0x50030000
+
+// UART (override Nexus defs in top_matcha_memory.h)
+#undef TOP_MATCHA_SMC_UART_BASE_ADDR
+#define TOP_MATCHA_SMC_UART_BASE_ADDR 0x50000000
+
+// IRQ assignments; pre-Nexus settings hardcoded here
+#define TOP_MATCHA_PLIC_IRQ_ID_SMC_UART_TX_WATERMARK 1
+#define TOP_MATCHA_PLIC_IRQ_ID_SMC_UART_RX_WATERMARK 2
+#define TOP_MATCHA_PLIC_IRQ_ID_SMC_UART_TX_EMPTY 3
+#define TOP_MATCHA_PLIC_IRQ_ID_TLUL_MAILBOX_SMC_WTIRQ 10
+#define TOP_MATCHA_PLIC_IRQ_ID_TLUL_MAILBOX_SMC_RTIRQ 11
+#define TOP_MATCHA_PLIC_IRQ_ID_TLUL_MAILBOX_SMC_EIRQ 12
+#define TOP_MATCHA_PLIC_IRQ_ID_ML_TOP_HOST_REQ 13
+#define TOP_MATCHA_PLIC_IRQ_ID_ML_TOP_FINISH 14
+#define TOP_MATCHA_PLIC_IRQ_ID_ML_TOP_FAULT 15
+#define TOP_MATCHA_PLIC_IRQ_ID_ML_TOP_DATA_FAULT 16
+#define TOP_MATCHA_PLIC_IRQ_ID_RV_TIMER_SMC2_TIMER_EXPIRED_HART0_TIMER0 31
