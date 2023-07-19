@@ -19,3 +19,13 @@ pub mod uart {
 pub mod vc_top {
     include!(concat!(env!("OUT_DIR"), "/vc_top.rs"));
 }
+
+#[cfg(feature = "CONFIG_PLAT_SPARROW")]
+pub mod platform {
+    include!("plat_sparrow.rs");
+}
+
+#[cfg(feature = "CONFIG_PLAT_NEXUS")]
+pub mod platform {
+    include!("plat_nexus.rs");
+}

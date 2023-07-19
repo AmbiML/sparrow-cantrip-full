@@ -25,4 +25,4 @@ cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-proc-interface = { path = "../../ProcessManager/cantrip-proc-interface" }
 log = { version = "0.4", features = ["release_max_level_info"] }
 modular-bitfield = "0.11.2"
-reg_constants = { path = "../../cantrip-os-common/src/reg_constants" }
+reg_constants = { path = "../../cantrip-os-common/src/reg_constants", features = ["CONFIG_PLAT_SPARROW"] }

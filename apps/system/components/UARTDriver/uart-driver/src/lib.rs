@@ -38,12 +38,8 @@ use sel4_sys::seL4_PageBits;
 use circular_buffer::Buffer;
 
 // Frequency of the primary clock clk_i.
-//
-// TODO: OpenTitan actually specifies 24Mhz, but using that results
-// in Renode reporting double the expected BaudRate.
-//
 // https://docs.opentitan.org/hw/ip/clkmgr/doc/
-const CLK_FIXED_FREQ_HZ: u64 = 48_000_000;
+use reg_constants::platform::TOP_MATCHA_SMC_UART_CLOCK_FREQ_PERIPHERAL_HZ as CLK_FIXED_FREQ_HZ;
 
 // The TX/RX Fifo capacity mentioned in the programming guide.
 const UART_FIFO_CAPACITY: u32 = 32;

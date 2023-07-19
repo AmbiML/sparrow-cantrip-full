@@ -23,9 +23,10 @@ use opentitan_timer::*;
 use cantrip_timer_interface::{HardwareTimer, Ticks};
 use core::time::Duration;
 
-// TODO(jesionowski): Grab frequency from top_matcha.h.
-const TIMER_BASE_FREQ: u32 = 24_000_000;
-const TIMER_FREQ: u32 = 10_000;
+// Primary clock frequency.
+use reg_constants::platform::TOP_MATCHA_SMC_TIMER0_BASE_FREQ_HZ as TIMER_BASE_FREQ;
+
+const TIMER_FREQ: u64 = 10_000;
 const PRESCALE: u16 = ((TIMER_BASE_FREQ / TIMER_FREQ) - 1) as u16;
 
 pub struct OtTimer;
@@ -53,7 +54,7 @@ impl HardwareTimer for OtTimer {
     }
 
     fn deadline(&self, duration: Duration) -> Ticks {
-        let tick_duration = (TIMER_FREQ as u64 * duration.as_millis() as u64) / 1000;
+        let tick_duration = (TIMER_FREQ * duration.as_millis() as u64) / 1000;
         self.now() + tick_duration
     }
 

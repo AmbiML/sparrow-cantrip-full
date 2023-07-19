@@ -22,8 +22,8 @@ sel4-config = { path = "../../cantrip-os-common/src/sel4-config" }
 
 [features]
 CONFIG_PLAT_BCM2837 = []
-CONFIG_PLAT_SPARROW = ["opentitan-timer"]
-CONFIG_PLAT_NEXUS = ["opentitan-timer"]
+CONFIG_PLAT_NEXUS = ["opentitan-timer/CONFIG_PLAT_NEXUS"]
+CONFIG_PLAT_SPARROW = ["opentitan-timer/CONFIG_PLAT_SPARROW"]
 CONFIG_DEBUG_BUILD = []
 
 [dependencies]

@@ -17,6 +17,10 @@ name = "opentitan-timer"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+CONFIG_PLAT_NEXUS = ["reg_constants/CONFIG_PLAT_NEXUS"]
+CONFIG_PLAT_SPARROW = ["reg_constants/CONFIG_PLAT_SPARROW"]
+
 [dependencies]
 cantrip-timer-interface = { path = "../cantrip-timer-interface" }
 modular-bitfield = "0.11.2"

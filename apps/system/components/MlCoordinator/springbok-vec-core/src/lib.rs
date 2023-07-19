@@ -45,13 +45,13 @@ pub const MAX_MODELS: usize = 32;
 /// The size of the Vector Core's Tightly Coupled Memory (TCM).
 /// NB: this must match the MMIO region size specified to CAmkES by
 ///     TCM_size in MlCoordinator.camkes & system.camkes
-pub const TCM_SIZE: usize = 0x1000000;
+pub use reg_constants::platform::TOP_MATCHA_VC_TOP_DMEM_SIZE_BYTES as TCM_SIZE;
 
 /// The address of the Vector Core's TCM, viewed from the SMC.
 /// NB: this is only used to calculate offsets into the MMIO region specified
 ///     to CAmkES; it is best to match TCM_paddr in MlCoordinator.camkes &
 ///     system.camkes but in theory a mismatch should not matter
-pub const TCM_PADDR: usize = 0x34000000;
+pub use reg_constants::platform::TOP_MATCHA_VC_TOP_DMEM_BASE_ADDR as TCM_PADDR;
 
 // The virtualized address of each WMMU section (see: go/sparrow-vc-memory).
 pub const TEXT_VADDR: usize = 0x80000000;

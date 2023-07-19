@@ -22,8 +22,8 @@ sel4-config = { path = "../../cantrip-os-common/src/sel4-config" }
 
 [features]
 CONFIG_DEBUG_BUILD = []
-CONFIG_PLAT_SPARROW = []
-CONFIG_PLAT_NEXUS = []
+CONFIG_PLAT_NEXUS = ["reg_constants/CONFIG_PLAT_NEXUS"]
+CONFIG_PLAT_SPARROW = ["reg_constants/CONFIG_PLAT_SPARROW"]
 
 [dependencies]
 cantrip-os-common = { path = "../../cantrip-os-common" }

@@ -44,15 +44,13 @@ pub const WMMU_PAGE_SIZE: usize = 8;
 /// The size of the Vector Core's Tightly Coupled Memory (TCM).
 /// NB: this must match the MMIO region size specified to CAmkES by
 ///     TCM_size in MlCoordinator.camkes & system.camkes
-// XXX get from hjson
-pub const TCM_SIZE: usize = 0x400000;
+pub use reg_constants::platform::TOP_MATCHA_ML_TOP_DMEM_SIZE_BYTES as TCM_SIZE;
 
 /// The address of the Vector Core's TCM, viewed from the SMC.
 /// NB: this is only used to calculate offsets into the MMIO region specified
 ///     to CAmkES; it is best to match TCM_paddr in MlCoordinator.camkes &
 ///     system.camkes but in theory a mismatch should not matter
-// XXX get from hjson
-pub const TCM_PADDR: usize = 0x5A000000;
+pub use reg_constants::platform::TOP_MATCHA_ML_TOP_DMEM_BASE_ADDR as TCM_PADDR;
 
 pub fn debug_state() {
     info!(target: "KELVIN", "TCM {} @ {:#X}", TCM_SIZE, TCM_PADDR);
