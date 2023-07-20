@@ -65,22 +65,15 @@ impl CamkesThreadInterface for ProcessManagerControlThread {
     }
 }
 
-// TODO(sleffler): 0 is valid
-static mut PKG_MGMT_RECV_SLOT: seL4_CPtr = 0;
-
 type PkgMgmtResult = Result<Option<seL4_CPtr>, ProcessManagerError>;
 
 struct PkgMgmtInterfaceThread;
 impl CamkesThreadInterface for PkgMgmtInterfaceThread {
-    fn init() {
-        unsafe {
-            PKG_MGMT_RECV_SLOT = CSpaceSlot::new().release();
-        }
-    }
     fn run() {
+        let recv_slot: seL4_CPtr = CSpaceSlot::new().release();
         rpc_shared_recv_with_caps!(
             pkg_mgmt,
-            PKG_MGMT_RECV_SLOT,
+            recv_slot,
             PKG_MGMT_REQUEST_DATA_SIZE,
             ProcessManagerError::Success
         );
