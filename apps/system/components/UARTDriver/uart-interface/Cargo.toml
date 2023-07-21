@@ -20,6 +20,7 @@ edition = "2021"
 [features]
 CONFIG_DEBUG_BUILD = []
 CONFIG_PLAT_SPARROW = []
+CONFIG_PLAT_NEXUS = []
 
 [dependencies]
 cantrip-os-common = { path = "../../cantrip-os-common" }

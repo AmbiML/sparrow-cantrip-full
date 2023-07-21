@@ -25,6 +25,7 @@ sel4-config = { path = "../../cantrip-os-common/src/sel4-config" }
 CONFIG_KERNEL_MCS = []
 CONFIG_PLAT_BCM2837 = []
 CONFIG_PLAT_SPARROW = []
+CONFIG_PLAT_NEXUS = []
 CONFIG_DEBUG_BUILD = []
 
 [dependencies]

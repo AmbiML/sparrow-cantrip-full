@@ -27,6 +27,7 @@ timer_support = ["cantrip-timer-interface"]
 ml_support = ["cantrip-ml-interface"]
 # Target platform support
 CONFIG_PLAT_SPARROW = ["timer_support", "ml_support"]
+CONFIG_PLAT_NEXUS = ["timer_support", "ml_support"]
 
 
 [dependencies]

@@ -1,0 +1,1 @@
+../shodan/easy-settings.cmake

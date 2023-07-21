@@ -43,10 +43,10 @@ fn cantrip_timer() -> impl TimerInterface {
         CantripTimerService::empty();
     let mut manager = CANTRIP_TIMER.get();
     if manager.is_empty() {
-        #[cfg(feature = "CONFIG_PLAT_SPARROW")]
+        #[cfg(feature = "opentitan-timer")]
         manager.init(opentitan_timer::OtTimer);
 
-        #[cfg(not(feature = "CONFIG_PLAT_SPARROW"))]
+        #[cfg(not(feature = "opentitan-timer"))]
         panic!("TimerService enabled without hardware timer support!");
     }
     manager

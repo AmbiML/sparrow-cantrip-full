@@ -28,11 +28,13 @@ default = [
     "autostart_support",
 ]
 autostart_support = []
+interactive_shell = []
 CONFIG_DEBUG_BUILD = []
 CONFIG_PRINTING = []
 # Target platform support
 CONFIG_PLAT_BCM2837 = []
-CONFIG_PLAT_SPARROW = ["cantrip-uart-client"]
+CONFIG_PLAT_SPARROW = ["cantrip-uart-client", "interactive_shell"]
+CONFIG_PLAT_NEXUS = ["cantrip-uart-client", "interactive_shell"]
 # Log level is Info unless LOG_DEBUG or LOG_TRACE are specified
 LOG_DEBUG = []
 LOG_TRACE = []

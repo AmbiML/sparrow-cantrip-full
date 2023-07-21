@@ -70,7 +70,7 @@ impl CamkesThreadInterface for DebugConsoleControlThread {
         #[cfg(feature = "autostart_support")]
         run_autostart_shell();
 
-        #[cfg(feature = "CONFIG_PLAT_SPARROW")]
+        #[cfg(feature = "interactive_shell")]
         run_sparrow_shell();
     }
 }
@@ -143,10 +143,10 @@ impl io::Write for Tx {
 // Returns a trait-compatible Tx based on the selected features.
 // NB: must use "return expr;" to avoid confusing the compiler.
 fn get_tx() -> impl io::Write {
-    #[cfg(feature = "CONFIG_PLAT_SPARROW")]
+    #[cfg(feature = "interactive_shell")]
     return cantrip_uart_client::Tx::new();
 
-    #[cfg(not(feature = "CONFIG_PLAT_SPARROW"))]
+    #[cfg(not(feature = "interactive_shell"))]
     return Tx::new();
 }
 
@@ -162,7 +162,7 @@ fn run_autostart_shell() {
 }
 
 // Runs an interactive shell using the Sparrow UART.
-#[cfg(feature = "CONFIG_PLAT_SPARROW")]
+#[cfg(feature = "interactive_shell")]
 fn run_sparrow_shell() -> ! {
     let mut tx = cantrip_uart_client::Tx::new();
     let mut rx = io::BufReader::new(cantrip_uart_client::Rx::new());

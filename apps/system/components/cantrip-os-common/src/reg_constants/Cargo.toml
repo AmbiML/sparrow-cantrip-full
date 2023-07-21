@@ -5,6 +5,7 @@ edition = "2021"
 
 [features]
 CONFIG_PLAT_SPARROW = []
+CONFIG_PLAT_NEXUS = []
 
 [build-dependencies]
 regtool = { path = "../../../../../../../../../hw/opentitan-upstream/util/regtool" }

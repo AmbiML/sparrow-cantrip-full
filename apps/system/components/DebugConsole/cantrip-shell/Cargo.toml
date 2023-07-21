@@ -44,6 +44,13 @@ CONFIG_PLAT_SPARROW = [
     "TEST_TIMER_SERVICE",
     "TEST_MAILBOX",
 ]
+CONFIG_PLAT_NEXUS = [
+    "ml_support",
+    "TEST_ML_COORDINATOR",
+    "timer_support",
+    "TEST_TIMER_SERVICE",
+    "TEST_MAILBOX",
+]
 # Commands that are likely not useful
 FRINGE_CMDS = ["zmodem"]
 # Runtime tests for various services (please keep sorted)
