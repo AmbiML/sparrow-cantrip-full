@@ -28,3 +28,8 @@
 #define CPIO_BASE_ADDR   0x50380000    // Physical base address of archive
 #define CPIO_SIZE_BYTES  0x80000       // Size (bytes) reserved for archive
 
+// Debug build config (must be manually enabled).
+// NB: use the same setup as sparrow since debug builds only run on Renode
+//     (so the cpio archive can go anywhere)
+//#define CPIO_BASE_ADDR   0x46000000    // Debug build
+//#define CPIO_SIZE_BYTES  0x1000000     // Debug build
