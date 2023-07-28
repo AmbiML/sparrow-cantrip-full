@@ -15,7 +15,6 @@ pub fn main() {
     static mut HEAP: [u8; 4096] = [0; 4096];
     sdk_init(unsafe { &mut HEAP });
 
-    const MODEL_ID: &str = "mobilenet_v1_emitc_static.model";
     const NONEXISTENT_ID: &str = "nonexistent";
     //    info!(
     //        "sdk_model_cancel returned {:?} with nothing running",
@@ -27,21 +26,31 @@ pub fn main() {
         sdk_model_oneshot(NONEXISTENT_ID),
     );
 
-    let _ = match sdk_model_oneshot(MODEL_ID) {
+    // Probe for a model.
+    let model_id: &str = [
+        "conv1x1_test_emitc_static.kelvin",
+        "hello_world.kelvin",
+        "mobilenet_v1_emitc_static.model",
+    ]
+    .iter()
+    .find(|model| match sdk_model_oneshot(model) {
         Ok(id) => {
-            info!("{} started, id {}", MODEL_ID, id);
+            info!("{} started, id {}", model, id);
             match sdk_model_wait() {
-                Ok(_) => info!("{} completed", MODEL_ID),
+                Ok(_) => info!("{} completed", model),
                 Err(e) => error!("sdk_model_wait failed: {:?}", e),
             }
+            true
         }
-        Err(e) => error!("sdk_model_oneshot({}) failed: {:?}", MODEL_ID, e),
-    };
+        Err(_) => false,
+    })
+    .or(Some(&NONEXISTENT_ID))
+    .unwrap();
 
     const DURATION: TimerDuration = 1000; // 1s
-    match sdk_model_periodic(MODEL_ID, DURATION) {
+    match sdk_model_periodic(model_id, DURATION) {
         Ok(id) => {
-            let _ = info!("Model {} started, id {}", MODEL_ID, id);
+            let _ = info!("Model {} started, id {}", model_id, id);
             let mut ms: TimerDuration = 0;
             for _ in 0..10 {
                 let mask = sdk_model_wait().unwrap();
@@ -56,7 +65,7 @@ pub fn main() {
             info!("Model {} canceled", id);
         }
         Err(e) => {
-            error!("sdk_model_periodic({}) failed: {:?}", MODEL_ID, e);
+            error!("sdk_model_periodic({}) failed: {:?}", model_id, e);
         }
     }
     info!("DONE!");
