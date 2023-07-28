@@ -25,10 +25,19 @@ fi
 
 # TODO(sleffler): Replace the following with `make -C ${ROOTDIR}/build cantrip-clippy`
 RUST_TARGET=${RUST_TARGET:-riscv32imac-unknown-none-elf}
-CONFIG_PLATFORM=${CONFIG_PLATFORM:-CONFIG_PLAT_SPARROW}
-export CANTRIP_TARGET_ARCH=${CANTRIP_TARGET_ARCH:-"riscv32-unknown-elf"}
+case "${PLATFORM}" in
+  sparrow)
+    CONFIG_PLATFORM=CONFIG_PLAT_SPARROW
+    ;;
+  nexus)
+    CONFIG_PLATFORM=CONFIG_PLAT_NEXUS
+    ;;
+  *)
+    echo "Unsupported platform ${PLATFORM}"
+    exit -1
+esac
 
-CANTRIP_OUT_DIR="${OUT}/cantrip/${CANTRIP_TARGET_ARCH}"
+CANTRIP_OUT_DIR="${OUT}/cantrip/${PLATFORM}"
 mkdir -p "${CANTRIP_OUT_DIR}/clippy"
 
 # HACK: sel4-config needs a path to the kernel build which could be
