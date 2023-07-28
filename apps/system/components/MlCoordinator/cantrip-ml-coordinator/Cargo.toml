@@ -19,7 +19,8 @@ authors = ["Adam Jesionowski <jesionowski@google.com>"]
 edition = "2021"
 
 [features]
-default = ["springbok_support"]
+CONFIG_PLAT_SPARROW = ["springbok_support"]
+CONFIG_PLAT_NEXUS = ["kelvin_support"]
 springbok_support = [
     "springbok-vec-core",
     "cantrip-ml-support/springbok_support",
