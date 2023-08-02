@@ -26,9 +26,11 @@ use cantrip_memory_interface::*;
 use cantrip_ml_interface::*;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_os_common::sel4_sys;
+use cantrip_proc_interface::cantrip_proc_ctrl_get_bundle_state;
 use cantrip_proc_interface::cantrip_proc_ctrl_get_running_bundles;
 use cantrip_proc_interface::cantrip_proc_ctrl_start;
 use cantrip_proc_interface::cantrip_proc_ctrl_stop;
+use cantrip_proc_interface::BundleState;
 use cantrip_security_interface::cantrip_security_delete_key;
 use cantrip_security_interface::cantrip_security_get_packages;
 use cantrip_security_interface::cantrip_security_load_application;
@@ -138,6 +140,7 @@ fn get_cmds() -> HashMap<&'static str, CmdFn> {
         ("source", source_command as CmdFn),
         ("start", start_command as CmdFn),
         ("stop", stop_command as CmdFn),
+        ("status", status_command as CmdFn),
     ]);
     #[cfg(feature = "ml_support")]
     cmds.extend([("mldebug", state_mlcoord_command as CmdFn)]);
@@ -444,6 +447,29 @@ fn stop_command(
         }
         Err(status) => {
             writeln!(output, "stop failed: {:?}", status)?;
+        }
+    }
+    Ok(())
+}
+
+fn status_command(
+    args: &mut dyn Iterator<Item = &str>,
+    _input: &mut dyn io::BufRead,
+    output: &mut dyn io::Write,
+) -> Result<(), CommandError> {
+    let bundle_id = args.next().ok_or(CommandError::BadArgs)?;
+    match cantrip_proc_ctrl_get_bundle_state(bundle_id) {
+        Ok(state) => match state {
+            BundleState::Exited(code) => {
+                writeln!(output, "{}: Exited({:?})", bundle_id, code)?;
+            }
+
+            _ => {
+                writeln!(output, "{}: {:?}", bundle_id, state)?;
+            }
+        },
+        Err(status) => {
+            writeln!(output, "status failed: {:?}", status)?;
         }
     }
     Ok(())

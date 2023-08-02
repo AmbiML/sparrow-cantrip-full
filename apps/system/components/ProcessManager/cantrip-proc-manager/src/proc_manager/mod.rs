@@ -20,6 +20,7 @@ use alloc::string::String;
 use cantrip_memory_interface::ObjDescBundle;
 use cantrip_proc_interface::Bundle;
 use cantrip_proc_interface::BundleIdArray;
+use cantrip_proc_interface::BundleState;
 use cantrip_proc_interface::PackageManagementInterface;
 use cantrip_proc_interface::ProcessControlInterface;
 use cantrip_proc_interface::ProcessManagerError;
@@ -33,13 +34,6 @@ pub type BundleId = SmallString<[u8; DEFAULT_BUNDLE_ID_CAPACITY]>;
 
 // Bundle capacity before spillover to the heap.
 pub const DEFAULT_BUNDLES_CAPACITY: usize = 10;
-
-// Bundle state tracks start/stop operations.
-#[derive(Debug, Eq, PartialEq)]
-enum BundleState {
-    Stopped,
-    Running,
-}
 
 // We track the Bundle & ProcessControlInterface state.
 struct BundleData<T> {
@@ -145,7 +139,7 @@ impl<P: ProcessManagerInterface> ProcessControlInterface for ProcessManager<P> {
         match self.bundles.get_mut(&bid) {
             Some(bundle) => {
                 trace!("start state {:?}", bundle.state);
-                if bundle.state == BundleState::Stopped {
+                if bundle.state != BundleState::Running {
                     bundle.bundle_impl = Some(self.manager.start(&bundle.bundle)?);
                 }
                 bundle.state = BundleState::Running;
@@ -192,6 +186,17 @@ impl<P: ProcessManagerInterface> ProcessControlInterface for ProcessManager<P> {
             result.push(String::from(bundle_id.as_str()));
         }
         Ok(result)
+    }
+
+    fn get_bundle_state(&self, bundle_id: &str) -> Result<BundleState, ProcessManagerError> {
+        trace!("get_bundle_state");
+        let bid = BundleId::from_str(bundle_id);
+        if let Some(bundle) = self.bundles.get(&bid) {
+            Ok(bundle.state)
+        } else {
+            trace!("get_bundle_state {} not found", bundle_id);
+            Err(ProcessManagerError::BundleNotFound)
+        }
     }
 
     fn capscan(&self, bundle_id: &str) -> Result<(), ProcessManagerError> {

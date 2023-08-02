@@ -23,6 +23,7 @@ use cantrip_os_common::cspace_slot::CSpaceSlot;
 use cantrip_proc_interface::Bundle;
 use cantrip_proc_interface::BundleIdArray;
 use cantrip_proc_interface::BundleImplInterface;
+use cantrip_proc_interface::BundleState;
 use cantrip_proc_interface::PackageManagementInterface;
 use cantrip_proc_interface::ProcessControlInterface;
 use cantrip_proc_interface::ProcessManagerError;
@@ -106,6 +107,9 @@ impl ProcessControlInterface for Guard<'_> {
     }
     fn get_running_bundles(&self) -> Result<BundleIdArray, ProcessManagerError> {
         self.manager.as_ref().unwrap().get_running_bundles()
+    }
+    fn get_bundle_state(&self, bundle_id: &str) -> Result<BundleState, ProcessManagerError> {
+        self.manager.as_ref().unwrap().get_bundle_state(bundle_id)
     }
     fn capscan(&self, bundle_id: &str) -> Result<(), ProcessManagerError> {
         self.manager.as_ref().unwrap().capscan(bundle_id)

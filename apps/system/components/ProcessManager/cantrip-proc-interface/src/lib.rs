@@ -41,6 +41,25 @@ pub const PKG_MGMT_REQUEST_DATA_SIZE: usize = 2048;
 
 pub type BundleIdArray = Vec<String>;
 
+/// Bundle state tracks start/stop operations, and whether or not a Bundle has
+/// exited cleanly or was killed by way of a fault.
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub enum BundleState {
+    /// Bundle was never started (initial case), or it was an involuntary manual
+    /// termination caused by user or system control
+    #[default]
+    Stopped,
+
+    /// Bundle is currently running.
+    Running,
+
+    /// Voluntary bundle termination with a result code.
+    Exited(u8),
+
+    /// Involuntary bundle termination caused by an execution fault.
+    Faulted,
+}
+
 // Size of the data buffer used to pass a serialized BundleIdArray between Rust <> C.
 // The data structure size is bounded by the camkes ipc buffer (120 bytes!)
 // and also by it being allocated on the stack of the rpc glue code.
@@ -148,6 +167,7 @@ pub trait ProcessControlInterface {
     fn start(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError>;
     fn stop(&mut self, bundle_id: &str) -> Result<(), ProcessManagerError>;
     fn get_running_bundles(&self) -> Result<BundleIdArray, ProcessManagerError>;
+    fn get_bundle_state(&self, bundle_id: &str) -> Result<BundleState, ProcessManagerError>;
     fn capscan(&self, bundle_id: &str) -> Result<(), ProcessManagerError>;
 }
 
@@ -261,7 +281,8 @@ impl From<cstr_core::NulError> for ProcessManagerError {
 pub enum ProcessControlRequest<'a> {
     Start(&'a str),
     Stop(&'a str),
-    GetRunningBundles, // -> bundle_ids
+    GetRunningBundles,       // -> bundle_ids
+    GetBundleState(&'a str), // -> bundle_state
 
     CapScan,
     CapScanBundle(&'a str),
@@ -270,6 +291,11 @@ pub enum ProcessControlRequest<'a> {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GetRunningBundlesResponse {
     pub bundle_ids: BundleIdArray,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GetBundleStateResponse {
+    pub bundle_state: BundleState,
 }
 
 #[inline]
@@ -295,6 +321,14 @@ fn cantrip_proc_ctrl_request<T: DeserializeOwned>(
         }
         err => Err(err),
     }
+}
+
+#[inline]
+pub fn cantrip_proc_ctrl_get_bundle_state(
+    bundle_id: &str,
+) -> Result<BundleState, ProcessManagerError> {
+    cantrip_proc_ctrl_request(&ProcessControlRequest::GetBundleState(bundle_id))
+        .map(|reply: GetBundleStateResponse| reply.bundle_state)
 }
 
 #[inline]

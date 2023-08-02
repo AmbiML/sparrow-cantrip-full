@@ -166,6 +166,9 @@ impl ProcCtrlInterfaceThread {
             ProcessControlRequest::GetRunningBundles => {
                 Self::get_running_bundles_request(reply_buffer)
             }
+            ProcessControlRequest::GetBundleState(bundle_id) => {
+                Self::get_bundle_state_request(bundle_id, reply_buffer)
+            }
 
             ProcessControlRequest::CapScan => Self::capscan_request(),
             ProcessControlRequest::CapScanBundle(bundle_id) => {
@@ -188,6 +191,14 @@ impl ProcCtrlInterfaceThread {
         // contents are undefined (postcard does not specify).
         let reply_slice =
             postcard::to_slice(&GetRunningBundlesResponse { bundle_ids }, reply_buffer)
+                .or(Err(ProcessManagerError::DeserializeError))?;
+        Ok(reply_slice.len())
+    }
+    fn get_bundle_state_request(bundle_id: &str, reply_buffer: &mut [u8]) -> ProcCtrlResult {
+        // TODO(283265795): copy bundle_id from the IPCBuffer
+        let bundle_state = cantrip_proc().get_bundle_state(&String::from(bundle_id))?;
+        let reply_slice =
+            postcard::to_slice(&GetBundleStateResponse { bundle_state }, reply_buffer)
                 .or(Err(ProcessManagerError::DeserializeError))?;
         Ok(reply_slice.len())
     }
