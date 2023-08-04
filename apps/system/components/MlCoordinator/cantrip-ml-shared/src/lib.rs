@@ -97,11 +97,11 @@ bitflags::bitflags! {
 /// the return code, the address of the fault if the RC is non-zero, and the
 /// length of the output that follows.
 #[derive(Clone, Copy, Debug, Default)]
-#[repr(C)]
 pub struct OutputHeader {
     pub return_code: u32,
-    pub epc: u32,
+    pub output_ptr: Option<u32>, // Kelvin only, Springbok returns epc
     pub output_length: u32,
+    pub epc: Option<u32>, // Springbok only, undefined for Kelvin
 }
 
 pub fn round_up(a: usize, b: usize) -> usize {

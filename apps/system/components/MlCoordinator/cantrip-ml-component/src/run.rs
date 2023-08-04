@@ -21,6 +21,7 @@ use alloc::string::ToString;
 use cantrip_ml_coordinator::MLCoordinator;
 use cantrip_ml_coordinator::ModelIdx;
 use cantrip_ml_interface::CompleteJobsResponse;
+use cantrip_ml_interface::GetOutputResponse;
 use cantrip_ml_interface::MlCoordError;
 use cantrip_ml_interface::MlCoordRequest;
 use cantrip_ml_interface::MLCOORD_REQUEST_DATA_SIZE;
@@ -121,6 +122,10 @@ impl MlcoordInterfaceThread {
 
         match request {
             MlCoordRequest::CompletedJobs => Self::completed_jobs_request(reply_buffer),
+            MlCoordRequest::GetOutput {
+                bundle_id,
+                model_id,
+            } => Self::get_output_request(bundle_id, model_id, reply_buffer),
             MlCoordRequest::Oneshot {
                 bundle_id,
                 model_id,
@@ -142,6 +147,21 @@ impl MlcoordInterfaceThread {
     fn completed_jobs_request(reply_buffer: &mut [u8]) -> Result<usize, MlCoordError> {
         let job_mask = ML_COORD.lock().completed_jobs();
         let reply_slice = postcard::to_slice(&CompleteJobsResponse { job_mask }, reply_buffer)
+            .or(Err(MlCoordError::SerializeError))?;
+        Ok(reply_slice.len())
+    }
+
+    fn get_output_request(
+        bundle_id: &str,
+        model_id: &str,
+        reply_buffer: &mut [u8],
+    ) -> Result<usize, MlCoordError> {
+        let image_id = ImageId {
+            bundle_id: bundle_id.to_string(),
+            model_id: model_id.to_string(),
+        };
+        let output = ML_COORD.lock().get_output(&image_id)?;
+        let reply_slice = postcard::to_slice(&GetOutputResponse { output }, reply_buffer)
             .or(Err(MlCoordError::SerializeError))?;
         Ok(reply_slice.len())
     }

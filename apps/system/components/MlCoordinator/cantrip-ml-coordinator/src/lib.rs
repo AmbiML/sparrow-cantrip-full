@@ -30,6 +30,8 @@ extern crate alloc;
 use alloc::vec::Vec;
 use cantrip_memory_interface::cantrip_object_free_in_cnode;
 use cantrip_ml_interface::MlCoordError;
+use cantrip_ml_interface::MlOutput;
+use cantrip_ml_interface::MAX_OUTPUT_DATA;
 use cantrip_ml_shared::*;
 use cantrip_ml_support::image_manager::ImageManager;
 use cantrip_os_common::cspace_slot::CSpaceSlot;
@@ -37,7 +39,7 @@ use cantrip_os_common::sel4_sys::seL4_Word;
 use cantrip_proc_interface::BundleImage;
 use cantrip_security_interface::*;
 use cantrip_timer_interface::*;
-use log::{error, info, warn};
+use log::{error, info, trace, warn};
 
 #[cfg(feature = "kelvin_support")]
 use kelvin_vec_core as MlCore;
@@ -46,7 +48,7 @@ use springbok_vec_core as MlCore;
 
 use MlCore::MAX_MODELS;
 
-/// Represents a single loadable model.
+/// Loadable model.
 #[derive(Debug)]
 struct LoadableModel {
     id: ImageId,
@@ -54,6 +56,29 @@ struct LoadableModel {
     in_memory_sizes: ImageSizes,
     rate_in_ms: Option<u32>,
     client_id: seL4_Word,
+    jobnum: usize,
+    output_header: Option<OutputHeader>, // Output header from last run.
+    output_data: [u8; MAX_OUTPUT_DATA],  // Data returned from last run.
+}
+impl LoadableModel {
+    pub fn new(
+        id: ImageId,
+        on_flash_sizes: ImageSizes,
+        in_memory_sizes: ImageSizes,
+        rate_in_ms: Option<u32>,
+        client_id: seL4_Word,
+    ) -> Self {
+        Self {
+            id,
+            on_flash_sizes,
+            in_memory_sizes,
+            rate_in_ms,
+            client_id,
+            jobnum: 0,
+            output_header: None,
+            output_data: [0; MAX_OUTPUT_DATA],
+        }
+    }
 }
 
 /// Statistics on non-happy-path events.
@@ -78,6 +103,9 @@ pub struct MLCoordinator {
     /// The image manager is responsible for tracking, loading, and unloading
     /// images.
     image_manager: ImageManager,
+    /// Value associated with each model run.
+    /// Returned by get_output to distinguish returned data.
+    jobnum: usize,
     statistics: Statistics,
 }
 
@@ -94,6 +122,7 @@ impl MLCoordinator {
             execution_queue: Vec::new(),
             completed_job_mask: 0,
             image_manager: ImageManager::new(),
+            jobnum: 0,
             statistics: Statistics {
                 load_failures: 0,
                 already_queued: 0,
@@ -138,7 +167,7 @@ impl MLCoordinator {
         }
 
         let next_idx = self.execution_queue.remove(0);
-        let model = self.models[next_idx].as_ref().expect("Model get fail");
+        let model = self.models[next_idx].as_mut().expect("Model get fail");
 
         if !self.image_manager.is_loaded(&model.id) {
             // Loads |model_id| associated with |bundle_id| from the
@@ -195,6 +224,14 @@ impl MLCoordinator {
         #[cfg(feature = "springbok_support")]
         self.image_manager.set_wmmu(&model.id);
 
+        // Clear output state.
+        // TODO(sleffler): defer to give client more time to retrieve? (esp for periodic)
+        model.output_header = None;
+
+        // Assign run a new jobnum.
+        model.jobnum = self.jobnum;
+        self.jobnum = self.jobnum.wrapping_add(1);
+
         self.running_model = Some(model.id.clone());
         MlCore::run(); // Start core at default PC.
 
@@ -202,48 +239,60 @@ impl MLCoordinator {
     }
 
     pub fn handle_return_interrupt(&mut self) {
-        if let Some(image_id) = self.running_model.as_ref() {
-            if let Some(output_header) = self.image_manager.output_header(image_id) {
-                // TODO(jesionowski): Move the result from TCM to SRAM,
-                // update the input/model.
-
-                if output_header.return_code != 0 {
-                    // TODO(jesionowski): Signal the application that there was a failure.
-                    error!(
-                        "{} execution finished with code {}, fault pc: {:#010X}",
-                        &image_id, output_header.return_code, output_header.epc
-                    );
-                }
-            } else {
-                // This can happen during normal execution if mlcancel happens
-                // during an execution.
-                warn!("{} executable finished but image is not loaded.", &image_id);
-            }
-
-            // NB: an application that started the model may have unloaded
-            //   the image when stopping; just do nothing
-            if let Some(idx) = self.get_model_index(image_id) {
-                self.completed_job_mask |= 1 << idx;
-                unsafe {
-                    extern "Rust" {
-                        fn mlcoord_emit(badge: seL4_Word);
-                    }
-                    mlcoord_emit(self.models[idx].as_ref().unwrap().client_id);
-                }
-            }
-        } else {
-            error!("Unexpected return interrupt with no running model.")
-        }
-
+        trace!("Vector Core finish.");
+        self.process_return_interrupt();
         self.running_model = None;
-
-        // TODO(jesionowski): Signal the application that owns this model
-        // that there was a failure.
         if let Err(e) = self.schedule_next_model() {
             error!("Running next model failed with {:?}", e)
         }
-
+        // Clear/ack interrupt.
         MlCore::clear_finish();
+    }
+
+    fn process_return_interrupt(&mut self) -> Option<()> {
+        let image_id = self.running_model.as_ref().or_else(|| {
+            // Should not happen; always complain.
+            error!("Vector Core finish with no running model.");
+            None
+        })?;
+        // The image may not be loaded if the job was canceled; ignore.
+        let header = self.image_manager.output_header(image_id)?;
+        if header.epc.is_some() || header.return_code != 0 {
+            // Application is notified below and can ask for status
+            // to find return code and any other available info (e.g
+            // epc on Springbok).
+            error!("{} finished: {:?}", &image_id, &header);
+        }
+
+        // The app that started the model may have unloaded the image
+        // when stopping; ignore.
+        let idx = self.get_model_index(image_id)?;
+
+        // Save output header and any indirect data.
+        let model = self.models[idx].as_mut().unwrap();
+        model.output_header = Some(header);
+        model.output_data.fill(0);
+        if header.output_length != 0 {
+            trace!("{:#x?}", &header);
+            if let Some(output_ptr) = header.output_ptr {
+                MlCore::tcm_read(
+                    output_ptr as usize,
+                    header.output_length as usize,
+                    &mut model.output_data,
+                );
+                trace!("{:#x?}", &model.output_data);
+            }
+        }
+
+        // Mark the job completed and notify the client.
+        self.completed_job_mask |= 1 << idx;
+        unsafe {
+            extern "Rust" {
+                fn mlcoord_emit(badge: seL4_Word);
+            }
+            mlcoord_emit(model.client_id);
+        }
+        Some(())
     }
 
     // Sets up a loadable model for |id|, returning the index of that model.
@@ -263,13 +312,13 @@ impl MLCoordinator {
         let (on_flash_sizes, in_memory_sizes) =
             self.validate_image(&id).ok_or(MlCoordError::InvalidImage)?;
 
-        self.models[index] = Some(LoadableModel {
+        self.models[index] = Some(LoadableModel::new(
             id,
             on_flash_sizes,
             in_memory_sizes,
             rate_in_ms,
             client_id,
-        });
+        ));
 
         Ok(index)
     }
@@ -398,16 +447,28 @@ impl MLCoordinator {
         mask as u32
     }
 
+    pub fn get_output(&mut self, id: &ImageId) -> Result<MlOutput, MlCoordError> {
+        let idx = self.get_model_index(id).ok_or(MlCoordError::NoSuchModel)?;
+        let model = self.models[idx].as_mut().unwrap();
+        let header = model.output_header.ok_or(MlCoordError::NoOutputHeader)?;
+        Ok(MlOutput {
+            jobnum: model.jobnum,
+            return_code: header.return_code,
+            epc: header.epc,
+            data: model.output_data,
+        })
+    }
+
     pub fn handle_host_req_interrupt(&self) { MlCore::clear_host_req(); }
 
     pub fn handle_instruction_fault_interrupt(&self) {
-        error!("Instruction fault in Vector Core.");
         MlCore::clear_instruction_fault();
+        error!("Vector Core instruction fault.");
     }
 
     pub fn handle_data_fault_interrupt(&self) {
-        error!("Data fault in Vector Core.");
         MlCore::clear_data_fault();
+        error!("Vector Core data fault.");
     }
 
     fn ids_at(&self, idx: ModelIdx) -> (&str, &str) {

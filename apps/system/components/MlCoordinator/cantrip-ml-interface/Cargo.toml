@@ -23,3 +23,4 @@ log.workspace = true
 num_enum.workspace = true
 postcard.workspace = true
 serde.workspace = true
+serde-big-array = "0.3"

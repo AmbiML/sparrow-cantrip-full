@@ -29,6 +29,21 @@ use sel4_sys::seL4_Wait;
 pub type MlJobId = u32;
 pub type MlJobMask = u32;
 
+use serde_big_array::big_array;
+big_array! { BigArray; }
+
+// TODO(sleffler): too small for planned demo's
+pub const MAX_OUTPUT_DATA: usize = 64;
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MlOutput {
+    pub jobnum: usize, // unique value per model run
+    pub return_code: u32,
+    pub epc: Option<u32>, // NB: Springbok only
+    #[serde(with = "BigArray")]
+    pub data: [u8; MAX_OUTPUT_DATA],
+}
+
 /// Errors that can occur when interacting with the MlCoordinator.
 #[repr(usize)]
 #[derive(Debug, Default, Eq, PartialEq, FromPrimitive, IntoPrimitive)]
@@ -39,6 +54,7 @@ pub enum MlCoordError {
     LoadModelFailed,
     NoModelSlotsLeft,
     NoSuchModel,
+    NoOutputHeader,
     SerializeError,
     DeserializeError,
     #[default]
@@ -74,6 +90,13 @@ pub enum MlCoordRequest<'a> {
         model_id: &'a str,
     },
 
+    // Returns the relevant OutputHeader & and any indirect data.
+    GetOutput {
+        // -> MlOutput
+        bundle_id: &'a str,
+        model_id: &'a str,
+    },
+
     DebugState,
     Capscan,
 }
@@ -81,6 +104,11 @@ pub enum MlCoordRequest<'a> {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CompleteJobsResponse {
     pub job_mask: MlJobMask,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GetOutputResponse {
+    pub output: MlOutput,
 }
 
 pub const MLCOORD_REQUEST_DATA_SIZE: usize = 100;
@@ -138,6 +166,19 @@ pub fn cantrip_mlcoord_cancel(bundle_id: &str, model_id: &str) -> Result<(), MlC
 pub fn cantrip_mlcoord_completed_jobs() -> Result<MlJobMask, MlCoordError> {
     cantrip_mlcoord_request(&MlCoordRequest::CompletedJobs)
         .map(|reply: CompleteJobsResponse| reply.job_mask)
+}
+
+/// Returns the OutputHeader & indirect data for the specified job.
+#[inline]
+pub fn cantrip_mlcoord_get_output(
+    bundle_id: &str,
+    model_id: &str,
+) -> Result<MlOutput, MlCoordError> {
+    cantrip_mlcoord_request(&MlCoordRequest::GetOutput {
+        bundle_id,
+        model_id,
+    })
+    .map(|reply: GetOutputResponse| reply.output)
 }
 
 /// Waits for the next pending job for the client. If a job completes

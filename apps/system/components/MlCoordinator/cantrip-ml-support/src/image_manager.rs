@@ -267,9 +267,9 @@ impl ImageManager {
     /// Returns true if the image |id| is currently loaded in the TCM.
     pub fn is_loaded(&mut self, id: &ImageId) -> bool { self.get_image_index(id).is_some() }
 
-    /// Appends an (already written) image to internal book-keeping. The
-    /// actual write is done in the vector-core-specific support;
-    /// call commit_image must be called after.
+    /// Appends an (already written) image to internal book-keeping.
+    /// The actual write is done in the vector-core-specific support;
+    /// commit_image must be called after.
     pub fn commit_image(&mut self, id: ImageId, sizes: ImageSizes) {
         let image = Image {
             id,
@@ -290,8 +290,8 @@ impl ImageManager {
 
         self.set_tcm_bottom();
 
-        // If these pointers cross the memory is in an inconsistent state.
-        // (We shouldn't hit this unless our space calculations are wrong.)
+        // If these pointers cross the memory is in an inconsistent state
+        // (should not happen unless our space calculations are wrong).
         assert!(self.tcm_bottom >= self.tcm_top);
     }
 

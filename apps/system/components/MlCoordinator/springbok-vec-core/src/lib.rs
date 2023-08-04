@@ -23,8 +23,10 @@ mod vc_top;
 extern crate alloc;
 use cantrip_io::Read;
 use cantrip_ml_interface::MlCoordError;
+use cantrip_ml_interface::MAX_OUTPUT_DATA;
 use cantrip_ml_shared::*;
 use cantrip_proc_interface::BundleImage;
+use core::cmp;
 use core::mem::size_of;
 use log::{error, info, trace, warn};
 
@@ -165,7 +167,7 @@ fn write_image_part<R: Read>(
     let start = start_address - TCM_PADDR;
 
     trace!(
-        "Writing {:x} bytes to 0x{:x}, {:x} unpacked size",
+        "Writing {:x} bytes to {:#x}, {:#x} unpacked size",
         on_flash_size,
         start_address,
         in_memory_size
@@ -225,7 +227,7 @@ pub fn write_image(
     Ok(())
 }
 
-/// Move |src_index..src_index + byte_length| to
+/// Move |src..src + byte_length| to
 /// |dest_index..dest_index + byte_length|.
 pub fn tcm_move(src: usize, dest: usize, byte_length: usize) {
     trace!("Moving {:#x} bytes to {:#x} from {:#x}", byte_length, dest, src);
@@ -236,6 +238,23 @@ pub fn tcm_move(src: usize, dest: usize, byte_length: usize) {
     let count: usize = byte_length / size_of::<u32>();
 
     tcm_slice.copy_within(src_index..src_index + count, dest_index);
+}
+
+/// Copy |src..src + src_len| to |dest|.
+/// If |src| is out of range the copy is not done.
+/// if |src_len| extends past the end of TCM or |dest| is
+/// too small the copy is truncated to fit.
+pub fn tcm_read(src: usize, src_len: usize, dest: &mut [u8; MAX_OUTPUT_DATA]) {
+    trace!("Reading {:#x} bytes from {:#x}", src_len, src);
+
+    if !(TCM_PADDR <= src && src < TCM_PADDR + TCM_SIZE) {
+        trace!("Read skipped: invalid src address {:#x}", src);
+        return;
+    }
+    let tcm_offset = src - TCM_PADDR;
+    let count = cmp::min(cmp::min(src_len, TCM_SIZE - tcm_offset), dest.len());
+
+    dest[..count].copy_from_slice(unsafe { &get_tcm_mut()[tcm_offset..tcm_offset + count] });
 }
 
 // Interrupts are write 1 to clear.
@@ -260,7 +279,7 @@ pub fn clear_tcm(addr: usize, byte_length: usize) {
     assert!(addr >= TCM_PADDR);
     assert!(addr + byte_length <= TCM_PADDR + TCM_SIZE);
 
-    trace!("Clearing 0x{:x} bytes at 0x{:x}", byte_length, addr);
+    trace!("Clearing {:#x} bytes at {:#x}", byte_length, addr);
 
     let start = (addr - TCM_PADDR) / size_of::<u32>();
     let count: usize = byte_length / size_of::<u32>();
@@ -276,19 +295,33 @@ pub fn clear_tcm(addr: usize, byte_length: usize) {
 #[allow(dead_code)]
 pub fn wait_for_clear_to_finish() { while !vc_top::get_init_status().init_done() {} }
 
+#[repr(C)]
+struct SpringbokOutputHeader {
+    return_code: u32,
+    epc: u32,
+    output_length: u32,
+}
+
 /// Returns a copy of the OutputHeader.
 pub fn get_output_header(data_top_addr: usize, sizes: &ImageSizes) -> OutputHeader {
     let addr = data_top_addr + sizes.model_output_offset();
 
     assert!(addr >= TCM_PADDR);
-    assert!(addr + size_of::<OutputHeader>() <= TCM_PADDR + TCM_SIZE);
+    assert!(addr + size_of::<SpringbokOutputHeader>() <= TCM_PADDR + TCM_SIZE);
     assert!(((addr - TCM_PADDR) % size_of::<u32>()) == 0);
 
-    unsafe {
+    let springbok_header = unsafe {
         get_tcm()
             .as_ptr()
             .add(addr - TCM_PADDR)
-            .cast::<OutputHeader>()
+            .cast::<SpringbokOutputHeader>()
             .read()
+    };
+    OutputHeader {
+        return_code: springbok_header.return_code,
+        // Any output data are directly following the header.
+        output_ptr: Some((addr + size_of::<SpringbokOutputHeader>()) as u32),
+        output_length: springbok_header.output_length,
+        epc: Some(springbok_header.epc),
     }
 }

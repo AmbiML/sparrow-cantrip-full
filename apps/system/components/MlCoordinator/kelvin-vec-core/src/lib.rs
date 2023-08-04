@@ -22,8 +22,10 @@ mod ml_top;
 
 use cantrip_io::Read;
 use cantrip_ml_interface::MlCoordError;
+use cantrip_ml_interface::MAX_OUTPUT_DATA;
 use cantrip_ml_shared::*;
 use cantrip_proc_interface::BundleImage;
+use core::cmp;
 use core::mem::size_of;
 use log::{error, info, trace};
 
@@ -196,6 +198,23 @@ pub fn tcm_move(src: usize, dest: usize, byte_length: usize) {
     tcm_slice.copy_within(src_index..src_index + count, dest_index);
 }
 
+/// Copy |src..src + src_len| to |dest|.
+/// If |src| is out of range the copy is not done.
+/// if |src_len| extends past the end of TCM or |dest| is
+/// too small the copy is truncated to fit.
+pub fn tcm_read(src: usize, src_len: usize, dest: &mut [u8; MAX_OUTPUT_DATA]) {
+    trace!("READ {} bytes from {:#x}", src_len, src);
+
+    if !(TCM_PADDR <= src && src < TCM_PADDR + TCM_SIZE) {
+        trace!("READ skipped: invalid src address {:#x}", src);
+        return;
+    }
+    let tcm_offset = src - TCM_PADDR;
+    let count = cmp::min(cmp::min(src_len, TCM_SIZE - tcm_offset), dest.len());
+
+    dest[..count].copy_from_slice(unsafe { &get_tcm_mut()[tcm_offset..tcm_offset + count] });
+}
+
 // Interrupts are write 1 to clear.
 pub fn clear_host_req() { ml_top::set_intr_state(ml_top::get_intr_state().with_host_req(true)); }
 
@@ -223,19 +242,33 @@ pub fn clear_tcm(addr: usize, byte_length: usize) {
     tcm_slice[start..start + count].fill(0);
 }
 
+#[repr(C)]
+struct KelvinOutputHeader {
+    return_code: u32,
+    output_ptr: u32,
+    output_length: u32,
+}
+
 /// Returns a copy of the OutputHeader.
 pub fn get_output_header(_data_top_addr: usize, _sizes: &ImageSizes) -> OutputHeader {
-    // TODO(sleffler): wrong, output header has a different format and data
-    //   are not at a fixed location
+    // The OutputHeader is at a fixed location set in the linker script.
+    // The output_ptr field points to indirect data if output_length > 0.
     let addr = TCM_PADDR + (TCM_SIZE - 64);
     trace!("GET OUTPUT at {:#x}", addr);
     assert!(((addr - TCM_PADDR) % size_of::<u32>()) == 0);
 
-    unsafe {
+    let kelvin_header = unsafe {
         get_tcm()
             .as_ptr()
             .add(addr - TCM_PADDR)
-            .cast::<OutputHeader>()
+            .cast::<KelvinOutputHeader>()
             .read()
+    };
+    OutputHeader {
+        return_code: kelvin_header.return_code,
+        // NB: output_ptr is a TCM offset, adjust for use with tcm_read
+        output_ptr: Some((TCM_PADDR as u32) + kelvin_header.output_ptr),
+        output_length: kelvin_header.output_length,
+        epc: None,
     }
 }
