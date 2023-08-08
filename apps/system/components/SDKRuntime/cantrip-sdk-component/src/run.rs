@@ -351,6 +351,9 @@ impl SdkRuntimeControlThread {
             SDKRuntimeRequest::PollForModels => {
                 Self::model_poll_request(app_id, request_slice, reply_slice)
             }
+            SDKRuntimeRequest::GetModelOutput => {
+                Self::model_output_request(app_id, request_slice, reply_slice)
+            }
         }
     }
 
@@ -516,6 +519,29 @@ impl SdkRuntimeControlThread {
         let mask = cantrip_sdk().model_poll(app_id)?;
         let _ = postcard::to_slice(&sdk_interface::ModelWaitResponse { mask }, reply_slice)
             .map_err(serialize_failure)?;
+        Ok(())
+    }
+
+    fn model_output_request(
+        app_id: SDKAppId,
+        request_slice: &[u8],
+        reply_slice: &mut [u8],
+    ) -> Result<(), SDKError> {
+        let request = postcard::from_bytes::<sdk_interface::ModelOutputRequest>(request_slice)
+            .map_err(deserialize_failure)?;
+        let mloutput = cantrip_sdk().model_output(app_id, request.id)?;
+        let _ = postcard::to_slice(
+            &sdk_interface::ModelOutputResponse {
+                output: sdk_interface::ModelOutput {
+                    jobnum: mloutput.jobnum,
+                    return_code: mloutput.return_code,
+                    epc: mloutput.epc,
+                    data: mloutput.data,
+                },
+            },
+            reply_slice,
+        )
+        .map_err(serialize_failure)?;
         Ok(())
     }
 }

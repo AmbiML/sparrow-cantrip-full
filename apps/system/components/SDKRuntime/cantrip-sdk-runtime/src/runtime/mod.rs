@@ -37,6 +37,7 @@ cfg_if! {
         use cantrip_ml_interface::cantrip_mlcoord_periodic;
         use cantrip_ml_interface::cantrip_mlcoord_poll;
         use cantrip_ml_interface::cantrip_mlcoord_wait;
+        use cantrip_ml_interface::cantrip_mlcoord_get_output;
         use cantrip_ml_interface::MlCoordError;
     }
 }
@@ -55,6 +56,7 @@ use sdk_interface::error::SDKError;
 use sdk_interface::KeyValueData;
 use sdk_interface::ModelId;
 use sdk_interface::ModelMask;
+use sdk_interface::ModelOutput;
 use sdk_interface::SDKAppId;
 use sdk_interface::SDKRuntimeInterface;
 use sdk_interface::TimerDuration;
@@ -635,6 +637,31 @@ impl SDKRuntimeInterface for SDKRuntime {
         #[cfg(not(feature = "ml_support"))]
         Err(SDKError::NoPlatformSupport)
     }
+
+    fn model_output(&mut self, app_id: SDKAppId, id: ModelId) -> Result<ModelOutput, SDKError> {
+        trace!("model_output {}", id);
+        let app = self.get_mut_app(app_id)?;
+        if id != MODEL_ID {
+            return Err(SDKError::NoSuchModel);
+        }
+        if app.model_state == ModelState::None {
+            return Err(SDKError::NoSuchModel);
+        }
+        #[cfg(feature = "ml_support")]
+        {
+            cantrip_mlcoord_get_output(&app.app_id, app.model_state.get_name().unwrap())
+                .map_err(map_ml_err)
+                .map(|output| ModelOutput {
+                    jobnum: output.jobnum,
+                    return_code: output.return_code,
+                    epc: output.epc,
+                    data: output.data,
+                })
+        }
+
+        #[cfg(not(feature = "ml_support"))]
+        Err(SDKError::NoPlatformSupport)
+    }
 }
 
 #[cfg(feature = "timer_support")]
@@ -656,6 +683,7 @@ fn map_ml_err(err: MlCoordError) -> SDKError {
         MlCoordError::InvalidTimer => SDKError::InvalidTimer,
         MlCoordError::LoadModelFailed => SDKError::LoadModelFailed,
         MlCoordError::NoModelSlotsLeft => SDKError::OutOfResources,
+        MlCoordError::NoOutputHeader => SDKError::NoModelOutput,
         MlCoordError::SerializeError => SDKError::SerializeFailed,
         MlCoordError::DeserializeError => SDKError::DeserializeFailed,
         MlCoordError::UnknownError => unreachable!(),

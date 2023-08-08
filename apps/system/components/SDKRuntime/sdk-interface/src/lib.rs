@@ -62,6 +62,9 @@ pub type SDKAppId = usize;
 pub const KEY_VALUE_DATA_SIZE: usize = 100;
 pub type KeyValueData = [u8; KEY_VALUE_DATA_SIZE];
 
+// TOOD(sleffler): dup's mlcoordinator but we don't want a dependency
+pub const MAX_OUTPUT_DATA: usize = 64;
+
 /// Core api's
 
 /// SDKRuntimeRequest::Ping
@@ -132,6 +135,20 @@ pub type ModelId = u32;
 pub type ModelMask = u32;
 // TODO(sleffler): could alias TimerDuration
 
+// NB: serde helper for arrays w/ >32 elements
+//   c.f. https://github.com/serde-rs/serde/pull/1860
+use serde_big_array::big_array;
+big_array! { BigArray; }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ModelOutput {
+    pub jobnum: usize,
+    pub return_code: u32,
+    pub epc: Option<u32>,
+    #[serde(with = "BigArray")]
+    pub data: [u8; MAX_OUTPUT_DATA],
+}
+
 /// SDKRuntimeRequest::OneshotModel
 #[derive(Serialize, Deserialize)]
 pub struct ModelOneshotRequest<'a> {
@@ -164,6 +181,16 @@ pub struct ModelWaitResponse {
     pub mask: ModelMask,
 }
 
+/// SDKRuntimeRequest::GetModelOutput
+#[derive(Serialize, Deserialize)]
+pub struct ModelOutputRequest {
+    pub id: ModelId,
+}
+#[derive(Serialize, Deserialize)]
+pub struct ModelOutputResponse {
+    pub output: ModelOutput,
+}
+
 /// SDKRequest token sent over the seL4 IPC interface. We need repr(seL4_Word)
 /// but cannot use that so use the implied usize type instead.
 ///
@@ -186,11 +213,12 @@ pub enum SDKRuntimeRequest {
     WaitForTimers, // Wait for timers to expire: [] -> TimerMask
     PollForTimers, // Poll for timers to expire: [] -> TimerMask
 
-    OneshotModel,  // One-shot model executtion: [model_id: &str] -> id: ModelId
-    PeriodicModel, // Periodic model executtion: [model_id: &str, duration_ms: TimerDuration] -> ModelId
+    OneshotModel,   // One-shot model execution: [model_id: &str] -> id: ModelId
+    PeriodicModel, // Periodic model execution: [model_id: &str, duration_ms: TimerDuration] -> ModelId
     CancelModel,   // Cancel running model: [id: ModelId]
     WaitForModel,  // Wait for any running model to complete: [] -> ModelMask
     PollForModels, // Poll for running models to complete: [] -> ModelMask
+    GetModelOutput, // Return output data from most recent run: [id: ModelId, clear: bool] -> ModelOutput
 }
 
 /// Rust interface for the SDKRuntime.
@@ -257,6 +285,8 @@ pub trait SDKRuntimeInterface {
     fn model_wait(&mut self, app_id: SDKAppId) -> Result<ModelMask, SDKError>;
     /// Poll for any running timer that have completed.
     fn model_poll(&mut self, app_id: SDKAppId) -> Result<ModelMask, SDKError>;
+    /// Retrieve the output from the last run of model |id|.
+    fn model_output(&mut self, app_id: SDKAppId, id: ModelId) -> Result<ModelOutput, SDKError>;
 }
 
 /// Rust client-side request processing. Note there is no CAmkES stub to
@@ -457,4 +487,14 @@ pub fn sdk_model_poll() -> Result<ModelMask, SDKRuntimeError> {
         &ModelWaitRequest {},
     )?;
     Ok(response.mask)
+}
+
+/// Rust client-side wrapper for the model_output method.
+#[inline]
+pub fn sdk_model_output(id: ModelId) -> Result<ModelOutput, SDKRuntimeError> {
+    let response = sdk_request::<ModelOutputRequest, ModelOutputResponse>(
+        SDKRuntimeRequest::GetModelOutput,
+        &ModelOutputRequest { id },
+    )?;
+    Ok(response.output)
 }

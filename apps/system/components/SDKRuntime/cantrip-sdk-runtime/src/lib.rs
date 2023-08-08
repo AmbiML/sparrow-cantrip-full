@@ -23,6 +23,7 @@ use sdk_interface::error::SDKError;
 use sdk_interface::KeyValueData;
 use sdk_interface::ModelId;
 use sdk_interface::ModelMask;
+use sdk_interface::ModelOutput;
 use sdk_interface::SDKAppId;
 use sdk_interface::SDKRuntimeInterface;
 use sdk_interface::TimerDuration;
@@ -156,5 +157,8 @@ impl SDKRuntimeInterface for Guard<'_> {
     }
     fn model_poll(&mut self, app_id: SDKAppId) -> Result<ModelMask, SDKError> {
         self.runtime.as_mut().unwrap().model_poll(app_id)
+    }
+    fn model_output(&mut self, app_id: SDKAppId, id: ModelId) -> Result<ModelOutput, SDKError> {
+        self.runtime.as_mut().unwrap().model_output(app_id, id)
     }
 }

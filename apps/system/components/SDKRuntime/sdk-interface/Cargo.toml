@@ -22,3 +22,4 @@ num_enum = { version = ">=0.6.1", default-features = false }
 postcard = { version = "0.7", features = ["alloc"], default-features = false }
 sel4-sys = { path = "../../cantrip-os-common/src/sel4-sys", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
+serde-big-array = "0.3"

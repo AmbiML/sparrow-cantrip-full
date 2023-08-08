@@ -35,6 +35,7 @@ pub enum SDKError {
     InvalidTimer,
     LoadModelFailed,
     OutOfResources,
+    NoModelOutput,
 }
 
 impl From<postcard::Error> for SDKError {
@@ -64,6 +65,7 @@ pub enum SDKRuntimeError {
     SDKInvalidTimer,
     SDKLoadModelFailed,
     SDKOutOfResources,
+    SDKNoModelOutput,
 }
 
 /// Mapping function from Rust -> C.
@@ -87,6 +89,7 @@ impl From<SDKError> for SDKRuntimeError {
             SDKError::InvalidTimer => SDKRuntimeError::SDKInvalidTimer,
             SDKError::LoadModelFailed => SDKRuntimeError::SDKLoadModelFailed,
             SDKError::OutOfResources => SDKRuntimeError::SDKOutOfResources,
+            SDKError::NoModelOutput => SDKRuntimeError::SDKNoModelOutput,
         }
     }
 }
@@ -120,6 +123,7 @@ impl From<SDKRuntimeError> for Result<(), SDKError> {
             SDKRuntimeError::SDKInvalidTimer => Err(SDKError::InvalidTimer),
             SDKRuntimeError::SDKLoadModelFailed => Err(SDKError::LoadModelFailed),
             SDKRuntimeError::SDKOutOfResources => Err(SDKError::OutOfResources),
+            SDKRuntimeError::SDKNoModelOutput => Err(SDKError::NoModelOutput),
         }
     }
 }
