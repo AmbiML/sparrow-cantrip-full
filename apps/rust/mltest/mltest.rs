@@ -37,7 +37,11 @@ pub fn main() {
         Ok(id) => {
             info!("{} started, id {}", model, id);
             match sdk_model_wait() {
-                Ok(_) => info!("{} completed", model),
+                Ok(_) => {
+                    info!("{} completed", model);
+                    let output = sdk_model_output(id);
+                    info!("{:?}", &output);
+                }
                 Err(e) => error!("sdk_model_wait failed: {:?}", e),
             }
             true
@@ -58,6 +62,8 @@ pub fn main() {
                     ms += DURATION;
                 }
                 info!("Model completed: mask {:#06b} ms {}", mask, ms);
+                let output = sdk_model_output(id);
+                info!("{:?}", &output);
             }
             if let Err(e) = sdk_model_cancel(id) {
                 error!("sdk_tmodel_cancel failed: {:?}", e);
