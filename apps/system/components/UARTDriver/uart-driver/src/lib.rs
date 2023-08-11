@@ -25,7 +25,6 @@ use uart::*;
 use cantrip_os_common::camkes;
 use cantrip_os_common::logger;
 use cantrip_os_common::sel4_sys;
-use core::cmp;
 use spin::Mutex;
 use uart_interface::*;
 
@@ -126,29 +125,27 @@ struct RxWatermarkInterfaceThread;
 impl RxWatermarkInterfaceThread {
     fn handler() -> bool {
         let mut buf = RX_BUFFER.lock();
-        while !rx_is_empty() {
-            let available_data = buf.available_data() as u32;
-            if available_data == 0 {
+        while rx_fifo_level() > 0 {
+            if buf.available_data() == 0 {
                 // The buffer is full.
                 //
                 // We want to stay in this invocation of the interrupt handler until
                 // the RX FIFO is empty, since the rx_watermark interrupt will not
                 // fire again until the RX FIFO level crosses from 0 to 1. Therefore
-                // we unblock any pending reads and wait for enough reads to consume
-                // all of RX_BUFFER.
+                // we unblock any pending reads and wait for RX_BUFFER to drain.
                 RX_NONEMPTY.post();
                 drop(buf);
                 RX_EMPTY.wait();
                 buf = RX_BUFFER.lock();
                 continue;
             }
-            let to_read = cmp::min(rx_fifo_level(), available_data);
-            for _ in 0..to_read {
+            while rx_fifo_level() > 0 && buf.available_data() > 0 {
                 let _ = buf.push(uart_getchar());
             }
         }
+        // NB: RX_BUFFER must be unlocked before posting RX_NONEMPTY (see read_request)
+        drop(buf);
         RX_NONEMPTY.post();
-        drop(buf); // XXX drop on block exit?
 
         set_intr_state(IntrState::new().with_rx_watermark(true));
         true
@@ -259,6 +256,12 @@ impl ReadInterfaceThread {
             }
             num_read += 1;
         }
+        let is_empty = buf.is_empty();
+        drop(buf);
+        if is_empty {
+            RX_EMPTY.post();
+        }
+
         // TODO: Return error code if num_read == 0.
         let reply_slice = postcard::to_slice(&ReadResponse { num_read }, reply_buffer)
             .or(Err(UartDriverError::SerializeFailed))?;
@@ -347,12 +350,6 @@ fn fill_tx_fifo() {
     }
     // drop(buf) (happens on block exit)
 }
-
-/// Gets whether the receive FIFO empty status bit is set.
-///
-/// Prefer this to FIFO_STATUS.RXLVL, which the simulation has sometimes
-/// reported as zero even when "not STATUS.RXEMPTY."
-fn rx_is_empty() -> bool { get_status().rxempty() }
 
 /// Gets the number of unread bytes in the RX FIFO from hardware MMIO.
 fn rx_fifo_level() -> u32 { get_fifo_status().rxlvl().into() }
