@@ -1,1 +1,272 @@
-../shodan/system.camkes
+// Copyright 2022 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "platform.camkes"
+
+import <std_connector.camkes>;
+
+import <UARTDriver/UARTDriver.camkes>;
+import <DebugConsole/DebugConsole.camkes>;
+import <ProcessManager/ProcessManager.camkes>;
+import <MemoryManager/MemoryManager.camkes>;
+import <MlCoordinator/MlCoordinator.camkes>;
+import <SecurityCoordinator/SecurityCoordinator.camkes>;
+import <TimerService/TimerService.camkes>;
+import <MailboxDriver/MailboxDriver.camkes>;
+import <SDKRuntime/SDKRuntime.camkes>;
+
+component OpenTitanUART {
+    hardware;
+    dataport Buf mmio_region;
+
+    emits Interrupt tx_watermark;
+    emits Interrupt rx_watermark;
+    emits Interrupt tx_empty;
+}
+
+component OpenTitanTimer {
+    hardware;
+    dataport Buf csr;
+
+    emits Interrupt timer_interrupt;
+}
+
+component VectorCoreHw {
+    hardware;
+    dataport Buf CSR;
+    dataport Buf(TOP_MATCHA_ML_TOP_DMEM_SIZE_BYTES) TCM;
+
+    emits Interrupt host_req;
+    emits Interrupt finish;
+    emits Interrupt instruction_fault;
+    // NB: no data_fault irq on Kelvin
+}
+
+component BuiltinCpioArchive {
+    hardware;
+    dataport Buf(CPIO_SIZE_BYTES) cpio;
+}
+
+component MailboxHardware {
+    hardware;
+    dataport Buf mmio;
+    emits Interrupt wtirq;
+    emits Interrupt rtirq;
+    emits Interrupt eirq;
+}
+
+assembly {
+    composition {
+        component BuiltinCpioArchive cpio;
+
+        // Device hardware & drivers
+        component MailboxDriver mailbox_driver;
+        component MailboxHardware mailbox_hardware;
+        component OpenTitanTimer timer;
+        component OpenTitanUART uart;
+        component UARTDriver uart_driver;
+        component VectorCoreHw vctop;
+
+        // System services
+        component DebugConsole debug_console;
+        component MemoryManager memory_manager;
+        component MlCoordinator ml_coordinator;
+        component ProcessManager process_manager;
+        component SDKRuntime sdk_runtime;
+        component SecurityCoordinator security_coordinator;
+        component TimerService timer_service;
+
+        // Built-in CPIO archive is visible only to the SecurityCoordinator.
+        connection cantripMMIO cpio_archive(
+            from security_coordinator.cpio_archive, to cpio.cpio);
+
+        // MailboxDriver
+        connection cantripMMIO mailbox_driver_mmio(
+            from mailbox_driver.mailbox_mmio, to mailbox_hardware.mmio);
+        connection cantripIRQ mailbox_driver_irq(
+            from mailbox_hardware.wtirq,
+            from mailbox_hardware.eirq,
+            to mailbox_driver.irq);
+        // NB: rtirq needs a dedicated thread for now
+        connection cantripIRQ mailbox_driver_rtirq(
+            from mailbox_hardware.rtirq, to mailbox_driver.rtirq);
+        connection cantripRPCCall security_coordinator_to_mailbox_api(
+            from security_coordinator.api, to mailbox_driver.api);
+
+        // OpenTitanUARTDriver
+        connection cantripMMIO uart_mem(
+            from uart_driver.mmio_region, to uart.mmio_region);
+        connection cantripIRQ uart_rx_watermark(
+            from uart.rx_watermark,
+            to uart_driver.rx_watermark);
+        connection cantripIRQ uart_irq(
+            from uart.tx_watermark,
+            from uart.tx_empty,
+            to uart_driver.irq);
+
+        // VectorCoreDriver
+        connection cantripMMIO vc_csr(
+            from ml_coordinator.CSR, to vctop.CSR);
+        connection cantripIRQ vctop_irq(
+            from vctop.host_req,
+            from vctop.finish,
+            from vctop.instruction_fault,
+            to ml_coordinator.irq);
+        connection cantripMMIO vc_tcm(
+            from ml_coordinator.TCM, to vctop.TCM);
+
+
+        // TimerService
+        connection cantripMMIO timer_csr(
+            from timer_service.csr, to timer.csr);
+        connection cantripIRQ timer_interrupt(
+            from timer.timer_interrupt, to timer_service.timer_interrupt);
+        connection cantripRPCCallSignal timer_rpc(from debug_console.timer,
+                                               from ml_coordinator.timer,
+                                               from sdk_runtime.timer,
+                                               to timer_service.timer);
+
+        // Hookup ProcessManager to DebugConsole for shell commands.
+        connection cantripRPCCall shell_process(from debug_console.proc_ctrl,
+                                             to process_manager.proc_ctrl);
+        connection cantripRPCCallSignal shell_ml(from debug_console.mlcoord,
+                                        from sdk_runtime.mlcoord, // XXX split out?
+                                        to ml_coordinator.mlcoord);
+
+        // ProcessMaanager talks to the SDKManager (the privileged part of
+        // the SDKRuntime) to plumb a badged connection between applications
+        // and the SDKRuntime.
+        connection cantripRPCCall multi_sdk_manager(
+            from process_manager.sdk_manager,
+            from debug_console.sdk_manager,  // NB: for capscan support
+            to sdk_runtime.sdk_manager);
+
+        // Note this allocates a 4KB shared memory region for pkg install
+        // to pass an ObjDescArray
+        connection cantripRPCOverMultiSharedData shell_package(
+            from debug_console.pkg_mgmt,
+            to process_manager.pkg_mgmt);
+
+        // Connect the MemoryInterface to each component that needs to allocate
+        // global memory. Note this allocates a 4KB shared memory region to each
+        // component and copies data between components.
+        connection cantripRPCOverMultiSharedData multi_memory(
+            from debug_console.memory,
+            from process_manager.memory,
+            from security_coordinator.memory,
+            from sdk_runtime.memory,
+            from ml_coordinator.memory,
+            to memory_manager.memory);
+
+        // Connect the SecurityCoordinatorInterface to each component that needs
+        // access to the Security Core. Note this allocates a 4KB shared memory
+        // region to each component and copies data between components.
+        connection cantripRPCOverMultiSharedData multi_security(
+            from debug_console.security,   // NB: for debug/test
+            from process_manager.security,
+            from ml_coordinator.security,  // NB: for LoadModel
+            from sdk_runtime.security,     // NB: for key-value store
+            to security_coordinator.security);
+
+        // Connect the DebugConsole to the OpenTitanUARTDriver.
+        connection cantripSharedData tx_channel(
+            from debug_console.tx_dataport, to uart_driver.tx_dataport);
+        connection cantripRPCCall write_call(
+            from debug_console.uart_write, to uart_driver.write);
+        connection cantripSharedData rx_channel(
+            from debug_console.rx_dataport, to uart_driver.rx_dataport);
+        connection cantripRPCCall read_call(
+            from debug_console.uart_read, to uart_driver.read);
+
+        // Connect the LoggerInterface to each component that needs to log
+        // to the console. Note this allocates a 4KB shared memory region to
+        // each component and copies data between components.
+        connection cantripRPCOverMultiSharedData multi_logger(
+            from process_manager.logger,
+            from ml_coordinator.logger,
+            from memory_manager.logger,
+            from security_coordinator.logger,
+            from timer_service.logger,
+            from mailbox_driver.logger,
+            from sdk_runtime.logger,
+            from uart_driver.logger,
+            to debug_console.logger);
+    }
+
+    configuration {
+        // The cpio archive is mapped into the FLASH region for now. This
+        // models what will happen when the Security Core owns the contents
+        // (likely with a different filesystem format).
+        // TODO(sleffler): SC eFLASH is @0x20000000 and not visible in SMC
+        //    address space so does it matter where we place this?
+        cpio.cpio_paddr = CPIO_BASE_ADDR;
+        cpio.cpio_size = CPIO_SIZE_BYTES;
+
+        mailbox_hardware.mmio_paddr = TOP_MATCHA_TLUL_MAILBOX_SMC_BASE_ADDR;
+        mailbox_hardware.mmio_size = TOP_MATCHA_TLUL_MAILBOX_SMC_SIZE_BYTES;
+        mailbox_hardware.wtirq_irq_number = TOP_MATCHA_PLIC_IRQ_ID_TLUL_MAILBOX_SMC_WTIRQ;
+        mailbox_hardware.rtirq_irq_number = TOP_MATCHA_PLIC_IRQ_ID_TLUL_MAILBOX_SMC_RTIRQ;
+        mailbox_hardware.eirq_irq_number = TOP_MATCHA_PLIC_IRQ_ID_TLUL_MAILBOX_SMC_EIRQ;
+
+        mailbox_driver.rx_semaphore_value = 0;
+
+        uart.mmio_region_paddr = TOP_MATCHA_SMC_UART_BASE_ADDR;
+        uart.mmio_region_size = TOP_MATCHA_SMC_UART_SIZE_BYTES;
+        uart.tx_watermark_irq_number = TOP_MATCHA_PLIC_IRQ_ID_SMC_UART_TX_WATERMARK;
+        uart.rx_watermark_irq_number = TOP_MATCHA_PLIC_IRQ_ID_SMC_UART_RX_WATERMARK;
+        uart.tx_empty_irq_number = TOP_MATCHA_PLIC_IRQ_ID_SMC_UART_TX_EMPTY;
+
+        vctop.CSR_paddr = TOP_MATCHA_ML_TOP_CORE_BASE_ADDR;
+        vctop.CSR_size = TOP_MATCHA_ML_TOP_CORE_SIZE_BYTES;
+        vctop.TCM_paddr = TOP_MATCHA_ML_TOP_DMEM_BASE_ADDR;
+        vctop.TCM_size = TOP_MATCHA_ML_TOP_DMEM_SIZE_BYTES;
+
+        vctop.host_req_irq_number = TOP_MATCHA_PLIC_IRQ_ID_ML_TOP_HOST_REQ;
+        vctop.finish_irq_number = TOP_MATCHA_PLIC_IRQ_ID_ML_TOP_FINISH;
+        vctop.instruction_fault_irq_number = TOP_MATCHA_PLIC_IRQ_ID_ML_TOP_FAULT;
+
+        timer.csr_paddr = TOP_MATCHA_RV_TIMER_SMC2_BASE_ADDR;
+        timer.csr_size = TOP_MATCHA_RV_TIMER_SMC2_SIZE_BYTES;
+        timer.timer_interrupt_irq_number = TOP_MATCHA_PLIC_IRQ_ID_RV_TIMER_SMC2_TIMER_EXPIRED_HART0_TIMER0;
+
+        random.ID = 1;
+
+        uart.integrity_label = "opentitan_uart_driver";
+
+        // Super-size stacks we know need it. Otherwise we assume the
+        // default stack size is 4KB which is sufficient for most threads.
+        // Note in particular that most control threads don't even have
+        // a run method so only need enough stack to run pre_init (which
+        // typically just sets up the heap, slot allocator, and logger.
+        //
+        // NB: these sizes derived from running all known applications
+        //   one at a time (start; stop; start; stop; ...)
+        memory_manager._stack_size = 16*1024; // NB: for debug build
+        memory_manager.memory_stack_size = 16*1024;
+        process_manager.proc_ctrl_stack_size = 16*1024;
+        // NB: the pkg_mgmt thread is only used with dynamic_load_support
+        //  which is off by default
+        process_manager.pkg_mgmt_stack_size = 16*1024;
+        ml_coordinator._stack_size = 12*1024; // NB: for debug build
+        ml_coordinator.mlcoord_stack_size = 16*1024;
+        ml_coordinator.timer_stack_size = 8*1024; // NB: for debug build
+        debug_console._stack_size = 16*1024;
+        security_coordinator.security_stack_size = 16*1024;
+
+        sdk_runtime._stack_size = 16*1024;
+        sdk_runtime.sdk_manager_stack_size = 16*1024;
+
+        mailbox_driver.rtirq_stack_size = 8*1024; // NB: for debug build
+    }
+}

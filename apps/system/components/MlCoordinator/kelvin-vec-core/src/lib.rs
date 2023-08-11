@@ -63,8 +63,7 @@ pub fn enable_interrupts(enable: bool) {
     let intr_enable = ml_top::IntrEnable::new()
         .with_host_req(enable)
         .with_finish(enable)
-        .with_instruction_fault(enable)
-        .with_data_fault(enable);
+        .with_instruction_fault(enable);
     ml_top::set_intr_enable(intr_enable);
 }
 
@@ -222,10 +221,6 @@ pub fn clear_finish() { ml_top::set_intr_state(ml_top::get_intr_state().with_fin
 
 pub fn clear_instruction_fault() {
     ml_top::set_intr_state(ml_top::get_intr_state().with_instruction_fault(true));
-}
-
-pub fn clear_data_fault() {
-    ml_top::set_intr_state(ml_top::get_intr_state().with_data_fault(true));
 }
 
 /// Zeroes out |byte_length| bytes starting at |addr|.

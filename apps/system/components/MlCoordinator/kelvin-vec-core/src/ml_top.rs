@@ -37,9 +37,8 @@ pub struct IntrState {
     pub host_req: bool,
     pub finish: bool,
     pub instruction_fault: bool,
-    pub data_fault: bool,
     #[skip]
-    _unused: B28,
+    _unused: B29,
 }
 pub fn get_intr_state() -> IntrState {
     unsafe {
@@ -62,9 +61,8 @@ pub struct IntrEnable {
     pub host_req: bool,
     pub finish: bool,
     pub instruction_fault: bool,
-    pub data_fault: bool,
     #[skip]
-    _unused: B28,
+    _unused: B29,
 }
 pub fn get_intr_enable() -> IntrEnable {
     unsafe {
@@ -87,9 +85,8 @@ pub struct IntrTest {
     pub host_req: bool,
     pub finish: bool,
     pub instruction_fault: bool,
-    pub data_fault: bool,
     #[skip]
-    _unused: B28,
+    _unused: B29,
 }
 pub fn get_intr_test() -> IntrTest {
     unsafe {
@@ -264,10 +261,6 @@ mod ml_tests {
             u32::from_ne_bytes(IntrState::new().with_finish(true).into_bytes()),
             bit(ML_TOP_INTR_STATE_FINISH_BIT)
         );
-        assert_eq!(
-            u32::from_ne_bytes(IntrState::new().with_data_fault(true).into_bytes()),
-            bit(ML_TOP_INTR_STATE_DATA_FAULT_BIT)
-        );
     }
     #[test]
     fn intr_enable() {
@@ -279,10 +272,6 @@ mod ml_tests {
             u32::from_ne_bytes(IntrEnable::new().with_finish(true).into_bytes()),
             bit(ML_TOP_INTR_ENABLE_FINISH_BIT)
         );
-        assert_eq!(
-            u32::from_ne_bytes(IntrEnable::new().with_data_fault(true).into_bytes()),
-            bit(ML_TOP_INTR_ENABLE_DATA_FAULT_BIT)
-        );
     }
     #[test]
     fn intr_test() {
@@ -293,10 +282,6 @@ mod ml_tests {
         assert_eq!(
             u32::from_ne_bytes(IntrTest::new().with_finish(true).into_bytes()),
             bit(ML_TOP_INTR_TEST_FINISH_BIT)
-        );
-        assert_eq!(
-            u32::from_ne_bytes(IntrTest::new().with_data_fault(true).into_bytes()),
-            bit(ML_TOP_INTR_TEST_DATA_FAULT_BIT)
         );
     }
     #[test]

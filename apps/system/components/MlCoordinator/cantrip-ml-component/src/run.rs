@@ -56,6 +56,7 @@ impl CamkesThreadInterface for MlCoordinatorControlThread {
         }
     }
     fn run() {
+        #[cfg(feature = "CONFIG_PLAT_SPARROW")]
         shared_irq_loop!(
             irq,
             host_req => || {
@@ -72,6 +73,22 @@ impl CamkesThreadInterface for MlCoordinatorControlThread {
             },
             data_fault => || {
                 ML_COORD.lock().handle_data_fault_interrupt();
+                true
+            }
+        );
+        #[cfg(feature = "CONFIG_PLAT_NEXUS")]
+        shared_irq_loop!(
+            irq,
+            host_req => || {
+                ML_COORD.lock().handle_host_req_interrupt();
+                true
+            },
+            finish => || {
+                ML_COORD.lock().handle_return_interrupt();
+                true
+            },
+            instruction_fault => || {
+                ML_COORD.lock().handle_instruction_fault_interrupt();
                 true
             }
         );

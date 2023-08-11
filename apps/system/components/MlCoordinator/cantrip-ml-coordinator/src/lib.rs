@@ -466,6 +466,7 @@ impl MLCoordinator {
         error!("Vector Core instruction fault.");
     }
 
+    #[cfg(feature = "CONFIG_PLAT_SPARROW")]
     pub fn handle_data_fault_interrupt(&self) {
         MlCore::clear_data_fault();
         error!("Vector Core data fault.");
