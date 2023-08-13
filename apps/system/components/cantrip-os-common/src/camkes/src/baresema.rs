@@ -31,7 +31,7 @@ macro_rules! static_bare_sema {
     ($sem_tag:ident, $sem_name:expr) => {
         crate::paste! {
             static [<$sem_tag:upper>]: seL4_BareSema =
-                seL4_BareSema::new($sem_name, [<$sem_tag:upper _ENDPOINT>]);
+                seL4_BareSema::new($sem_name, [<$sem_tag:upper _ENDPOINT>], 0);
         }
     };
 }
@@ -43,11 +43,11 @@ pub struct seL4_BareSema {
     count: AtomicIsize,
 }
 impl seL4_BareSema {
-    pub const fn new(name: &'static str, endpoint: seL4_CPtr) -> Self {
+    pub const fn new(name: &'static str, endpoint: seL4_CPtr, value: isize) -> Self {
         Self {
             name,
             endpoint,
-            count: AtomicIsize::new(0),
+            count: AtomicIsize::new(value),
         }
     }
     pub fn name(&self) -> &str { self.name }
