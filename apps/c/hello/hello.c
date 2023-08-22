@@ -14,8 +14,8 @@
 int main() {
   debug_printf("\nI am a C app!\n");
 
-  debug_printf("Done, sleeping in WFI loop\n");
+  debug_printf("Done, sleeping in infinite loop\n");
   while (1) {
-    asm("wfi");  // TODO(sleffler): not portable but works for aarch64 & riscv
+    seL4_Yield();
   }
 }
