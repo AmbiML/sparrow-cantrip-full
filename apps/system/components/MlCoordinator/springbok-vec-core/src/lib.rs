@@ -266,6 +266,7 @@ pub fn clear_instruction_fault() {
 pub fn clear_data_fault() {
     vc_top::set_intr_state(vc_top::get_intr_state().with_data_fault(true));
 }
+pub fn reset() {}
 
 // TODO(jesionowski): Use when TCM_SIZE fits into INIT_END.
 #[allow(dead_code)]

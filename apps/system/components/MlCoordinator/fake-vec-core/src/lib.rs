@@ -57,6 +57,8 @@ pub fn clear_instruction_fault() {}
 
 pub fn clear_data_fault() {}
 
+pub fn reset() {}
+
 pub fn clear_tcm(_addr: usize, _len: usize) {}
 
 pub fn wait_for_clear_to_finish() {}

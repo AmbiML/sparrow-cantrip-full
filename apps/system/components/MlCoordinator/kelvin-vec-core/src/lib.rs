@@ -223,6 +223,8 @@ pub fn clear_instruction_fault() {
     ml_top::set_intr_state(ml_top::get_intr_state().with_instruction_fault(true));
 }
 
+pub fn reset() { ml_top::set_ctrl(ml_top::Ctrl::new().with_ml_reset(true)); }
+
 /// Zeroes out |byte_length| bytes starting at |addr|.
 pub fn clear_tcm(addr: usize, byte_length: usize) {
     trace!("CLEAR TCM {:#x} to {:#x}", addr, addr + byte_length);

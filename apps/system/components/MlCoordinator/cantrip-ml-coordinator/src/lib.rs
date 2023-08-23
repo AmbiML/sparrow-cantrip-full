@@ -245,6 +245,9 @@ impl MLCoordinator {
         if let Err(e) = self.schedule_next_model() {
             error!("Running next model failed with {:?}", e)
         }
+        // Put the core in reset.
+        // On Kelvin, this will have the effect of clearing the interrupt.
+        MlCore::reset();
         // Clear/ack interrupt.
         MlCore::clear_finish();
     }
@@ -459,9 +462,17 @@ impl MLCoordinator {
         })
     }
 
-    pub fn handle_host_req_interrupt(&self) { MlCore::clear_host_req(); }
+    // This interrupt shouldn't occur,
+    // so panic if it does.
+    pub fn handle_host_req_interrupt(&self) {
+        panic!("host_req");
+    }
 
     pub fn handle_instruction_fault_interrupt(&self) {
+        // Put the core in reset.
+        // On Kelvin, this will have the effect of clearing the interrupt.
+        MlCore::reset();
+        // Clear/ack the interrupt.
         MlCore::clear_instruction_fault();
         error!("Vector Core instruction fault.");
     }
