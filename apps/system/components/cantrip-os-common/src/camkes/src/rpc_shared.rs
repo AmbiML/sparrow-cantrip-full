@@ -307,7 +307,8 @@ where
         /*reply=*/ reply,
     );
     loop {
-        // XXX could check info.extraCaps
+        // NB: cap is not attached to the ipcbfuffer (this clear is just
+        // conservative), client must fetch directly from recv_slot.
         Camkes::clear_request_cap();
 
         let (request_slice, reply_slice) = get_recv_buffer(client_badge).split_at_mut(request_size);

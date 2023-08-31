@@ -30,9 +30,12 @@
 use cantrip_os_common::camkes;
 use cantrip_os_common::logger;
 use core::fmt::Write;
-use log::LevelFilter;
 
 use camkes::*;
+
+use log::LevelFilter;
+use log::Metadata;
+use log::Record;
 
 use logger::LoggerError;
 use logger::LoggerRequest;
@@ -62,6 +65,9 @@ impl CamkesThreadInterface for DebugConsoleControlThread {
         unsafe {
             CAMKES.pre_init(&mut HEAP_MEMORY);
         }
+
+        log::set_logger(&LoggerInterfaceThread).unwrap();
+        log::set_max_level(INIT_LOG_LEVEL);
     }
 
     // Entry point for DebugConsole. Optionally runs an autostart script
@@ -78,7 +84,6 @@ impl CamkesThreadInterface for DebugConsoleControlThread {
 /// Console logging interface.
 struct LoggerInterfaceThread;
 impl CamkesThreadInterface for LoggerInterfaceThread {
-    fn init() { log::set_max_level(INIT_LOG_LEVEL); }
     fn run() {
         rpc_shared_recv!(logger, logger::MAX_MSG_LEN, LoggerError::Success);
     }
@@ -107,12 +112,37 @@ impl LoggerInterfaceThread {
             _ => Level::Trace,
         };
         if l <= log::max_level() {
-            // TODO(sleffler): is the uart driver ok w/ multiple writers?
-            let output: &mut dyn io::Write = &mut get_tx();
-            let _ = writeln!(output, "{}", msg);
+            Self::log_msg(msg);
         }
         Ok(())
     }
+    fn log_msg(msg: &str) {
+        // TODO(sleffler): safeguard multiple writers
+        let output: &mut dyn io::Write = &mut get_tx();
+        let _ = writeln!(output, "{}", msg);
+    }
+}
+// Scaffolding for DebugConsole log msgs.
+impl log::Log for LoggerInterfaceThread {
+    fn enabled(&self, metadata: &Metadata) -> bool { metadata.level() <= log::max_level() }
+    fn log(&self, record: &Record) {
+        if self.enabled(record.metadata()) {
+            // NB: stack is too small  for 2K but this should really be in self
+            const MAX_MSG_LEN: usize = 1024;
+            use core2::io::{Cursor, Write};
+            let mut buf = [0u8; MAX_MSG_LEN];
+            let mut cur = Cursor::new(&mut buf[..]);
+            write!(&mut cur, "{}::{}", record.target(), record.args()).unwrap_or_else(|_| {
+                // Too big, indicate overflow with a trailing "...".
+                cur.set_position((MAX_MSG_LEN - 3) as u64);
+                cur.write(b"...").expect("write!");
+            });
+            // NB: this releases the ref on buf held by the Cursor
+            let pos = cur.position() as usize;
+            Self::log_msg(core::str::from_utf8(&buf[..pos]).unwrap());
+        }
+    }
+    fn flush(&self) {}
 }
 
 /// Tx io trait that uses the kernel if console output is

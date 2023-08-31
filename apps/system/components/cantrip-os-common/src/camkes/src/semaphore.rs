@@ -22,6 +22,7 @@ macro_rules! static_semaphore {
     };
     ($sem_tag:ident, $sem_name:expr) => {
         crate::paste! {
+            #[no_mangle]
             pub static [<$sem_tag: upper>]: seL4_Semaphore =
                 seL4_Semaphore::new($sem_name, [<$sem_tag:upper _ENDPOINT>], 1);
         }

@@ -30,6 +30,7 @@ macro_rules! static_bare_sema {
     };
     ($sem_tag:ident, $sem_name:expr) => {
         crate::paste! {
+            #[no_mangle]
             static [<$sem_tag:upper>]: seL4_BareSema =
                 seL4_BareSema::new($sem_name, [<$sem_tag:upper _ENDPOINT>], 0);
         }

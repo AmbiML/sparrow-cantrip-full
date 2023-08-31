@@ -89,6 +89,62 @@ macro_rules! rpc_basic_send {
     };
 }
 
+/// Like send but with an optional capability attached to the message.
+pub unsafe fn send_with_cap(
+    endpoint: seL4_CPtr,
+    request_len: usize,
+    opt_cap: Option<seL4_CPtr>,
+) -> (usize, usize) {
+    const WORD_SIZE: usize = size_of::<seL4_Word>();
+    if let Some(cap) = opt_cap {
+        let _cleanup = Camkes::set_request_cap(cap);
+        let info = seL4_Call(
+            endpoint,
+            seL4_MessageInfo::new(
+                /*label=*/ 0,
+                /*capsUnwrapped=*/ 0,
+                /*extraCaps=*/ 1, // NB: attached capability
+                /*length=*/ (request_len + WORD_SIZE - 1) / WORD_SIZE,
+            ),
+        );
+        (info.get_label(), info.get_length())
+    } else {
+        // XXX still needed?
+        Camkes::clear_request_cap();
+        let info = seL4_Call(
+            endpoint,
+            seL4_MessageInfo::new(
+                /*label=*/ 0,
+                /*capsUnwrapped=*/ 0,
+                /*extraCaps=*/ 0,
+                /*length=*/ (request_len + WORD_SIZE - 1) / WORD_SIZE,
+            ),
+        );
+        (info.get_label(), info.get_length())
+    }
+}
+
+#[macro_export]
+macro_rules! rpc_basic_send_with_cap {
+    ($inf_tag:ident, $request_len:expr, $opt_cap:expr) => {
+        $crate::paste! {
+            rpc_basic_send_with_cap!(@end
+                [<$inf_tag:upper _INTERFACE_ENDPOINT>],
+                $request_len,
+                $opt_cap
+            )
+        }
+    };
+    (@end $inf_endpoint:ident, $request_len:expr, $opt_cap:expr) => {
+        unsafe {
+            extern "C" {
+                static $inf_endpoint: sel4_sys::seL4_CPtr;
+            }
+            crate::camkes::rpc_basic::send_with_cap($inf_endpoint, $request_len, $opt_cap)
+        }
+    };
+}
+
 /// Callback required by the server side implementation of the simple RPC
 /// mechanism. The receiving thread calls |recv_loop| which handles the
 /// transport mechanics and passes each mesage to |Self::dispatch|
@@ -235,7 +291,8 @@ where
         /*reply=*/ reply,
     );
     loop {
-        // XXX could check info.extraCaps
+        // NB: cap is not attached to the ipcbfuffer (this clear is just
+        // conservative), client must fetch directly from recv_slot.
         Camkes::clear_request_cap();
 
         let (request_slice, reply_slice) = get_buffer_mut().split_at_mut(request_size);
@@ -276,7 +333,7 @@ macro_rules! rpc_basic_recv_with_caps {
                 [<$inf_tag:upper _INTERFACE_REPLY>],
                 $inf_recv_slot,
                 $inf_request_size,
-                $inf_success,
+                $inf_success
             );
         }
     };

@@ -45,6 +45,7 @@ cantrip-os-common = { path = "../../cantrip-os-common" }
 cantrip-shell = { path = "../cantrip-shell" }
 cantrip-uart-client = { path = "../cantrip-uart-client", optional = true }
 cfg-if = "1.0"
+core2 = { version = "0.3", default-features = false }
 log = { version = "0.4", features = ["release_max_level_info"] }
 paste = "1.0"
 postcard = { version = "0.7", features = ["alloc"], default-features = false }
